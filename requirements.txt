@@ -23,6 +23,9 @@ requests>=2.32.3,<3.0
 httpx>=0.27,<1.0
 sqlalchemy[asyncio]>=2.0.0,<3.0
 python-multipart>=0.0.9,<1.0
+# Loaded by config/__init__.py — without it STORYFORGE_SECRET_KEY never reaches
+# the process and secrets are stored unencrypted.
+python-dotenv>=1.0,<2.0
 
 # ── Export ──
 fpdf2==2.8.1

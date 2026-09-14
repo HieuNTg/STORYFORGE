@@ -60,12 +60,11 @@ class SensoryPolisher:
                 max_tokens=max_tokens,
                 model=self._layer_model,
             )
-            return Chapter(
-                chapter_number=chapter.chapter_number,
-                title=chapter.title,
-                content=polished,
-                word_count=count_words(polished),
-                summary=chapter.summary,
+            return chapter.model_copy(
+                update={
+                    "content": polished,
+                    "word_count": count_words(polished),
+                }
             )
         except Exception as e:
             logger.warning(f"Sensory polish ch{chapter.chapter_number} failed: {e}")

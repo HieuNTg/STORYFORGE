@@ -21,6 +21,30 @@ class BaseAgent(ABC):
     def __init__(self):
         self.llm = LLMClient()
 
+    @property
+    def review_max_tokens(self) -> int:
+        """Output cap for a review/debate reply — a small JSON object."""
+        try:
+            from config import ConfigManager
+
+            return int(
+                getattr(ConfigManager().pipeline, "l2_agent_review_max_tokens", 1200)
+            )
+        except Exception:  # pragma: no cover - defensive
+            return 1200
+
+    @property
+    def review_model_tier(self) -> str:
+        """Model tier for panel calls. See PipelineConfig.l2_cheap_agent_panel."""
+        try:
+            from config import ConfigManager
+
+            if getattr(ConfigManager().pipeline, "l2_cheap_agent_panel", False):
+                return "cheap"
+        except Exception:  # pragma: no cover - defensive
+            pass
+        return "default"
+
     @abstractmethod
     def review(
         self,

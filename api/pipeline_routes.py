@@ -31,6 +31,29 @@ _DELETE_ANY_STORIES = Depends(
 )
 
 
+def _apply_run_overrides(pipeline_cfg, overrides: dict) -> dict:
+    """Apply per-run flags to the shared config; return the previous values.
+
+    Pass the result to `_restore_run_overrides` when the run ends. Concurrent
+    runs still share this config — 26 modules read the ConfigManager singleton
+    directly — so overlapping runs with different flags remain last-writer-wins.
+    Restoring at least keeps a finished run from dictating the next one, and
+    keeps its ad-hoc flags out of the next Settings save.
+    """
+    previous = {key: getattr(pipeline_cfg, key) for key in overrides}
+    for key, value in overrides.items():
+        setattr(pipeline_cfg, key, value)
+    return previous
+
+
+def _restore_run_overrides(pipeline_cfg, previous: dict) -> None:
+    for key, value in (previous or {}).items():
+        try:
+            setattr(pipeline_cfg, key, value)
+        except Exception as exc:  # pragma: no cover — defensive
+            logger.warning("Could not restore config field %s: %s", key, exc)
+
+
 def _sanitize_summary(summary: dict) -> dict:
     """Sanitize story chapter content fields in pipeline output summary."""
     for key in ("draft", "enhanced"):
@@ -758,56 +781,49 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
                 last_stream_time[0] = now
 
-        # Apply lite mode: switch debate to 3-agent fast path (~85% fewer API calls).
-        # Enabled per-request via body.lite_mode, or globally via STORYFORGE_LITE_MODE=true.
+        # Per-run flags. These are applied to the process-wide ConfigManager
+        # singleton — 26 modules read it directly, so there is nowhere else to
+        # put them today — and restored in the `finally` below once the run
+        # ends. Without that restore they leaked into every later run in the
+        # process and the next Settings save persisted them to config.json.
+        _l1_master = body.enable_l1_consistency
+        _run_overrides: dict = {
+            # A master toggle turns the whole group on; otherwise each flag
+            # takes the value the user actually sent. This used to be a chain
+            # of `if body.x: ... = True` with no else, so clearing a checkbox
+            # in the UI did nothing at all.
+            "enable_emotional_memory": _l1_master or body.enable_emotional_memory,
+            "enable_proactive_constraints": (
+                _l1_master or body.enable_proactive_constraints
+            ),
+            "enable_thread_enforcement": _l1_master or body.enable_thread_enforcement,
+            "enable_emotional_bridge": _l1_master or body.enable_emotional_bridge,
+            "enable_scene_beat_writing": _l1_master or body.enable_scene_beat_writing,
+            "enable_l1_causal_graph": _l1_master or body.enable_l1_causal_graph,
+            "enable_self_review": body.enable_self_review,
+            "enable_agent_debate": body.enable_agent_debate,
+            "l2_drama_threshold": body.l2_drama_threshold,
+            "l2_drama_target": body.l2_drama_target,
+            "enable_quality_gate": body.enable_quality_gate,
+            "quality_gate_threshold": body.quality_gate_threshold,
+            "enable_smart_revision": body.enable_smart_revision,
+            "smart_revision_threshold": body.smart_revision_threshold,
+            "enable_sensory_polish": body.enable_sensory_polish,
+            "enable_reader_simulation": body.enable_reader_simulation,
+            "enable_incremental_publish": body.enable_incremental_publish,
+            "language": body.language,
+        }
+        # Lite mode: 3-agent debate fast path (~85% fewer API calls).
+        # Per-request via body.lite_mode, or globally via STORYFORGE_LITE_MODE.
         if body.lite_mode or os.environ.get("STORYFORGE_LITE_MODE", "").lower() in (
             "1",
             "true",
         ):
-            orch.config.pipeline.debate_mode = "lite"
+            _run_overrides["debate_mode"] = "lite"
 
-        # Apply L1 consistency flags (Phase 5)
-        # Master toggle enables all, individual flags can also be set
-        if body.enable_l1_consistency:
-            orch.config.pipeline.enable_emotional_memory = True
-            orch.config.pipeline.enable_proactive_constraints = True
-            orch.config.pipeline.enable_thread_enforcement = True
-            orch.config.pipeline.enable_emotional_bridge = True
-            orch.config.pipeline.enable_scene_beat_writing = True
-            orch.config.pipeline.enable_l1_causal_graph = True
-        else:
-            # Individual flags (only if master toggle is off)
-            if body.enable_emotional_memory:
-                orch.config.pipeline.enable_emotional_memory = True
-            if body.enable_proactive_constraints:
-                orch.config.pipeline.enable_proactive_constraints = True
-            if body.enable_thread_enforcement:
-                orch.config.pipeline.enable_thread_enforcement = True
-            if body.enable_emotional_bridge:
-                orch.config.pipeline.enable_emotional_bridge = True
-            if body.enable_scene_beat_writing:
-                orch.config.pipeline.enable_scene_beat_writing = True
-            if body.enable_l1_causal_graph:
-                orch.config.pipeline.enable_l1_causal_graph = True
-
-        # Apply additional advanced settings
-        orch.config.pipeline.enable_self_review = body.enable_self_review
-        orch.config.pipeline.enable_agent_debate = body.enable_agent_debate
-        orch.config.pipeline.l2_drama_threshold = body.l2_drama_threshold
-        orch.config.pipeline.l2_drama_target = body.l2_drama_target
-        # Quality settings
-        orch.config.pipeline.enable_quality_gate = body.enable_quality_gate
-        orch.config.pipeline.quality_gate_threshold = body.quality_gate_threshold
-        orch.config.pipeline.enable_smart_revision = body.enable_smart_revision
-        orch.config.pipeline.smart_revision_threshold = body.smart_revision_threshold
-        # P-A/B/C: Post-enhancement features
-        orch.config.pipeline.enable_sensory_polish = body.enable_sensory_polish
-        orch.config.pipeline.enable_reader_simulation = body.enable_reader_simulation
-        orch.config.pipeline.enable_incremental_publish = (
-            body.enable_incremental_publish
+        _config_snapshot = _apply_run_overrides(
+            orch.config.pipeline, _run_overrides
         )
-        # Language setting
-        orch.config.pipeline.language = body.language
 
         # Auto-generate title from idea if not provided
         story_title = body.title.strip() if body.title else ""
@@ -910,6 +926,10 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 caught_error[0] = "An unexpected error occurred. Please try again."
                 progress_queue.put_nowait(("error", caught_error[0]))
             finally:
+                # Hand the shared config back before anything else — a later
+                # Settings save must not persist this run's ad-hoc flags.
+                _restore_run_overrides(orch.config.pipeline, _config_snapshot)
+
                 # Persist final state into the registry so FE can recover via
                 # GET /api/pipeline/run/{session_id} even if SSE was lost.
                 final_summary = None

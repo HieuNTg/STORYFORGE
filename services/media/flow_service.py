@@ -17,7 +17,6 @@ import logging
 import os
 import random
 import secrets
-import sqlite3
 import time
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -33,8 +32,6 @@ from config import ConfigManager
 
 logger = logging.getLogger(__name__)
 
-_DB_DIR = os.path.join("data", "flowkit")
-_DB_PATH = os.path.join(_DB_DIR, "jobs.db")
 
 # Outbound download host allowlist — keeps the WS-driven downloader from being
 # weaponised to hit arbitrary URLs if the upstream extension is hijacked.
@@ -45,24 +42,6 @@ _DOWNLOAD_HOSTS = {
     "lh3.googleusercontent.com",
     "flow-content.google",
 }
-
-_SCHEMA = """
-CREATE TABLE IF NOT EXISTS flow_jobs (
-    id TEXT PRIMARY KEY,
-    type TEXT NOT NULL,
-    prompt TEXT NOT NULL,
-    status TEXT NOT NULL,
-    operation_name TEXT,
-    media_id TEXT,
-    url TEXT,
-    local_path TEXT,
-    error TEXT,
-    created_at REAL NOT NULL,
-    updated_at REAL NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_flow_jobs_status ON flow_jobs(status);
-"""
-
 
 _ASPECT_ENUM_MAP = {
     "1:1": "IMAGE_ASPECT_RATIO_SQUARE",
@@ -136,10 +115,6 @@ class FlowService:
         self._gate = asyncio.Condition()
         self._active = 0
         self._account_warning_logged = False
-        self._poll_task: Optional[asyncio.Task] = None
-        self._poll_lock = asyncio.Lock()
-        self._db_initialized = False
-        self._db_write_lock = asyncio.Lock()
 
     # ------------------------------------------------------------------ config
 
@@ -179,44 +154,9 @@ class FlowService:
                 "accounts may trigger rate limits or suspension. Use a secondary account."
             )
 
-    # ------------------------------------------------------------------ jobs db
-
-    async def init_db(self) -> None:
-        if self._db_initialized:
-            return
-        os.makedirs(_DB_DIR, exist_ok=True)
-        await asyncio.to_thread(self._init_db_sync)
-        self._db_initialized = True
-
-    def _init_db_sync(self) -> None:
-        # `timeout=30.0` already installs a 30s busy handler (sqlite3 maps it to
-        # sqlite3_busy_timeout) on EVERY connection we open — init and per-op
-        # alike. A `PRAGMA busy_timeout` is per-connection and would not persist
-        # to the later per-op connections anyway, so a separate (and smaller,
-        # 5000ms) PRAGMA here was both inconsistent and misleading; rely on the
-        # connect timeout uniformly. journal_mode=WAL, by contrast, IS persisted
-        # to the database file, so it correctly stays here.
-        with sqlite3.connect(_DB_PATH, timeout=30.0) as conn:
-            conn.execute("PRAGMA journal_mode=WAL")
-            conn.executescript(_SCHEMA)
-            conn.commit()
-
-    async def _db_execute(self, sql: str, params: tuple = ()) -> None:
-        async with self._db_write_lock:
-            await asyncio.to_thread(self._db_execute_sync, sql, params)
-
-    def _db_execute_sync(self, sql: str, params: tuple) -> None:
-        with sqlite3.connect(_DB_PATH, timeout=30.0) as conn:
-            conn.execute(sql, params)
-            conn.commit()
-
-    async def _db_query(self, sql: str, params: tuple = ()) -> List[sqlite3.Row]:
-        return await asyncio.to_thread(self._db_query_sync, sql, params)
-
-    def _db_query_sync(self, sql: str, params: tuple) -> List[sqlite3.Row]:
-        with sqlite3.connect(_DB_PATH, timeout=30.0) as conn:
-            conn.row_factory = sqlite3.Row
-            return list(conn.execute(sql, params).fetchall())
+    # The jobs SQLite layer (init_db, _db_execute, _db_query and the flow_jobs
+    # schema) went with video generation — flow_jobs only ever held Veo jobs.
+    # Image generation is synchronous over the extension WS and never touched it.
 
     # --------------------------------------------------------------- ramp logic
 
@@ -484,120 +424,12 @@ class FlowService:
         dest = os.path.join(output_dir, filename)
         return await self.download_to_local(fife_url, dest)
 
-    async def request_video(self, prompt: str, start_image_path: str) -> str:
-        await self.init_db()
-        project_id = (self._cfg.flowkit_project_id or "").strip()
-        if not project_id:
-            raise RuntimeError("flowkit_project_id required for video generation")
-        media_id = await self._upload_image(start_image_path, project_id)
-        result = await self._send(
-            "batchAsyncGenerateVideoStartImage",
-            {
-                "url": "https://aisandbox-pa.googleapis.com/v1/flow:batchAsyncGenerateVideoStartImage",
-                "method": "POST",
-                "body": {
-                    "prompt": prompt,
-                    "videoModel": "veo_3_1_i2v_lite_low_priority",
-                    "startImageMediaId": media_id,
-                },
-                "captchaAction": "video_generation",
-            },
-        )
-        operation_name = (
-            result.get("operationName") or result.get("operation_name") or ""
-        )
-        job_id = str(uuid4())
-        now = time.time()
-        await self._db_execute(
-            "INSERT INTO flow_jobs (id, type, prompt, status, operation_name, created_at, updated_at) "
-            "VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (job_id, "video", prompt, "PROCESSING", operation_name, now, now),
-        )
-        return job_id
-
-    async def get_job(self, job_id: str) -> Optional[dict]:
-        await self.init_db()
-        rows = await self._db_query("SELECT * FROM flow_jobs WHERE id = ?", (job_id,))
-        return dict(rows[0]) if rows else None
-
-    # ------------------------------------------------------------- poll loop
-
-    async def start_polling(self) -> None:
-        async with self._poll_lock:
-            if self._poll_task and not self._poll_task.done():
-                return
-            await self.init_db()
-            self._poll_task = asyncio.create_task(self._poll_jobs_loop())
-
-    async def stop_polling(self) -> None:
-        if self._poll_task and not self._poll_task.done():
-            self._poll_task.cancel()
-            try:
-                await self._poll_task
-            except asyncio.CancelledError:
-                pass
-        self._poll_task = None
-
-    async def _poll_jobs_loop(self) -> None:
-        while True:
-            interval = max(1.0, float(self._cfg.flowkit_veo_poll_interval))
-            try:
-                await self._poll_once()
-            except asyncio.CancelledError:
-                raise
-            except Exception:
-                logger.exception("FlowKit poll_jobs iteration failed")
-            await asyncio.sleep(interval)
-
-    async def _poll_once(self) -> None:
-        if self.active_ws is None:
-            return
-        rows = await self._db_query(
-            "SELECT id, operation_name, media_id FROM flow_jobs WHERE status = ?",
-            ("PROCESSING",),
-        )
-        for row in rows:
-            job_id = row["id"]
-            media_id = row["media_id"]
-            try:
-                if not media_id:
-                    op = await self._send(
-                        "checkOperation",
-                        {
-                            "url": f"https://aisandbox-pa.googleapis.com/v1/operations/{row['operation_name']}",
-                            "method": "GET",
-                        },
-                        timeout=30.0,
-                    )
-                    media_id = op.get("response", {}).get("mediaId")
-                    if media_id:
-                        await self._db_execute(
-                            "UPDATE flow_jobs SET media_id = ?, updated_at = ? WHERE id = ?",
-                            (media_id, time.time(), job_id),
-                        )
-                if media_id:
-                    media = await self._send(
-                        "getMedia",
-                        {
-                            "url": f"https://aisandbox-pa.googleapis.com/v1/media/{media_id}",
-                            "method": "GET",
-                        },
-                        timeout=30.0,
-                    )
-                    fife_url = self._extract_fife_url(media)
-                    if fife_url:
-                        dest = os.path.join("output/videos", f"{job_id}.mp4")
-                        os.makedirs(os.path.dirname(dest), exist_ok=True)
-                        local = await self.download_to_local(fife_url, dest)
-                        await self._db_execute(
-                            "UPDATE flow_jobs SET status=?, url=?, local_path=?, updated_at=? WHERE id=?",
-                            ("DONE", fife_url, local, time.time(), job_id),
-                        )
-            except Exception as exc:  # noqa: BLE001 — log and keep polling
-                await self._db_execute(
-                    "UPDATE flow_jobs SET status=?, error=?, updated_at=? WHERE id=?",
-                    ("FAILED", str(exc)[:500], time.time(), job_id),
-                )
+    # Video generation lived here: request_video(), get_job(), and a background
+    # poll loop that woke every flowkit_veo_poll_interval seconds from boot to
+    # check Veo jobs. It is gone with the product decision to be image-focused
+    # (no video, no TTS). request_video had no production caller at all — only a
+    # test — yet the poll task ran for the lifetime of every process that had
+    # FlowKit enabled, which is the image path everyone uses.
 
     # ----------------------------------------------------------- file helpers
 

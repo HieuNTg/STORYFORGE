@@ -307,7 +307,10 @@ NHỊP ĐỘ CHƯƠNG NÀY: {pacing_type}
 {pacing_directive}
 
 YÊU CẦU:
-- Viết chương {chapter_number} đầy đủ, khoảng {word_count} từ
+- ĐỘ DÀI BẮT BUỘC: chương {chapter_number} phải đạt TỐI THIỂU {word_count} từ.
+  Đây là yêu cầu cứng, không phải gợi ý. Trước khi kết thúc, hãy tự kiểm tra:
+  nếu chưa đủ, khai triển tiếp các cảnh đang bị kể vội thành cảnh diễn ra trực
+  tiếp, thêm đối thoại và nội tâm — KHÔNG kết chương sớm vì đã "đủ ý".
 - Miêu tả sinh động, đối thoại tự nhiên
 - Thể hiện rõ tính cách nhân vật qua hành động và lời nói
 - Tạo nhịp điệu kịch tính, có cao trào

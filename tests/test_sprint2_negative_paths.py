@@ -15,6 +15,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import zlib
+
 import numpy as np
 import pytest
 
@@ -39,8 +41,25 @@ from services.embedding_service import vec_to_bytes
 # ---------------------------------------------------------------------------
 
 
-def _unit_vec(seed: int, dim: int = 16) -> np.ndarray:
-    """Deterministic unit vector for cosine-similarity mocking."""
+def _stable_seed(text: str) -> int:
+    """Process-stable seed for a text.
+
+    `hash()` is randomised per process, so seeding vectors with it made the
+    cosine between two "unrelated" texts vary run to run. Combined with the low
+    dimension below, that put this file's strict-mode test about 0.37% away from
+    failing on any given run — roughly 1 in 270, which is exactly the kind of
+    flake that shows up in CI and nowhere else.
+    """
+    return zlib.crc32(text.encode("utf-8")) & 0xFFFF
+
+
+def _unit_vec(seed: int, dim: int = 384) -> np.ndarray:
+    """Deterministic unit vector for cosine-similarity mocking.
+
+    384 dimensions, matching the real embedding size. At the previous 16, two
+    independent random vectors were far from orthogonal often enough to cross a
+    0.62 similarity threshold by chance.
+    """
     rng = np.random.default_rng(seed)
     v = rng.standard_normal(dim).astype(np.float32)
     v /= np.linalg.norm(v)
@@ -58,7 +77,7 @@ def _make_emb_service(text_to_seed: dict[str, int]):
 
     def _embed_batch(texts):
         return [
-            _bytes_for(_unit_vec(text_to_seed.get(t, hash(t) & 0xFFFF))) for t in texts
+            _bytes_for(_unit_vec(text_to_seed.get(t, _stable_seed(t)))) for t in texts
         ]
 
     svc = MagicMock()

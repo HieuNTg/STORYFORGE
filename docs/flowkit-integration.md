@@ -2,7 +2,7 @@
 
 FlowKit is StoryForge's **free local image** provider: it generates Imagen 3 images through your local Google Labs session via a Chrome MV3 Extension and a WebSocket proxy. **Local-only**; not usable on hosted deploys.
 
-> StoryForge is image-focused (consistent character portraits + scene backgrounds). FlowKit also exposes a Veo video passthrough at the code level, but video is not part of the core product flow — the steps below assume image generation.
+> StoryForge is image-focused (consistent character portraits + scene backgrounds). The Veo video passthrough has been removed: `request_video`, the `flow_jobs` SQLite queue and the background poll loop are gone, so FlowKit is now purely request/response over the extension WebSocket.
 
 > **Prefer no setup?** For the easiest free path with zero extension/account risk, use `image_provider = huggingface` (FLUX.1-schnell) instead — see the [Image generation table in the README](../README.md#image-generation).
 
@@ -23,7 +23,7 @@ Google Labs may rate-limit or suspend the Google account that powers FlowKit if 
 
 ## Capture `FLOWKIT_BROWSER_API_KEY`
 
-The Flow UI signs every Imagen/Veo request with a short-lived browser API key. The Extension captures it automatically once you load a Flow page after install. If capture stalls:
+The Flow UI signs every Imagen request with a short-lived browser API key. The Extension captures it automatically once you load a Flow page after install. If capture stalls:
 
 1. Open <https://labs.google/fx/tools/flow> with DevTools → Network.
 2. Trigger any image gen in the Flow UI.
@@ -35,12 +35,10 @@ The Flow UI signs every Imagen/Veo request with a short-lived browser API key. T
 | Path | Purpose |
 |------|---------|
 | `flowkit_extension/` | Chrome MV3 source (manifest, background, content scripts) |
-| `services/media/flow_service.py` | WS server + adaptive worker ramp + job queue |
+| `services/media/flow_service.py` | WS server + adaptive worker ramp |
 | `services/media/image_generator.py` | Sync→async bridge that dispatches into FlowService |
 | `api/flowkit.py` | `/api/ws/flowkit`, `/api/ext/callback`, `/api/flowkit/status` |
-| `data/flowkit/jobs.db` | SQLite job queue (downloaded asset paths) |
 | `output/images/{slug}_{sid}/` | Per-session image output |
-| `output/videos/{slug}_{sid}/` | Per-session video output |
 
 ## Config Flags
 
@@ -55,7 +53,6 @@ See `## Key Config Flags` in `CLAUDE.md`. The FlowKit-specific ones live in `Pip
 | `flowkit_request_timeout` | `180.0` | Sync-bridge timeout, floor 30s |
 | `flowkit_concurrent_workers_max` | `4` | Adaptive ramp ceiling |
 | `flowkit_workers_ramp_threshold` | `10` | Consecutive successes before +1 worker |
-| `flowkit_veo_poll_interval` | `5.0` | Veo poll cadence (V1 polling-only) |
 | `flowkit_image_input_type_split` | `False` | Enable after sniffing `IMAGE_INPUT_TYPE_STYLE` / `_CHARACTER` enums |
 | `flowkit_callback_hmac_required` | `False` | Verifies an `X-Callback-Signature` (HMAC-SHA256 of the body, keyed by `callback_secret`) on the HTTP `/api/ext/callback` **fallback**. The live extension uses the WebSocket path (no per-frame HMAC), which relies on the server binding to `127.0.0.1` — only local processes can connect. |
 | `flowkit_risk_acknowledged` | `False` | UI-set hard gate; do not edit `config.json` by hand |
@@ -75,10 +72,7 @@ Tick the risk-ack checkbox in Settings first; same PATCH then succeeds.
 Flow surfaces a challenge in the Flow tab. Solve it manually — there is no auto-solver. The Extension shows a red badge until resolved.
 
 ### GCS download fails with 403/410 (after ~1h)
-Signed URLs expire. The backend downloads immediately after generation and retries once on a 403/410 — but the extension cannot re-sign a *specific* expired URL on demand (it only passively observes fresh URLs the Flow page fetches, volunteered back over the `media_url_refreshed` channel). A truly expired URL therefore needs a fresh generation rather than a refresh. For video, check `data/flowkit/jobs.db` for the failing job and re-queue.
-
-### Veo job stuck pending
-Veo polling runs every `flowkit_veo_poll_interval` seconds. Check `/api/flowkit/status` for `poll_running=true`. If false, restart the backend.
+Signed URLs expire. The backend downloads immediately after generation and retries once on a 403/410 — but the extension cannot re-sign a *specific* expired URL on demand (it only passively observes fresh URLs the Flow page fetches, volunteered back over the `media_url_refreshed` channel). A truly expired URL therefore needs a fresh generation rather than a refresh.
 
 ## Account Policy Notes
 

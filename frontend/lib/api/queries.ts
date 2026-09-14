@@ -53,6 +53,9 @@ export interface ProviderPresetDTO {
   // (see config/presets.py). Prefilled into the card's key box so setup is
   // one click. Never present for real hosted providers.
   default_key?: string;
+  // The free-form card: the user types the provider name, base URL and model
+  // instead of picking from a dropdown.
+  custom?: boolean;
 }
 
 export interface StorySummary {
@@ -329,7 +332,6 @@ export interface FlowkitStatus {
   connected: boolean;
   last_token_age_s: number;
   pending_ws_requests: number;
-  poll_running: boolean;
   workers_current: number;
   workers_max: number;
 }
@@ -341,6 +343,32 @@ export function useFlowkitStatus(enabled: boolean) {
     enabled,
     refetchInterval: enabled ? 5_000 : false,
     staleTime: 2_000,
+  });
+}
+
+// ---------- Qwen local proxy (Settings → Provider=qwen-local) ----------
+
+export interface QwenLocalStatus {
+  configured: boolean;
+  reachable: boolean;
+  qwen_ready: boolean;
+  base_url: string;
+  error: string;
+}
+
+/**
+ * Probe the local Qwen proxy. Unlike the FlowKit badge this does NOT poll on a
+ * timer — the proxy is a local process the user starts by hand, so a manual
+ * re-check button is both enough and cheaper (each probe is an HTTP round-trip
+ * from the backend to the proxy).
+ */
+export function useQwenLocalStatus(enabled: boolean) {
+  return useQuery<QwenLocalStatus, Error>({
+    queryKey: ["qwen-local", "status"],
+    queryFn: () => apiFetch<QwenLocalStatus>("/api/config/qwen-local/status"),
+    enabled,
+    staleTime: 10_000,
+    retry: false,
   });
 }
 

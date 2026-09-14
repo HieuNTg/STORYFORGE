@@ -13,8 +13,11 @@ from __future__ import annotations
 
 import contextvars
 import uuid
-from dataclasses import dataclass, field
-from typing import Optional
+from dataclasses import asdict, dataclass, field
+from typing import TYPE_CHECKING, Optional
+
+if TYPE_CHECKING:
+    from pipeline.layer1_story.repair import RepairOutcome
 
 _current_trace: contextvars.ContextVar[Optional["PipelineTrace"]] = (
     contextvars.ContextVar("storyforge_trace", default=None)
@@ -96,6 +99,38 @@ class RagEventStats:
 
 
 @dataclass
+class RepairStats:
+    """Per-run totals for the L1 chapter repair loop (Batch K).
+
+    The number that decides whether the loop stays on is `calls_used` against
+    the legacy path's spend, with `findings_after` proving quality did not slip
+    to buy it.
+    """
+
+    chapters_seen: int = 0
+    chapters_repaired: int = 0
+    rounds_used: int = 0
+    calls_used: int = 0
+    rollbacks: int = 0
+    fallbacks: int = 0
+    findings_before_total: int = 0
+    findings_after_total: int = 0
+
+    def record(self, outcome: "RepairOutcome") -> None:
+        self.chapters_seen += 1
+        self.chapters_repaired += outcome.applied
+        self.rounds_used += outcome.rounds_used
+        self.calls_used += outcome.calls_used
+        self.rollbacks += outcome.rolled_back
+        self.fallbacks += outcome.fallback_used
+        self.findings_before_total += outcome.findings_before
+        self.findings_after_total += outcome.findings_after
+
+    def summary(self) -> dict:
+        return asdict(self)
+
+
+@dataclass
 class PipelineTrace:
     trace_id: str = field(default_factory=lambda: uuid.uuid4().hex[:8])
     session_id: str = ""
@@ -105,6 +140,7 @@ class PipelineTrace:
     layer: int = 1
     calls: list[LLMCall] = field(default_factory=list)
     rag_stats: RagEventStats = field(default_factory=RagEventStats)
+    repair_stats: RepairStats = field(default_factory=RepairStats)
 
     def add_call(self, call: LLMCall) -> None:
         self.calls.append(call)
@@ -143,6 +179,7 @@ class PipelineTrace:
                 k: round(v, 6) for k, v in self.cost_by_chapter().items()
             },
             "rag": self.rag_stats.summary(),
+            "repair": self.repair_stats.summary(),
         }
 
 

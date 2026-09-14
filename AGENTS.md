@@ -30,6 +30,9 @@ For architecture-level questions (layers, pipeline flow, component relationships
   - Quality & pacing (`quality_validators.py`, `pacing_controller.py`, `pacing_enforcer.py`)
   - Batch & parallel processing (`batch_generator.py`, `batch_parallel_writer.py`)
   - Specialized (`foreshadowing_manager.py`, `timeline_validator.py`)
+  - Post-write repair (`repair/`) — bounded loop that collects findings from every
+    detector and fixes them in ONE rewrite, verified by deterministic detectors only.
+    Default on; legacy passes remain the fallback. See `docs/agentic-repair-loop-spec.md`.
 
 ### Layer 2: Enhancement (pipeline/layer2_enhance/) — ~121 files
 - Main entry: `StoryEnhancer` class in `enhancer.py`
@@ -146,10 +149,12 @@ User Input
 - Methods: `run_full_pipeline()`, `run_layer1_only()`, `run_layer2_only()`, 
   `continue_story()`, `export_output()`, `export_zip()`, checkpoint/continuation ops
 
-### Versioned API (`api/v1/`)
-- `api/v1/router.py` — Central v1 router (frozen copy of api/ modules)
-- `api/v1/__init__.py` — Package-level router with local imports
-- `api/v1/router.py` — Built via `build_v1_router()` factory function
+### Versioned API — removed
+There is no `api/v1/` package. It mirrored nine routers under a second prefix
+that no client used, and installed a middleware on every request to mark those
+paths deprecated. (This section previously described `api/v1/router.py` and a
+`build_v1_router()` factory; neither ever existed.) `/api/v1/eval/*` is served
+by `api/eval_routes.py`, whose own prefix is `/v1/eval` — unrelated.
 
 ### Frontend (`frontend/`)
 - Next.js 16 + React 19 application

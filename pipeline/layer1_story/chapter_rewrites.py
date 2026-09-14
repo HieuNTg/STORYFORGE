@@ -40,7 +40,15 @@ def _rewrite_for_consistency_violations(
 
     issues: list[str] = []
     name_warnings = list(story_context.name_warnings or [])
-    arc_warnings = list(story_context.arc_drift_warnings or [])
+    # Two validators report drifting character arcs, and only one was wired up.
+    # `arc_drift_warnings` reached this rewrite; `arc_execution_warnings` — set by
+    # arc_execution_validator for a planned arc stage the chapter never executed —
+    # was written to story_context and read by nothing, so the validator's work
+    # was thrown away every chapter except for a log line. Same class of defect,
+    # same remedy: feed both into the rewrite.
+    arc_warnings = list(story_context.arc_drift_warnings or []) + list(
+        getattr(story_context, "arc_execution_warnings", None) or []
+    )
     # Location warnings may live in world_rule_violations — filter by prefix
     loc_warnings = [
         w
@@ -90,6 +98,10 @@ def _rewrite_for_consistency_violations(
         # Keep loc_warnings from world_rule_violations untouched (may include non-location rules)
         story_context.name_warnings = []
         story_context.arc_drift_warnings = []
+        # Cleared for the same reason as the two above: these described the
+        # content that was just replaced.
+        if hasattr(story_context, "arc_execution_warnings"):
+            story_context.arc_execution_warnings = []
         if loc_warnings:
             story_context.world_rule_violations = [
                 w

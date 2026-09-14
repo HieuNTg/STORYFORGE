@@ -973,8 +973,21 @@ class TestImageGenerator:
             scene_description="Scene desc",
         )
         result = gen.generate_story_images([ip], chapter_number=1)
-        gen.generate.assert_called_once_with("Dalle prompt text", "ch01_panel01.png")
+        # Size is passed explicitly now (a panel carries the aspect of the page
+        # cell it lands in); with no target_size set it is the square default.
+        gen.generate.assert_called_once_with(
+            "Dalle prompt text", "ch01_panel01.png", "1024x1024"
+        )
         assert result == ["/tmp/img.png"]
+
+    def test_generate_story_images_honours_panel_target_size(self):
+        gen = self._make_generator(provider="dalle")
+        gen.generate = MagicMock(return_value="/tmp/img.png")
+        from models.schemas import ImagePrompt
+
+        ip = ImagePrompt(dalle_prompt="p", target_size="1024x480")
+        gen.generate_story_images([ip], chapter_number=1)
+        assert gen.generate.call_args[0][2] == "1024x480"
 
     def test_generate_story_images_returns_none_paths_excluded(self):
         gen = self._make_generator(provider="none")

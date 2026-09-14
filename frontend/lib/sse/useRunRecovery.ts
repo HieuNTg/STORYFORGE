@@ -57,9 +57,13 @@ export interface UseRunRecoveryOptions {
 }
 
 const DEFAULT_POLL_MS = 1500;
-// Give up after this many consecutive transient (non-404) failures so a backend
-// outage doesn't spin forever; surface it as an interruption.
+// After this many consecutive transient (non-404) failures the run is shown as
+// interrupted — but polling continues on a widening interval. Giving up outright
+// meant 7.5s of backend trouble permanently orphaned a 20-minute run, with the
+// backend still generating and no way back except a manual reload.
 const MAX_CONSECUTIVE_ERRORS = 5;
+// Backoff ceiling for those retries. A 404 (session gone) still stops the loop.
+const MAX_BACKOFF_MS = 30_000;
 
 function joinUrl(base: string, path: string): string {
   if (!base) return path;
@@ -101,8 +105,23 @@ export function useRunRecovery(opts: UseRunRecoveryOptions): void {
 
     const schedule = () => {
       if (cancelled) return;
-      const interval = optsRef.current.pollIntervalMs ?? DEFAULT_POLL_MS;
+      const base = optsRef.current.pollIntervalMs ?? DEFAULT_POLL_MS;
+      // Steady cadence while healthy; exponential backoff once the backend
+      // starts failing, so a long outage costs a slow poll rather than the run.
+      const interval =
+        consecutiveErrors === 0
+          ? base
+          : Math.min(base * 2 ** Math.min(consecutiveErrors, 6), MAX_BACKOFF_MS);
       timer = setTimeout(poll, interval);
+    };
+
+    // Report the run as interrupted the first time we cross the threshold,
+    // without tearing the poller down.
+    let interruptionReported = false;
+    const reportInterruption = () => {
+      if (interruptionReported) return;
+      interruptionReported = true;
+      applySseFrame({ type: "interrupted" }, optsRef.current.handlers);
     };
 
     const poll = async () => {
@@ -122,8 +141,7 @@ export function useRunRecovery(opts: UseRunRecoveryOptions): void {
       } catch {
         if (cancelled) return;
         if (++consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-          applySseFrame({ type: "interrupted" }, optsRef.current.handlers);
-          return;
+          reportInterruption();
         }
         schedule();
         return;
@@ -138,14 +156,14 @@ export function useRunRecovery(opts: UseRunRecoveryOptions): void {
       }
       if (!res.ok) {
         if (++consecutiveErrors >= MAX_CONSECUTIVE_ERRORS) {
-          applySseFrame({ type: "interrupted" }, optsRef.current.handlers);
-          return;
+          reportInterruption();
         }
         schedule();
         return;
       }
 
       consecutiveErrors = 0;
+      interruptionReported = false;
       let payload: RunStatusPayload;
       try {
         payload = (await res.json()) as RunStatusPayload;

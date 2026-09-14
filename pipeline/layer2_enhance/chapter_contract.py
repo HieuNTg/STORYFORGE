@@ -32,6 +32,11 @@ class ContractValidation(BaseModel):
     compliance_score: float = 0.0
     reason: str = ""
     retry_attempted: bool = False
+    # True when the judge call itself failed (provider error, malformed reply)
+    # rather than the chapter genuinely violating its contract. Callers must not
+    # trigger remediation on this: a transient 429 used to cost a full chapter
+    # re-enhance because it was indistinguishable from a real failure.
+    error: bool = False
 
 
 def _clip(value: float, lo: float, hi: float) -> float:
@@ -171,13 +176,14 @@ def validate_chapter_against_contract(
         return ContractValidation(
             chapter_number=ch_num,
             passed=False,
+            error=True,
             reason=f"validation_llm_error: {exc}",
         )
 
     if not isinstance(raw, dict):
         logger.warning("Contract validation returned non-dict for ch%d", ch_num)
         return ContractValidation(
-            chapter_number=ch_num, passed=False, reason="malformed"
+            chapter_number=ch_num, passed=False, error=True, reason="malformed"
         )
 
     drama_actual = _clip(float(raw.get("drama_actual", 0.0) or 0.0), 0.0, 1.0)
@@ -273,6 +279,10 @@ class VoiceValidation(BaseModel):
     retry_attempted: bool = False
     binary_reverted: bool = False
     reason: str = ""
+    # See ContractValidation.error — a judge-call failure, not a voice failure.
+    # Without this, an errored validation scored 0.0 and dropped through the
+    # binary revert floor, throwing away the enhanced dialogue.
+    error: bool = False
 
 
 def _infer_speakers(outline, characters: list | None = None) -> list[str]:
@@ -416,6 +426,7 @@ def validate_chapter_voice(
         return VoiceValidation(
             chapter_number=contract.chapter_number,
             passed=False,
+            error=True,
             reason=f"voice_llm_error: {type(exc).__name__}",
         )
 
@@ -424,7 +435,10 @@ def validate_chapter_voice(
             "Voice validation returned non-dict for ch%d", contract.chapter_number
         )
         return VoiceValidation(
-            chapter_number=contract.chapter_number, passed=False, reason="malformed"
+            chapter_number=contract.chapter_number,
+            passed=False,
+            error=True,
+            reason="malformed",
         )
 
     per_char_result = raw.get("per_character", {}) or {}

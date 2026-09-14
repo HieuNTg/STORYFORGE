@@ -150,19 +150,44 @@ def assemble_parallel_write_inputs(
         except Exception:
             pass
 
-    # Scene beats
-    from pipeline.layer1_story.scene_beat_generator import generate_scene_beats
+    # Scene beats.
+    #
+    # generate_scene_beats returns list[SceneBeat]; this used to concatenate that
+    # list straight onto the prompt string, so the parallel write path — the
+    # default — raised TypeError and failed Layer 1 outright the moment the beat
+    # generator actually returned beats. It only looked stable because beats are
+    # gated by pacing type and the generator returns [] on failure.
+    #
+    # The sequential path has always rendered them through
+    # format_beats_for_prompt; this now does the same, and treats a beat failure
+    # as non-fatal the way every other prompt enrichment here does. A chapter
+    # without its beat structure is worse than one with it, but far better than
+    # no story at all.
+    try:
+        from pipeline.layer1_story.scene_beat_generator import (
+            format_beats_for_prompt,
+            generate_scene_beats,
+        )
 
-    scene_beats = generate_scene_beats(
-        llm,
-        outline,
-        characters,
-        world,
-        genre,
-        model_tier=gen._layer_model or "cheap",
-    )
-    if scene_beats:
-        per_chapter_enhancement += scene_beats
+        scene_beats = generate_scene_beats(
+            llm,
+            outline,
+            characters,
+            world,
+            genre,
+            model_tier=gen._layer_model or "cheap",
+        )
+        beats_text = format_beats_for_prompt(scene_beats) if scene_beats else ""
+        if beats_text:
+            per_chapter_enhancement = (
+                f"{per_chapter_enhancement}\n\n{beats_text}".strip()
+            )
+    except Exception as e:
+        logger.warning(
+            "Scene beats for ch%s failed (non-fatal): %s",
+            getattr(outline, "chapter_number", "?"),
+            e,
+        )
 
     return ParallelWriteInputs(
         bible_ctx=bible_ctx,

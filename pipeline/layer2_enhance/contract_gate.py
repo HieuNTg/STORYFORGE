@@ -200,6 +200,7 @@ def enforce_gate(
     draft_threads: list | None = None,
     idea: str = "",
     idea_summary: str = "",
+    voice_contract=None,
 ) -> Chapter:
     """Rewrite chapter once to address contract failures. Non-fatal on LLM error."""
     if not failures or not should_rewrite(failures) or max_retries <= 0:
@@ -256,7 +257,7 @@ def enforce_gate(
         )
         return chapter
     # Voice re-validation: revert if rewritten chapter drops voice score below floor
-    if not _post_gate_validate(new_chapter, chapter):
+    if not _post_gate_validate(new_chapter, chapter, voice_contract):
         logger.info(
             f"[contract_gate] rewrite ch{chapter.chapter_number} failed voice re-validation; reverting"
         )
@@ -274,11 +275,15 @@ def apply_contract_gate(
     draft_threads: list | None = None,
     enabled: bool = True,
     draft=None,
+    voice_contracts: dict | None = None,
 ) -> dict:
     """Apply gate to all chapters; return summary stats.
 
     `draft` (optional) supplies the author's original_idea so contract rewrites
     don't drift proper nouns / gimmicks back to genre default.
+
+    `voice_contracts` (optional) is `sim_result.voice_contracts`, keyed by chapter
+    number, and enables the post-rewrite voice re-validation.
     """
     if not enabled or enhanced_story is None:
         return {"enabled": False, "chapters_checked": 0, "rewrites": 0}
@@ -290,12 +295,16 @@ def apply_contract_gate(
         else ""
     )
 
+    _voice_by_chapter = voice_contracts or {}
+
     rewrites = 0
     total_failures = 0
+    chapters_with_contract = 0
     for idx, ch in enumerate(enhanced_story.chapters):
         contract = getattr(ch, "contract", None)
         if not contract:
             continue
+        chapters_with_contract += 1
         failures = verify_contract(ch, contract, draft_threads)
         total_failures += len(failures)
         if should_rewrite(failures):
@@ -309,6 +318,10 @@ def apply_contract_gate(
                     draft_threads=draft_threads,
                     idea=_idea,
                     idea_summary=_idea_summary,
+                    voice_contract=(
+                        _voice_by_chapter.get(ch.chapter_number)
+                        or _voice_by_chapter.get(str(ch.chapter_number))
+                    ),
                 )
                 if new_ch is not ch:
                     enhanced_story.chapters[idx] = new_ch
@@ -322,14 +335,27 @@ def apply_contract_gate(
                 )
     return {
         "enabled": True,
-        "chapters_checked": len(enhanced_story.chapters),
+        # chapters_checked counted every chapter, including the ones skipped for
+        # having no contract — so a gate that verified nothing still reported a
+        # full pass. Report what was actually verified.
+        "chapters_checked": chapters_with_contract,
+        "chapters_total": len(enhanced_story.chapters),
+        "chapters_skipped_no_contract": len(enhanced_story.chapters)
+        - chapters_with_contract,
         "rewrites": rewrites,
         "total_failures": total_failures,
     }
 
 
-def _post_gate_validate(new_chapter: Chapter, original_chapter: Chapter) -> bool:
+def _post_gate_validate(
+    new_chapter: Chapter, original_chapter: Chapter, voice_contract=None
+) -> bool:
     """Return True (keep rewrite) or False (revert) based on voice score of rewritten chapter.
+
+    `voice_contract` comes from `sim_result.voice_contracts[chapter_number]`. It
+    used to be read off the chapter as `new_chapter.voice_contract` — an attribute
+    Chapter has never had — so this always short-circuited to True and the voice
+    re-validation advertised here never ran.
 
     Reads voice_binary_revert_floor from PipelineConfig. If voice validation raises,
     logs and returns False (reverts) — idempotent and bounded.
@@ -343,13 +369,18 @@ def _post_gate_validate(new_chapter: Chapter, original_chapter: Chapter) -> bool
         revert_floor = 0.5
 
     try:
-        voice_contract = getattr(new_chapter, "voice_contract", None)
         if voice_contract is None:
-            # No voice contract on this chapter — nothing to validate, keep the rewrite
+            # No voice contract for this chapter — nothing to validate, keep the rewrite
             return True
 
-        from pipeline.layer2_enhance.chapter_contract import validate_chapter_voice
+        from pipeline.layer2_enhance.chapter_contract import (
+            VoiceContract,
+            validate_chapter_voice,
+        )
         from services.llm_client import LLMClient
+
+        if isinstance(voice_contract, dict):
+            voice_contract = VoiceContract(**voice_contract)
 
         llm = LLMClient()
         validation = validate_chapter_voice(

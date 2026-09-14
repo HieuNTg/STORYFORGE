@@ -12,6 +12,7 @@ import logging
 from typing import Callable
 
 from models.schemas import Chapter, ChapterOutline, StoryContext
+from services.llm.client import no_cache_reads
 
 logger = logging.getLogger(__name__)
 
@@ -121,54 +122,61 @@ def validate_and_retry_contract(
                     e,
                 )
 
-            # Rewrite chapter with updated contract
-            if stream_callback:
-                chapter = gen.write_chapter_stream(
-                    title,
-                    genre,
-                    style,
-                    characters,
-                    world,
-                    outline,
-                    word_count=word_count,
-                    context=story_context,
-                    stream_callback=stream_callback,
-                    open_threads=list(story_context.open_threads),
-                    active_conflicts=active_conflicts,
-                    foreshadowing_to_plant=seeds,
-                    foreshadowing_to_payoff=payoffs,
-                    pacing_type=pacing,
-                    enhancement_context=enhancement_context,
-                    current_arc_context=arc_context,
-                    chapter_contract=contract_text,
-                    scenes=chapter_scenes,
-                    idea=idea,
-                    idea_summary=idea_summary,
-                )
-            else:
-                chapter = gen._write_chapter_with_long_context(
-                    title,
-                    genre,
-                    style,
-                    characters,
-                    world,
-                    outline,
-                    word_count,
-                    story_context,
-                    all_chapter_texts,
-                    bible_ctx,
-                    open_threads=list(story_context.open_threads),
-                    active_conflicts=active_conflicts,
-                    foreshadowing_to_plant=seeds,
-                    foreshadowing_to_payoff=payoffs,
-                    pacing_type=pacing,
-                    enhancement_context=enhancement_context,
-                    current_arc_context=arc_context,
-                    chapter_contract=contract_text,
-                    scenes=chapter_scenes,
-                    idea=idea,
-                    idea_summary=idea_summary,
-                )
+            # Rewrite chapter with updated contract.
+            #
+            # Cache reads are off for the rewrite: when the contract rebuild
+            # above fails, contract_text is unchanged and the prompt is
+            # byte-identical to the one that just scored below threshold, so
+            # the cache would hand back the same rejected chapter and every
+            # remaining retry would be a guaranteed no-op.
+            with no_cache_reads():
+                if stream_callback:
+                    chapter = gen.write_chapter_stream(
+                        title,
+                        genre,
+                        style,
+                        characters,
+                        world,
+                        outline,
+                        word_count=word_count,
+                        context=story_context,
+                        stream_callback=stream_callback,
+                        open_threads=list(story_context.open_threads),
+                        active_conflicts=active_conflicts,
+                        foreshadowing_to_plant=seeds,
+                        foreshadowing_to_payoff=payoffs,
+                        pacing_type=pacing,
+                        enhancement_context=enhancement_context,
+                        current_arc_context=arc_context,
+                        chapter_contract=contract_text,
+                        scenes=chapter_scenes,
+                        idea=idea,
+                        idea_summary=idea_summary,
+                    )
+                else:
+                    chapter = gen._write_chapter_with_long_context(
+                        title,
+                        genre,
+                        style,
+                        characters,
+                        world,
+                        outline,
+                        word_count,
+                        story_context,
+                        all_chapter_texts,
+                        bible_ctx,
+                        open_threads=list(story_context.open_threads),
+                        active_conflicts=active_conflicts,
+                        foreshadowing_to_plant=seeds,
+                        foreshadowing_to_payoff=payoffs,
+                        pacing_type=pacing,
+                        enhancement_context=enhancement_context,
+                        current_arc_context=arc_context,
+                        chapter_contract=contract_text,
+                        scenes=chapter_scenes,
+                        idea=idea,
+                        idea_summary=idea_summary,
+                    )
 
             # Update in chapters list
             chapters[-1] = chapter

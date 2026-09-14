@@ -15,6 +15,7 @@ import os
 from typing import Optional
 
 from config import ConfigManager
+from services.media._util import COLOR_CLAUSE
 from services.character_avatar import _style_anchor_for
 
 logger = logging.getLogger(__name__)
@@ -54,8 +55,8 @@ def _build_cover_prompt(
     parts = [
         (
             f"Book cover key-art illustration, one dramatic cohesive scene, "
-            f"portrait orientation, {style_anchor}, rich cinematic lighting, "
-            f"strong silhouette and atmosphere"
+            f"portrait orientation, {style_anchor}, {COLOR_CLAUSE}, "
+            f"rich cinematic lighting, strong silhouette and atmosphere"
         ),
         f"Story title (for theme only, do NOT render it): {title}",
         f"Premise: {syn}" if syn else "",
@@ -64,7 +65,9 @@ def _build_cover_prompt(
             "moment, clear depth, no collage, no split frames, no panels. "
             "Strictly NO text, NO letters, NO title typography, NO calligraphy, "
             "NO Chinese characters, NO Han characters, NO captions, "
-            "NO watermark, NO logo, NO borders, NO frames."
+            "NO watermark, NO logo, NO borders, NO frames. "
+            "The artwork is in colour: NOT monochrome, NOT grayscale, "
+            "NOT black-and-white, NOT uncolored lineart."
         ),
     ]
     return ". ".join(p for p in parts if p)

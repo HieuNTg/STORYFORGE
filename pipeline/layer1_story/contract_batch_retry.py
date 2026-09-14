@@ -11,6 +11,7 @@ an exception logs a warning and keeps the current chapter.
 import logging
 
 from models.schemas import Chapter, ChapterOutline, StoryContext
+from services.llm.client import no_cache_reads
 
 logger = logging.getLogger(__name__)
 
@@ -95,29 +96,34 @@ def validate_and_retry_threaded(
                     previous_failures=failures,
                 )
 
-                new_chapter, _ = batch_gen._write_chapter_parallel(
-                    outline,
-                    frozen,
-                    draft,
-                    story_context,
-                    frozen_threads,
-                    sibling_summaries,
-                    shared_enhancement,
-                    title,
-                    genre,
-                    style,
-                    characters,
-                    world,
-                    word_count,
-                    macro_arcs,
-                    conflict_web,
-                    foreshadowing_plan,
-                    progress_callback,
-                    None,
-                    idea,
-                    idea_summary,
-                    override_contract=new_contract,
-                )
+                # No cache reads on the rewrite: build_contract with an empty
+                # failures list reproduces the previous contract verbatim, and
+                # the cache would then serve back the very chapter that just
+                # scored below threshold — burning every remaining retry.
+                with no_cache_reads():
+                    new_chapter, _ = batch_gen._write_chapter_parallel(
+                        outline,
+                        frozen,
+                        draft,
+                        story_context,
+                        frozen_threads,
+                        sibling_summaries,
+                        shared_enhancement,
+                        title,
+                        genre,
+                        style,
+                        characters,
+                        world,
+                        word_count,
+                        macro_arcs,
+                        conflict_web,
+                        foreshadowing_plan,
+                        progress_callback,
+                        None,
+                        idea,
+                        idea_summary,
+                        override_contract=new_contract,
+                    )
                 chapter_map[ch_num] = new_chapter
 
                 compliance = validate_contract_compliance(

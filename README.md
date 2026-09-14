@@ -106,6 +106,7 @@ Images are **off by default** (`image_provider = none` → text-only). Pick a pr
 | `dalle` | Set `image_api_key` (+ optional `image_api_url`) | Paid | OpenAI / Azure-compatible image endpoint. |
 | `seedream` | Set `seedream_api_key` + `seedream_api_url` | Paid | ByteDance Seedream; also the default character-consistency engine. |
 | `flowkit` | Chrome extension + Google Labs login | **Free\*** | Local-only proxy to Imagen 3. **\*Account-ban risk — use a secondary Google account.** Full walkthrough: [FlowKit guide](docs/flowkit-integration.md). |
+| `qwen-local` | Run the local Qwen proxy, set its base URL + key | **Free\*** | Local-only OpenAI-compatible proxy in front of chat.qwen.ai. The only provider that **edits** a reference image, so character likeness survives between panels. **\*Same account-risk caveat as FlowKit.** Guide: [Qwen local provider](docs/qwen-local-provider.md). |
 
 **Character consistency** — set `enable_character_consistency = true` to reuse a character's first portrait as a reference image, so the same face carries across every chapter (`character_consistency_provider`: `seedream` or `replicate`). Visual style is set by `image_prompt_style` (default `cinematic`) and portraits default to `9:16`. The [sample portraits above](#sample-output) were produced this way.
 

@@ -16,7 +16,10 @@ export default defineConfig({
   ],
   webServer: {
     command: "npm run dev",
-    url: "http://localhost:3000",
+    // Follows PLAYWRIGHT_BASE_URL so a dev server already running on another
+    // port is reused; `next dev` refuses to start a second instance for the
+    // same directory, which otherwise fails the whole run before test one.
+    url: process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:3000",
     reuseExistingServer: true,
     timeout: 120_000,
   },

@@ -697,9 +697,15 @@ class TestMorePresets:
             assert not missing, (
                 f"Provider preset {preset.get('name')} missing {missing}"
             )
-            assert isinstance(preset["models"], list) and preset["models"], (
-                f"Provider preset {preset['name']} has no models"
-            )
+            assert isinstance(preset["models"], list)
+            # The free-form card (`custom: True`) is the one entry with no fixed
+            # provider and therefore no model dropdown — the user types both.
+            # Every other card must still offer models, or its dropdown renders
+            # empty in Settings.
+            if not preset.get("custom"):
+                assert preset["models"], (
+                    f"Provider preset {preset['name']} has no models"
+                )
             for m in preset["models"]:
                 assert "id" in m and "label" in m, (
                     f"Model entry in {preset['name']} missing id/label"

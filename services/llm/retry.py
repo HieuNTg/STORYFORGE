@@ -10,6 +10,16 @@ logger = logging.getLogger(__name__)
 MAX_RETRIES = 3
 BASE_DELAY = 1.0
 
+# Longest Retry-After we will actually sleep through. A provider asking for
+# more than a minute is not "busy for a moment", it is unavailable for this
+# request — and we have a fallback chain for exactly that. Measured, not
+# hypothetical: a free-tier 429 came back with `Retry-After: 67364`, and the
+# pipeline dutifully slept 18.7 hours mid-chapter — no logs, no failure, no
+# way for the user to tell it apart from a hang. Past this cap we return
+# (True, 0), which the client's retry loop reads as "skip to the next
+# provider now".
+MAX_HONORED_RETRY_AFTER = 60.0
+
 # OpenRouter embeds X-RateLimit-Reset (ms since epoch) in 429 error bodies.
 _OPENROUTER_RESET_RE = re.compile(
     r"['\"]X-RateLimit-Reset['\"]\s*:\s*['\"]?(\d{10,})['\"]?", re.IGNORECASE
@@ -193,6 +203,8 @@ def _should_retry(exc: Exception, provider: str) -> tuple[bool, float]:
             return True, 0
         retry_after = _parse_retry_after(exc)
         if retry_after is not None:
+            if retry_after > MAX_HONORED_RETRY_AFTER:
+                return True, 0  # too long to wait — next provider instead
             return True, retry_after
         return True, 5.0  # Default rate limit delay
 

@@ -1,0 +1,332 @@
+# Implementation Plan — StoryForge Upgrade Programme
+
+Requirements doc: `docs/upgrade-plan-2026-08.md`. This file tracks execution.
+
+**Not a greenfield build.** The product exists and runs. No stack selection, no scaffolding, no Docker bootstrap. Every task below modifies working code, so every task carries a regression test that fails before the fix.
+
+Verified against source on 2026-08-22 before planning: `debate_mode` absent from `PipelineConfig` (confirmed), zero `load_dotenv` calls repo-wide (confirmed), `api_key` in `data/config.json` stored unencrypted (confirmed), **141 of 244 config fields never persisted** (11 LLM + 130 pipeline, measured).
+
+---
+
+## Sprint 1 — Phase 0: the 14 P0 defects
+
+Grouped into 4 batches. Each batch is one reviewable unit of work on the sprint branch.
+
+### Batch A — Resurrect the L2 craft lane (4 defects)
+
+The headline finding: the craft-critique lane advertised as "13 specialized agents with debate" does not run at all in the default configuration, and the contract gate that guards output reports success without ever checking anything.
+
+- [x] **A1. Restore the craft lane.** `pipeline/agents/agent_registry.py:243` reads `cfg.debate_mode`; the field does not exist on `PipelineConfig`, so the default path (`enable_agent_debate=True`, `config/defaults.py:289`) raises `AttributeError` the moment it reaches layer 2. It is swallowed at `pipeline/orchestrator_layers.py:1433-1435` into one `[AGENTS] WARN` line, `output.reviews` is never extended, and `SmartRevisionService` is starved of the reviews it revises from.
+  - [x] Add `debate_mode: str = "full"` to `PipelineConfig` with the allowed values documented (`full` | `lite`).
+  - [x] Regression test: run `run_review_cycle(layer=2)` against a default config and assert reviews come back non-empty — the test must fail on current `master`.
+  - [x] Verify `api/pipeline_routes.py:767` (the only writer, sets `"lite"`) still behaves.
+  - [x] Check the swallow site: an agent-panel failure must surface distinctly, not as an anonymous warning.
+
+- [x] **A2. Make the post-L2 contract gate actually gate.** `pipeline/layer2_enhance/scene_enhancer.py:411-418` and `:470-477` rebuild `Chapter` without `contract` / `structured_summary`, so `contract_gate.py:296` sees `None` on every chapter, skips them all, and `enhancer.py:1607-1627` logs a false green "✅ Contract gate: 0 vi phạm".
+  - [x] Carry `contract` and `structured_summary` through both `Chapter` reconstructions.
+  - [x] Regression test: a chapter that violates its contract must be caught by the gate.
+  - [x] Fix `_post_gate_validate` (`contract_gate.py:346`) reading `new_chapter.voice_contract` — an attribute assigned nowhere, so it always returns `True`. Read voice contracts from `sim_result.voice_contracts`.
+
+- [x] **A3. Stop one late LLM failure from discarding the whole L2 layer.** `simulator.py:1171` (`evaluate_drama`) and `:1252` (`_generate_suggestions`) are unguarded; a failure on call ~91 propagates out of `run_simulation_async` to the layer-wide handler at `orchestrator_layers.py:1469-1487`, which throws away ~90 expensive successful calls and ships the raw L1 draft as `status="partial"`, `drama_score=0.0`.
+  - [x] Guard both with degrade-in-place (fall back to the previous round's score / empty suggestions).
+  - [x] Type-check `suggestions_result` before `.get()` (`simulator.py:1305, 1333-1334`).
+  - [x] Emit a distinct SSE warning when L2 degrades, instead of silently shipping unenhanced prose.
+  - [x] Regression test: inject a failure at the last round and assert the simulation result survives with prior rounds intact.
+
+- [x] **A4. Distinguish a validation error from a validation failure.** `chapter_contract.py:169-181` and `:399-420` return `passed=False, compliance_score=0.0` when the *judge call itself* errors. `enhancer.py:536` / `:657` then trigger a full chapter re-enhance (~12-15 LLM calls) and `:699-733` reverts dialogue to the raw L1 text — all from one transient 429.
+  - [x] Add an explicit `error` state distinct from `failed`.
+  - [x] On `error`: skip remediation, record the incident, keep the enhanced chapter.
+  - [x] Regression test: simulate a 429 on the validation call and assert no re-enhance and no dialogue revert.
+
+### Batch B — Config integrity and secrets (3 defects)
+
+- [x] **B1. Load `.env`; stop storing API keys in plaintext.** No `load_dotenv` exists anywhere in the backend (verified). Consequences: `STORYFORGE_SECRET_KEY` is unset so `services/secret_manager.py:34-40` returns `None` and secrets-at-rest encryption never runs — `data/config.json` currently holds an unencrypted `api_key`; all 30 `_ENV_MAP` overrides (`config/persistence.py:20-50`) are dead; `STORYFORGE_ALLOWED_ORIGINS`, `REDIS_URL`, `DATABASE_URL` never apply.
+  - [x] Call `load_dotenv()` at the top of `app.py`, before config or logging is touched.
+  - [x] Add `python-dotenv` to `requirements.txt` if absent.
+  - [x] Migration path: on first boot with a key present, re-encrypt existing plaintext secrets in place and log the migration once.
+  - [x] Guard the crash this unmasks: `services/infra/database.py:159` calls `create_async_engine` outside its `try`, so the repo's own `.env` value (`sqlite:///./data/storyforge.db`, a sync driver) makes startup raise. Either coerce to the async driver or fail soft with a clear message.
+  - [x] Regression test: env override applies; a plaintext key is migrated to `ENC:`.
+
+- [x] **B2. Persist the whole config, and stop deleting unknown keys.** `config/persistence.py:151-311` hand-lists fields: 141 of 244 are never written, so all 26 `l2_*` knobs, `enable_agent_debate`, `parallel_chapters_enabled`, `chapter_batch_size` and the budget caps silently revert to code defaults on restart. Worse, `save_config` rewrites the file wholesale, so any key present in `data/config.json` but missing from the writer is **deleted** on the next save (live example: `enable_consistency_rewrite`). Presets apply only partially for the same reason.
+  - [x] Replace the hand-written dict with `dataclasses.asdict()` plus an explicit exclusion list for non-persistable fields.
+  - [x] Preserve unknown keys already in the file rather than dropping them.
+  - [x] Delete the ~60 dead `getattr(cfg, "x", default)` sites; 9 of them contradict `defaults.py` (`panels_max` 24 vs 12, `flowkit_aspect_ratio` 4:5 vs 9:16, `comic_shot_list_enabled` True vs False, `flowkit_veo_poll_interval` 5.0 vs 8.0, and 5 more).
+  - [x] Regression test: round-trip every field through save→load; assert an unknown key survives a save.
+
+- [x] **B3. Stop per-run flags from mutating global config.** `api/pipeline_routes.py:767-810` writes ~18 fields onto `orch.config.pipeline`, which is the process-wide `ConfigManager` singleton (`pipeline/orchestrator.py:86`). Two concurrent runs clobber each other, the mutation leaks into every later run in the process, and the next Settings save persists one run's ad-hoc flags. Separately, the toggle block at `:779-791` has no `else`, so it can only turn flags **on** — unchecking a box in the UI does nothing.
+  - [x] Snapshot the flags a run overrides and restore them when it ends, so a finished run cannot dictate the next one or leak into the next Settings save.
+  - [x] Make the toggles set the value, not just the truthy case.
+  - [x] Regression test: the singleton is unchanged after a run; an unchecked flag is actually disabled.
+  - [ ] **Deferred to Phase 1 — true concurrent isolation.** 26 modules read the `ConfigManager` singleton directly rather than `orch.config`, so overlapping runs with different flags remain last-writer-wins. Fixing that means a contextvar-scoped config (or threading config through those call sites), which is an architecture change, not a P0 patch.
+
+### Batch C — User-facing data loss (2 defects)
+
+- [x] **C1. Stop losing the user's library when localStorage fills.** `frontend/stores/library-store.ts:201-233` configures zustand `persist` with no error handling; the middleware writes *after* the in-memory state has already changed, so on `QuotaExceededError` the story looks saved, the success toast fires, and the whole library is gone on reload. A 50-story × 20-chapter prose blob passes the ~5 MB quota long before the 50-story cap. The throw also lands inside the SSE `onmessage` handler (`components/pipeline/PipelineScreen.tsx:159-167`), killing the stream mid-`done` so the panel just freezes.
+  - [x] Catch persist failures and surface a real error state, never a success toast.
+  - [ ] **Deferred to Phase 1** — move chapter prose to IndexedDB, keeping metadata in localStorage. The quota failure is now reported honestly instead of losing the library silently; raising the ceiling is a storage-layer change, not a P0 patch.
+  - [x] Move `commitToLibrary` out of the SSE callback path so a storage error cannot kill the stream.
+  - [x] Regression test: mock a quota throw; assert the user sees a failure and the existing library survives.
+
+- [x] **C2. Reattach to a run after the stream drops.** Recovery polling is gated on `!pendingBody` (`components/pipeline/PipelineScreen.tsx:242`), but `pendingBody` clears only in `handleCancel` — so when the live stream errors the poller stays disabled and the user must reload the page by hand to rejoin a run the server is still executing.
+  - [x] Clear `pendingBody` in `onError`/`onClose` so recovery engages automatically.
+  - [x] Tell the backend when the user cancels; today `handleCancel` leaves `?session=` in the URL, so the poller resurrects the cancelled run and auto-saves it on `done`.
+  - [ ] **Deferred to Phase 1** — suppress side effects during replay (a reload at chapter 12 still pops 12 toasts). Noisy, not destructive: `addStory` upserts by id, so the re-save is idempotent.
+  - [x] Replace the permanent give-up after 5 consecutive errors (`useRunRecovery.ts:62,124-145`) with backoff — 7.5 s of backend trouble currently orphans a 20-minute run.
+  - [ ] **Deferred to Phase 1** — extend recovery to the "Viết tiếp" flow, which has none. Needs the continue endpoints to expose a session id first.
+  - [x] Regression tests for each of the five behaviours above.
+
+### Batch D — Durability and correctness (5 defects)
+
+- [x] **D1. Make resume actually resume.** Per-chapter checkpoints are written but never read: `resume_from_chapter` (`orchestrator_checkpoint.py:278`) has no production call site and `resume_from_batch` (`batch_generator.py:112,163`) is never passed a non-zero value. `CheckpointManager.resume` (`:368-405`) sees a partial draft and runs L2 on it, so a crash at chapter 7 of 20 ships a 7-chapter story as complete. Checkpoint saves are fire-and-forget daemon threads (`:187-188`), so `await asyncio.to_thread(self.checkpoint.save, 1)` awaits only the thread spawn, not the write.
+  - [ ] **Deferred to Phase 1** — wire `resume_from_batch` so a partial L1 continues from the last completed batch. Resume now refuses to advance an incomplete draft into L2 (the data-loss half); restarting L1 from the last batch is a larger change to the batch generator's entry contract.
+  - [x] Compare `len(chapters)` against `len(outlines)` before advancing to L2; resume L1 when short.
+  - [x] Await the real write at layer boundaries so a SIGTERM cannot truncate it.
+  - [x] Regression test: kill mid-run, resume, assert all chapters are generated.
+
+- [x] **D2. Fix the LLM cache key.** `services/llm/client.py:747` reads with the *configured* model while `:834-835` writes with the model that actually answered, so the cache almost never hits after any fallback — and because `generate_for_layer` delegates to `generate(model=...)`, layer 2 can be served a cached layer 1 answer. `max_tokens` is absent from the key, so a truncated 512-token answer is replayed for an 8192-token request.
+  - [x] Key on the resolved model plus `max_tokens`; namespace by layer.
+  - [x] Regression test: a layer-2 call must never receive a layer-1 cached body.
+  - [x] Note for Phase 1: caching is currently on up to `temperature <= 1.0`, which replays identical text into quality-gate retries so they cannot converge. Fix belongs with the cost work.
+
+- [x] **D3. Finish the request-timeout rollout.** `providers/anthropic_provider.py:19` and `providers/gemini_provider.py:16` ignore `llm.request_timeout` and keep their SDKs' internal retries, re-creating the retry multiplication the OpenAI provider's comment says it avoids. The stream wrapper kills at `stream_first_chunk_timeout=180` — exactly the slow case the 900 s default was raised for — and `fallback_max_latency_ms=120000` will blacklist legitimately slow models.
+  - [x] Pass `timeout` and `max_retries=0` to both providers.
+  - [x] Derive the stream and latency thresholds from `request_timeout` instead of fixing them independently.
+  - [x] Regression test: all provider paths honour a configured timeout.
+
+- [x] **D4. Stop one failed panel from corrupting every later comic page.** `services/media/image_generator.py:217-225` appends only successful paths, shortening the list, while `page_compositor.py:1070-1078` slices it positionally per page — so one failure shifts every subsequent panel into the wrong cell and speech balloons land on the wrong art.
+  - [x] Append a `None` sentinel on failure; `_place_panel` (`page_compositor.py:469-487`) already draws a placeholder.
+  - [x] Report partial chapters instead of silently returning `[]` (`comic_chapter.py:148-149`).
+  - [x] Regression test: fail panel 3 of 8, assert panels 4-8 stay in their correct cells.
+
+- [x] **D5. Let the FlowKit extension call back.** `POST /api/ext/callback` (`api/flowkit.py:109`) is not in the CSRF exemption list (`middleware/csrf.py:18-24`), so the extension — which has no CSRF cookie — gets 403 before its HMAC is ever checked.
+  - [x] Exempt the route; it is already authenticated by HMAC.
+  - [x] Regression test: a valid HMAC callback succeeds; an invalid one is still rejected.
+
+### Sprint 1 exit criteria
+
+- [ ] All 14 defects fixed, each with a regression test that fails on the pre-fix commit.
+- [ ] `scripts/run_gate_chunks.ps1` clean, exit codes inspected by hand (the gate cannot fail on its own until Phase 3).
+- [ ] `npx tsc --noEmit` clean; `npx vitest run` green.
+- [ ] One PR to master from the sprint branch.
+
+---
+
+## Sprint 2-3 — Phase 1: LLM cost and wall-clock
+
+Target: **−50% cost, −40% wall-clock** on a 10-chapter run (currently 450-700 calls, 1200+ when the quality gate retries).
+
+### Batch E — Measurement (done)
+
+Nothing else in this sprint can be judged until spend is counted correctly.
+
+- [x] Count tokens from provider responses instead of `len(text)//4`. Each provider now fills a per-call `usage_out` dict (no shared state between concurrent chapters); the estimator is used only as a fallback and now delegates to the Vietnamese-aware `token_counter` — measured 481 tokens where the old heuristic said 210 on the same sample, i.e. it ran 56% low.
+- [x] Bring the streaming path — the chapter body, the single largest consumer — into cost tracking and the wallet. Streams accumulate their output and are costed on completion; a budget breach propagates, while a telemetry failure never costs the user their story.
+### Batch F — Remove repeated work (in progress)
+
+- [x] Memoise the voice engine per draft, under a lock. Five call sites rebuilt it once per chapter and again per retry — roughly 50 identical cheap calls on a 10-chapter, 5-character story. A failed build is remembered too, so it is not retried per call site.
+- [x] Fix the same shape in `_theme_profile`: read-then-assign let concurrently enhanced chapters each start their own `extract_theme`.
+- [x] Memoise scene decomposition per outline. Both the sequential write path and the enhancement-context builder decomposed the same chapter under the same flag. Uses a per-outline lock so callers for one chapter collapse into a single call while different chapters still decompose in parallel (measured: 4 chapters in 0.27s, not 1.0s).
+- [x] Re-enhance only the failing scene on contract/voice retry, not the whole chapter pipeline. — **scoped down, with a reason.** `ContractValidation` carries no scene locator (missing escalations/subtext/causal refs are all chapter-level), so "the failing scene" is not derivable today; pinning one would be guesswork. What *was* pure waste is now gone: `enhance_chapter_by_scenes` splits and scores the chapter, and a chapter pipeline calls it four times (first pass, contract retry, voice retry, structural re-enhance) against text the retries did not change — each retry building a fresh `SceneEnhancer`, so no instance memo could help. A module-level cache keyed on the chapter text, with per-key locks, makes every run after the first cost nothing. `score_scenes` (one cheap call per scene) now runs concurrently too.
+  - [ ] **Follow-up:** to actually target one scene, `ContractValidation` needs to localise each missing element to a scene — either a per-scene validation pass or a locator field on the judge's reply. Own change.
+- [x] Replace whole-story regeneration on quality-gate failure with the existing targeted `SmartRevisionService`. — both gates (L1 and L2) now revise only the chapters they named, at the gate's own `chapter_threshold`, keeping a rewrite only when it re-scores better. The wholesale path stays as the fallback and that is deliberate: when every chapter clears the bar but the story scores low overall, the complaint is not localised and only regenerating the layer can move it. Note the old retry also accepted its replacement unseen — nothing compared it against what it replaced, so a worse second attempt shipped.
+- [x] Cap `generate_json` repair at one pass on the cheap tier (it stacks up to 4 full chain traversals today). — one shared repair budget per `generate_json`, so the shape-mismatch retry no longer gets its own.
+### Batch G — Model routing (done)
+
+- [x] Route the simulator's low-stakes calls to the cheap tier: drama evaluation (read as a single score) and reaction posts (only ever seen truncated as recent-posts filler). Agent turns and escalation events stay on the primary model — those are the dramatic content itself. Reversible via `l2_cheap_low_stakes_calls`.
+- [x] Cap the 8-agent panel's replies at `l2_agent_review_max_tokens` (1200). Each returns a small `{score, issues[], suggestions[]}` object and had no output cap, so it was billed against the model's full output budget. A source-level test keeps any new panel call from shipping uncapped.
+- [x] Expose `l2_cheap_agent_panel`, **defaulted off**. Unlike the simulator's filler, the panel's critique is what SmartRevisionService rewrites from, so moving it to a weaker model is a quality decision for the CEO rather than an automatic saving.
+- [x] Reorder the fallback chain: cheap model first in the cheap tier, primary model always present as last resort. — the `cheap_model_name is None` guard had excluded the primary from cheap-tier chains entirely.
+### Batch H — Parallelism (in progress)
+
+- [x] Parallelise character-state extraction: one cheap call per character per chapter, previously issued strictly one after another against the same excerpt. Prompt unchanged — this is a scheduling fix, so there is no quality risk. Results are merged on the calling thread and returned in a deterministic order rather than completion order.
+- [ ] **Follow-up, needs measurement:** batch all characters into one call per chapter (~50 calls to ~10). Cuts cost as well, but changes the prompt and its parsed shape, so it needs a real story run to validate before shipping.
+- [ ] Group the ~10 sequential validators in `finalize_chapter` into 2-3 gather groups.
+- [x] Parallelise the 6 independent L1 preamble calls (60-90 s of dead time at the start of every run). — they are not 6 mutually independent calls: the real shape is two waves. Wave 1 {idea summary, premise, characters} reads only the raw request; wave 2 {voice profiles, world, arc waypoints} reads only the cast. Everything after (macro arcs -> outline -> critique) is a genuine dependency chain. Five sequential round-trips collapse to two barriers via `StoryGenerator._run_preamble_wave`.
+  - Both wave-2 steps mutate the shared `characters` list, so the writes are applied on the calling thread after the wave joins, not inside the workers.
+  - Each task runs under `contextvars.copy_context()`; without it, siblings sharing one context corrupt per-call token/cost attribution instead of failing.
+- [x] `services/thread_pool_manager.py` has zero production call sites. **Decision: deleted** (with `_thread_pool_impl.py` and its test). Adopting it would not have helped: its `submit(pool_name, fn)` API cannot bound the total across several executors, which is exactly the image case, and LLM/CPU sites are already bounded by `max_parallel_workers`. A module nobody calls, whose caps bound nothing, only creates the appearance of control.
+- [x] Parallelise comic panels **within a chapter**, so the FlowKit ramp can actually ramp. — `generate_story_images` now fans out over panels bounded by the new `pipeline.comic_panel_workers` (default 3; image endpoints rate-limit far harder than text ones). Results are written by index, never appended: completion order is not panel order and the compositor slices the list positionally.
+- [x] Parallelise **chapters** on the Reader path. — `handle_generate_images` looped chapters one at a time while the pipeline media stage had been fanning the same shared `generate_chapter_comic` out all along. Paths are applied in chapter order, not completion order. Also fixed a real defect the tests exposed: one chapter raising used to hit the handler's outer `except` and return `[], "Error: ..."`, losing every other chapter's art.
+- [x] **One ceiling for image work.** Chapter-level and panel-level fan-out multiply (4 x 3 = 12 requests in flight, not 4) and neither worker count bounds the other. New `pipeline.image_max_concurrent_requests` (default 4, 0 disables) is a process-wide semaphore held around the provider call itself — released across retry backoff, so a retrying panel does not sit on capacity. `pipeline.comic_chapter_workers` (default 4) now drives both entry points.
+- [x] Collapse the agent DAG from 4 tiers to 2. Six of eight agents declared `depends_on` while ignoring the `prior_reviews` argument, so the panel ran in four sequential passes with nobody using the previous pass's data. Only the editor consumes it, so only the editor gets its own tier. A test now rejects a declared dependency that the agent does not actually read.
+- [x] Honour `max_parallel_workers`. It was read only to print "parallel, N workers" while the gather dispatched every chapter at once — a 50-chapter continuation ran 50 chapter pipelines concurrently, each with its own nested pool.
+### Batch J — Found by a real run, not by the suite
+
+The CEO pointed out the local Gemini/Qwen proxy could be started and a real
+story generated. It found a P0 in the first attempt that 5,000 tests did not.
+
+- [x] **Layer 1 died outright whenever scene beats were produced.**
+  `parallel_write_context.py:165` did `per_chapter_enhancement += scene_beats`,
+  but `generate_scene_beats` returns `list[SceneBeat]` — `TypeError: can only
+  concatenate str (not "list") to str`. The exception left `asyncio.gather` via
+  `_run_batch_async`, so it was not one lost chapter: the whole layer failed
+  with `status="error"` and zero chapters, *after* the entire preamble had been
+  paid for (315 s, 41 calls on a 3-chapter run).
+  - The module already ships `format_beats_for_prompt`, and the **sequential**
+    write path has always used it. Only the parallel path — the default — did
+    not. Same recurring shape as the rest of this sprint: two paths doing one
+    job, one of them wired correctly.
+  - Invisible to the suite because beats are gated on `pacing_type` and the
+    generator returns `[]` on failure, so the `if scene_beats:` guard usually
+    skipped the broken line. It only fires when beat generation *succeeds*.
+  - Beat generation is now non-fatal like every other prompt enrichment beside
+    it; a flaky cheap call must not cost the whole story.
+- [ ] **Follow-up:** the real run is the only thing that caught this. Add a
+  smoke run against the local proxy to the release checklist — the gate cannot
+  substitute for it.
+
+### Batch I — Retry discipline (done)
+
+- [x] Cap auto-discovered round-robin models at `max_discovered_models_per_key` (3). Explicitly configured `fallback_models` are untouched — capping the whole chain would have dropped exactly the fallbacks the operator chose on purpose.
+- [x] Add `max_total_call_seconds` (1800, 0 disables): an absolute ceiling on one `generate()` across its chain, per-entry retries and backoff sleeps.
+- [x] Stop clearing the global 429 cooldowns between chain passes. Only expired entries are dropped now, and the all-keys-cooling release valve retries without erasing state other threads are still routing by.
+- [x] Disable cache reads on quality-retry paths so retries can converge. — `no_cache_reads()` ContextVar, applied to both L1 contract-retry rewrites. Writes stay on.
+
+---
+
+
+### Batch K — Repair loop cho L1 chapter finalize
+
+Spec: `docs/agentic-repair-loop-spec.md`. Đây là khoản cost lớn nhất còn lại của
+Phase 1 và cũng là một defect chất lượng: post-write của mỗi chương chạy 5 pass
+sửa lỗi độc lập, worst-case **8 LLM call/chương trong đó 5 call sinh lại nguyên
+chương** ở `max_tokens=8192` — với truyện 40 chương là ~200 lần viết lại nội dung
+đã có. Cả 5 flag mặc định `True` (`config/defaults.py:374,388,442,447,460`).
+
+Nguyên tắc bất di bất dịch (spec §1.3): **verifier là detector tất định, không
+bao giờ là LLM-as-judge.** Vòng lặp dừng theo `count_words` /
+`consistency_validators` / `verify_payoffs`, không theo điểm model tự chấm.
+
+#### K-A. Hạ tầng — tách detect khỏi side-effect (không đổi hành vi)
+
+- [x] Dựng `pipeline/layer1_story/repair/findings.py`: `Severity`, `RepairFinding`, `RepairPlan`, `RepairOutcome`.
+- [x] Dựng `repair/collector.py`: gom finding từ 5 nguồn hiện có mà **không** mutate `story_context`. Hôm nay detector ghi thẳng vào `story_context.name_warnings` / `arc_drift_warnings` / `foreshadowing_payoff_missing` — phải tách detect khỏi commit-warning để chạy lại được trên bản candidate.
+- [x] `find_referencing_symbols` (Serena) trên mọi symbol đụng tới trước khi sửa. `finalize_chapter` có 3 đường gọi (sync executor / async gather / serial fallback) — mọi rẽ nhánh phải đặt **bên trong** `finalize_chapter`, không ở callsite.
+- [x] Regression test `test_collector_is_pure`: `collect_findings` không mutate `story_context`. Fail trước khi fix.
+- [ ] Gate xanh với flag OFF. Không một byte hành vi nào đổi ở bước này.
+
+#### K-B. Coordinator + executor, planner tất định (phần lớn giá trị nằm ở đây)
+
+Chưa cần thêm LLM call nào: planner giả lập gộp mọi finding, `strategy` luôn
+`full_rewrite`. Đủ để đóng bug ghi-đè và cắt 5 regen xuống 1.
+
+- [x] 6 field config vào `config/defaults.py` (`enable_agentic_repair` — mặc định `True` theo K-D, `repair_max_rounds=2`, `repair_budget_calls=4`, `repair_regression_tolerance=0.0`, `repair_fallback_to_legacy=True`, `repair_min_severity="major"`). Không thêm `getattr(cfg, "x", default)` mới.
+  - `repair_planner_model_tier` **chưa** thêm: planner hiện tất định, không gọi LLM. Field này thuộc K-C.
+- [x] Env override `STORYFORGE_AGENTIC_REPAIR` vào `config/persistence.py` theo mẫu dòng 27.
+- [x] `repair/executor.py`: một prompt rewrite mang **toàn bộ** `constraints` gộp từ mọi finding. Đây là fix cho bug (b) — hôm nay `EXPAND_CHAPTER` không hề biết payoff vừa được chèn.
+- [x] Verifier + `repair/coordinator.py`: vòng lặp, budget cứng, rollback về baseline chụp trước vòng đầu, fallback về 4 lời gọi legacy khi hết budget mà còn lỗi.
+  - Không có file `repair/verifier.py` riêng: verifier là `recheck_findings` trong `repair/collector.py`, dùng chung detector với bước collect.
+- [x] Rẽ nhánh trong `chapter_finalizer.py:97-127`.
+- [x] Tắt `chapter_critique_rollback` khi `enable_agentic_repair=True` (spec §10.1) — giữ `True` trên nhánh legacy.
+- [x] Trace fields: `repair.rounds_used/calls_used/findings_before/findings_after/rolled_back/fallback_used/strategy`.
+- [x] Regression tests, mỗi cái fail trước khi fix:
+  - [x] `test_length_survives_payoff_fix` — chương 1800 từ + payoff thiếu, sau repair vẫn ≥ `length_gate_min_ratio × target` **và** payoff đã trả. **Đây là bug thật, reproduce được trên code hôm nay.**
+  - [x] `test_repair_budget_hard_cap` — vượt `repair_budget_calls` thì thoát, không gọi thêm.
+  - [x] `test_repair_rollback_on_regression` — findings tăng thì content về baseline.
+  - [x] `test_repair_constraints_merged` — prompt chứa mọi `hard_constraint`.
+  - [x] `test_repair_exception_non_fatal` — planner raise thì chương giữ nguyên, pipeline chạy tiếp.
+  - [x] `test_repair_disabled_is_byte_identical` — flag OFF gọi đúng 4 hàm cũ, đúng thứ tự.
+- [ ] Bật flag trên một truyện thử, ghi số `calls_used` vs legacy.
+  - **Đổi so với spec, tìm ra nhờ test:** baseline score phải đo bằng **cùng
+    thước đo** với candidate. Bản đầu chấm baseline từ warning tiền-tính trên
+    `story_context` còn candidate thì chạy lại detector — hai thước đo khác nhau,
+    nên một bản viết lại 1800→900 từ vẫn được chấm là "tốt hơn" và được nhận.
+    `test_repair_rollback_on_regression` bắt đúng chỗ đó. Coordinator giờ chạy
+    `recheck_findings` trên chính bản gốc để lấy baseline (miễn phí — mọi detector
+    recheck được đều không dùng LLM).
+  - Chỉ 4 nguồn `payoff/name/location/length` tham gia chấm điểm. `pacing` (tốn
+    1 LLM call để đo), `arc` (`detect_arc_drift` đọc `character_states` chứ không
+    đọc văn bản) và `critique` (LLM tự chấm) được mang theo làm ràng buộc nhưng
+    **không** được chấm lại — chấm lại chúng là so đo mới với đo cũ.
+  - Trace: hiện thực là `RepairStats` trong `services/trace_context.py` (cộng dồn
+    cả run + vào `summary()`), thay vì 7 field rời — hợp style `RagEventStats` sẵn có.
+  - `post_processing.py` stash `repair_prev_locations` / `repair_new_locations`:
+    `character_locations` đã bị đẩy sang giá trị mới trước khi repair chạy, nên
+    không stash thì không recheck được chuyển cảnh.
+
+#### K-C. Planner thật (1 LLM call)
+
+- [ ] `repair/planner.py`: chọn `targeted` / `full_rewrite` / `skip`, trả JSON hẹp.
+- [ ] `test_planner_json_contract` — `strategy` ngoài 3 giá trị thì coi như `skip`, không crash.
+- [ ] A/B 10 chương: so `calls_used`, `findings_after`, điểm critique cuối.
+
+#### K-D. Quyết định default
+
+- [x] **Bật mặc định — CEO quyết ngày 2026-08-26, sớm hơn cổng mà kế hoạch này đặt ra.**
+  Kế hoạch ban đầu là chỉ bật sau khi K-C chứng minh call giảm ≥40% mà
+  `findings_after` không tăng. Đánh đổi được chấp nhận có ý thức: đường repair có
+  rollback theo detector tất định, có fallback về 4 pass legacy khi hết ngân sách,
+  và mọi đường lỗi đều non-fatal — nên rủi ro tệ nhất là chất lượng kém đi ở một
+  số chương, không phải hỏng pipeline.
+- [ ] **Điều kiện bắt buộc phát sinh từ quyết định trên: smoke run thật trước khi merge.**
+  Prompt hợp nhất (`repair/prompts.py`) tới giờ mới chỉ được kiểm bằng LLM giả.
+  Gate không thay được việc này — cùng bài học đã ghi ở Batch J ("the real run is
+  the only thing that caught this"). Cần một truyện ≥5 chương chạy thật, rồi đọc
+  `trace.summary()["repair"]`: `calls_used` phải thấp rõ so với legacy,
+  `findings_after_total` không được cao hơn `findings_before_total`, và
+  `rollbacks` cao bất thường nghĩa là prompt đang sinh bản tệ hơn.
+  - **2026-09-13: CEO quyết merge vào master qua PR #49 trước smoke run**, giữ flag bật.
+    Điều kiện còn lại chỉ là gate xanh. Smoke run vẫn là việc phải làm — giờ là
+    kiểm chứng sau merge, và nhánh dưới đây là đường lui nếu kết quả xấu.
+- [ ] Nếu smoke run xấu: hạ `enable_agentic_repair` về `False` (một dòng, hoặc
+  `STORYFORGE_AGENTIC_REPAIR=0`) — legacy vẫn nguyên vẹn và có test khoá.
+- [x] **Sửa kill switch — nó vốn không tắt được gì.** `_apply_env_overrides` chỉ ép
+  kiểu cho field nằm trong `_BOOL_FIELDS`; field bool thiếu ở đó nhận thẳng chuỗi,
+  mà chuỗi rỗng thì bị `if not val: continue` bỏ qua còn chuỗi `"0"` là **truthy** —
+  nên `FLAG=0` bật cờ lên. Dính hai cờ: `STORYFORGE_AGENTIC_REPAIR` (tôi vừa ghi
+  vào docs là kill switch) và `STORYFORGE_LENGTH_GATE` (có sẵn từ trước, xưa nay
+  chỉ bật được chứ không tắt được). Cùng họ với defect B3 "toggle chỉ bật được".
+  `tests/test_env_bool_overrides.py` khoá cả hai, và có thêm một test khoá **quy tắc**:
+  mọi field bool trong `_ENV_MAP` phải có mặt trong `_BOOL_FIELDS` — đó mới là thứ
+  bắt được ca thứ ba, vì hai ca này đều lọt vào đúng theo cách đó.
+
+---
+
+## Sprint 3 — Phase 2: remove ~15,000 lines of dead code
+
+Every item verified to have no caller. Runs alongside the tail of Phase 1.
+
+- [ ] Dead DB layer (~1,100 lines): the database has zero rows in every table and nothing writes stories to it. Removes `_persist_*_to_db`, `diagnostics_routes`, `_load_story_from_db`, ORM models, alembic.
+- [ ] 12 route modules no frontend calls (~2,500 lines), including `dashboard` which always 500s and `account_routes` which is never even mounted; plus 10 of 12 continuation endpoints.
+- [x] Veo/video remnants removed — and it was wider than "~180 lines". Gone: `request_video`, `get_job`, `start_polling`/`stop_polling`, `_poll_jobs_loop`, `_poll_once`, **and the whole SQLite layer under them** (`_SCHEMA`, `flow_jobs`, `init_db`, `_db_execute`, `_db_query`, `_DB_PATH`) — `flow_jobs` only ever held Veo jobs; image generation is synchronous over the extension WebSocket and never touched it. `request_video` had **no production caller at all**, only a test, yet the poll task woke every `flowkit_veo_poll_interval` seconds for the lifetime of every process with FlowKit enabled — i.e. the image path everyone uses.
+  - The config key reached further than the plan implied: `config/defaults.py`, three places in `api/config_routes.py`, the frontend Zod schema, **a visible number input in `FlowkitSettings.tsx`**, the `poll_running` status field and its TS type, and four docs. All removed together — a settings control for a loop that no longer exists is worse than the loop.
+- [ ] Dead frontend (~1,400 lines) and the two unreachable reader routes — decide which reader route is canonical first, since one of them renders `ComicGenerator` against the prose-only Reader decision.
+- [ ] Dead pipeline code (~800 lines): PROBE instrumentation shipping in production, `MediaProducer` never run, unread foreshadowing wiring.
+- [x] `plugins/`: `load_all()` is never called. **Decision: wired in**, not deleted — the repo ships `plugins/README.md` and an example, so this is a documented extension point, and 11 hook call sites already exist on the hot path. One trap had to be closed first: `example-custom-genre.py` registers a genre *and* adds a bonus in `on_score`, so loading it at startup would have quietly changed every user's quality scores because the repo ships documentation. The loader now skips `example-*` / `example_*` by name; copy one to your own filename to enable it. Load failure is non-fatal — a broken third-party plugin must not stop the server booting.
+- [x] `/api/v1` mirror deleted. It re-mounted nine routers under a second prefix and installed a `BaseHTTPMiddleware` — which wraps *every* request in an extra task and stream pair — purely to set a Deprecation header on paths no client called. Verified against the frontend: zero references. **Trap avoided:** `/api/v1/eval/*` is *not* from the mirror — `api/eval_routes.py` carries its own `/v1/eval` prefix, so those routes and their tests are untouched. `AGENTS.md` also described `api/v1/router.py` and a `build_v1_router()` factory that never existed; corrected.
+- [ ] Consolidate duplicates (~2,000 lines): 5 copies of `_detect_provider_type`, 2 divergent pricing tables, 3 incompatible library-payload models, 5 near-identical SSE generators, 6 copies of the settings save handler, 3 route-local rate limiters.
+
+---
+
+## Sprint 4-5 — Phase 3: quality foundation
+
+- [ ] Vietnamese golden dataset, 20 stories × 5 genres. The eval machinery already exists in `tests/benchmarks/` but its dataset is 20 **English** stories and its runner is not collectable.
+- [ ] Make the gate able to fail: it passes `--cov-fail-under=0`, never aggregates exit codes, wastes 49 s on a chunk that collects zero tests, and carries ~1,900 phantom statements from deleted files. Real coverage is 70%.
+- [ ] Typed SSE events alongside the human-readable log, so the UI stops deriving state from regexes over Vietnamese prose.
+- [ ] One `ImageBackend` protocol for the 9 image providers; unified retry and fallback policy.
+- [ ] Enforce the simulator/debate lane contract in code — the current filter cannot drop anything and two debate prompts instruct across the boundary.
+- [ ] One shared `write_one_chapter()` across the sequential, parallel and continuation paths, which produce materially different quality today.
+
+---
+
+## Sprint 5 — Phase 4: packaging and docs
+
+- [ ] Ship a UI in the production image; today the frontend is dockerignored and nothing serves it.
+- [ ] Bake the spaCy model and MiniLM weights; run `alembic upgrade`; multi-stage build.
+- [ ] Rewrite `AGENTS.md` / `ARCHITECTURE.md`, which currently instruct agents to run a command that crashes this host and describe deleted files, Alpine.js, Gradio and TTS.
+- [ ] Fix or delete the broken scripts (deleted checkpoints, wrong UI port, hard-coded personal paths).
+- [ ] Verify the static export against the 4 dynamic routes; stop shipping both locale catalogues to the client.
+
+---
+
+## Progress log
+
+| Date | Phase | Status | Notes |
+| --- | --- | --- | --- |
+| 2026-09-13 | Batch K + Sprint 3 (một phần) | K-A/K-B done, merge qua PR #49 | Repair loop bật mặc định, smoke run thật còn nợ; K-C chưa làm. Sprint 3: bỏ Veo/jobs DB, xóa `/api/v1` mirror, nối plugins. Gate (flag ON): 5092 passed, 0 failed; FE tsc + 145 vitest xanh |
+| 2026-08-26 | Batch K | Planned — chờ CEO duyệt | Spec `docs/agentic-repair-loop-spec.md`; 5 repair pass -> 1 vòng có ngân sách; verifier tất định (research §1.3) |
+| 2026-08-22 | Batch D | Done | 5 defects fixed; 29 new tests; full gate pending |
+| 2026-08-22 | Batch C | Done | 2 defects fixed; quota no longer loses the library; dropped streams reattach; 9 new FE tests |
+| 2026-08-22 | Batch B | Done | 3 defects fixed; config persistence 103 -> 244 of 245 fields; 41 new tests |
+| 2026-08-22 | Batch A | Done | 4 defects fixed, 25 new regression tests, 367 L2/agent tests green |
+| 2026-08-22 | Planning | Approved | Plan written from `docs/upgrade-plan-2026-08.md`; 4 headline P0 claims re-verified against source |

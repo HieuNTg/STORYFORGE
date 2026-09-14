@@ -16,6 +16,7 @@ from pipeline.layer1_story.chapter_rewrites import (
     _enforce_pacing,
     _rewrite_for_consistency_violations,
 )
+from pipeline.layer1_story.chapter_length_gate import expand_chapter_if_short
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +53,7 @@ def finalize_chapter(
       2. verify-and-rewrite missing foreshadowing payoffs
       3. consistency-violation rewrite
       4. pacing enforcement rewrite
+      5. length gate — expand a chapter that came back under target
 
     Not safe for concurrent invocation against a shared `story_context`:
     the 4 inner steps mutate context state in order and read each other's
@@ -79,6 +81,46 @@ def finalize_chapter(
         voice_profiles=getattr(draft, "voice_profiles", None) or [],
         pipeline_config=pipeline_config,
     )
+
+    # Sprint 2 Batch K: one bounded repair loop in place of the four passes
+    # below. Branching here rather than at the call sites is deliberate —
+    # finalize_chapter exists precisely so the sync, async and threaded paths
+    # cannot drift apart, and a branch per call site would undo that.
+    #
+    # Non-fatal in the same way the four legacy passes are: a failure leaves the
+    # chapter as written rather than stopping generation.
+    if pipeline_config.enable_agentic_repair:
+        try:
+            from pipeline.layer1_story.repair import RepairContext, repair_chapter
+            from services.trace_context import get_trace
+
+            outcome = repair_chapter(
+                RepairContext(
+                    pipeline_config=pipeline_config,
+                    llm=llm,
+                    chapter=chapter,
+                    outline=outline,
+                    story_context=story_context,
+                    characters=characters,
+                    draft=draft,
+                    foreshadowing_plan=foreshadowing_plan,
+                    word_count=word_count,
+                    layer_model=layer_model,
+                    progress_callback=progress_callback,
+                    prev_locations=getattr(story_context, "repair_prev_locations", None),
+                    new_locations=getattr(story_context, "repair_new_locations", None),
+                )
+            )
+            trace = get_trace()
+            if trace is not None:
+                trace.repair_stats.record(outcome)
+        except Exception as e:
+            logger.warning(
+                "Agentic repair failed for ch%s (non-fatal): %s",
+                getattr(outline, "chapter_number", "?"),
+                e,
+            )
+        return
 
     _verify_and_rewrite_missing_payoffs(
         pipeline_config,
@@ -108,6 +150,20 @@ def finalize_chapter(
         llm,
         chapter,
         outline,
+        layer_model,
+        progress_callback,
+        draft=draft,
+    )
+
+    # Last, so it measures the text that actually ships: the rewrites above can
+    # each shorten the chapter, and a length check placed before them would be
+    # measuring a draft that no longer exists.
+    expand_chapter_if_short(
+        pipeline_config,
+        llm,
+        chapter,
+        outline,
+        word_count,
         layer_model,
         progress_callback,
         draft=draft,

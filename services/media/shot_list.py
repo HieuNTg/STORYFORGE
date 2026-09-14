@@ -51,7 +51,7 @@ _LAYOUT_BY_COUNT = {
     2: "TWO_TIER",
     3: "THREE_TIER",
     4: "GRID_2x2",
-    5: "BIG_PLUS_TWO",
+    5: "BIG_PLUS_FOUR",
     6: "SIX_GRID",
 }
 
@@ -187,6 +187,79 @@ def _word_count_vi(text: str) -> int:
     return len([w for w in re.split(r"\s+", (text or "").strip()) if w])
 
 
+def panels_for_chapter(chapter, cfg) -> int:
+    """How many panels a chapter should get, honouring the auto-sizing knobs.
+
+    Lives here so the pipeline media stage and the on-demand reader path can't
+    drift: the pipeline used to read ``panels_per_chapter`` directly and ignore
+    ``panels_auto``/``panels_min``/``panels_max``/``words_per_panel`` entirely,
+    so the same chapter got a different panel count depending on which route
+    generated it.
+    """
+
+    fixed = max(1, int(getattr(cfg, "panels_per_chapter", 8)))
+    if not bool(getattr(cfg, "panels_auto", True)):
+        return fixed
+    lo = max(1, int(getattr(cfg, "panels_min", 4)))
+    hi = max(lo, int(getattr(cfg, "panels_max", 24)))
+    per = max(1, int(getattr(cfg, "words_per_panel", 200)))
+    words = len((getattr(chapter, "content", "") or "").split())
+    return max(lo, min(hi, round(words / per)))
+
+
+def _split_bubble_text(text: str, max_words: int = MAX_WORDS_PER_BUBBLE) -> list[str]:
+    """Break one over-long line into balloon-sized chunks, in order.
+
+    Real comics never letter a 40-word speech into one balloon — they break it
+    across two or three, which is also what keeps the compositor's lettering at
+    a readable size instead of shrinking it to fit. Splits at sentence ends
+    first, then at clause commas, and only hard-splits mid-clause when a single
+    clause is still too long. Concatenating the result reproduces the original
+    wording (whitespace normalised).
+    """
+
+    words = [w for w in re.split(r"\s+", (text or "").strip()) if w]
+    if len(words) <= max_words:
+        return [" ".join(words)] if words else []
+
+    # Sentence-ish units first: keep the terminator attached to its sentence.
+    units = [u for u in re.split(r"(?<=[.!?…])\s+", " ".join(words)) if u.strip()]
+    chunks: list[str] = []
+    current: list[str] = []
+
+    def _flush() -> None:
+        if current:
+            chunks.append(" ".join(current))
+            current.clear()
+
+    for unit in units:
+        unit_words = unit.split()
+        if len(unit_words) > max_words:
+            # Too long on its own: try clause commas, then a hard split.
+            _flush()
+            pieces = [p.strip() for p in re.split(r"(?<=,)\s+", unit) if p.strip()]
+            if len(pieces) == 1:
+                pieces = [
+                    " ".join(unit_words[i : i + max_words])
+                    for i in range(0, len(unit_words), max_words)
+                ]
+            for piece in pieces:
+                piece_words = piece.split()
+                if len(current) + len(piece_words) > max_words:
+                    _flush()
+                if len(piece_words) > max_words:
+                    for i in range(0, len(piece_words), max_words):
+                        chunks.append(" ".join(piece_words[i : i + max_words]))
+                    continue
+                current.extend(piece_words)
+            continue
+        if len(current) + len(unit_words) > max_words:
+            _flush()
+        current.extend(unit_words)
+    _flush()
+    return chunks or [" ".join(words)]
+
+
 def _layout_for(panel_count: int) -> str:
     """Pick a finite-library layout for a page of ``panel_count`` panels."""
     if panel_count <= 1:
@@ -209,9 +282,61 @@ def _beat_weight(panel: Panel) -> int:
 # ---------------------------------------------------------------------------
 # Deterministic rule enforcement (spec §4.2 step 3)
 # ---------------------------------------------------------------------------
+def _merge_to_budget(panels: list[Panel], max_panels: int) -> list[Panel]:
+    """Fold split-apart panels back together until the count fits the budget.
+
+    Merges only ADJACENT panels that describe the same moment (same beat,
+    subject and shot) — those are the ones this module split apart for the
+    ≤2-bubbles rule — and only while the merged panel stays within
+    ``MAX_BUBBLES_PER_PANEL``. Nothing is ever discarded: if no legal merge
+    remains, the list is returned over budget rather than losing a beat.
+    """
+
+    merged = list(panels)
+    changed = True
+    while len(merged) > max_panels and changed:
+        changed = False
+        out: list[Panel] = []
+        # How many merges this pass still needs before the budget is met.
+        remaining = len(merged) - max_panels
+        i = 0
+        while i < len(merged):
+            current = merged[i]
+            nxt = merged[i + 1] if i + 1 < len(merged) else None
+            if (
+                remaining > 0
+                and nxt is not None
+                and (current.beat or "") == (nxt.beat or "")
+                and (current.subject or "") == (nxt.subject or "")
+                and (current.shot or "") == (nxt.shot or "")
+                and len(current.bubbles) + len(nxt.bubbles) <= MAX_BUBBLES_PER_PANEL
+            ):
+                combined = current.model_copy(deep=True)
+                combined.bubbles = list(current.bubbles) + list(nxt.bubbles)
+                combined.captions = list(current.captions) + list(nxt.captions)
+                out.append(combined)
+                remaining -= 1
+                changed = True
+                i += 2
+                continue
+            out.append(current)
+            i += 1
+        merged = out
+
+    if len(merged) > max_panels:
+        logger.info(
+            "Shot list still holds %d panels against a ceiling of %d; keeping "
+            "them rather than dropping beats.",
+            len(merged),
+            max_panels,
+        )
+    return merged
+
+
 def enforce_rules(
     shot_list: ShotList,
     character_references: dict | None = None,
+    max_panels: int | None = None,
 ) -> ShotList:
     """Apply spec §4.2 step-3 rules deterministically on top of LLM output.
 
@@ -219,6 +344,13 @@ def enforce_rules(
     ``ShotList``. Dialogue/caption text is preserved verbatim (no diacritic
     mangling); only structure (shot type, panel splitting, layout, refs) is
     rewritten.
+
+    ``max_panels`` is the hard ceiling from ``panels_max``. Nothing used to
+    enforce it: the coverage verifier inserts up to ``MAX_COVERAGE_INSERTS``
+    panels and the bubble rules split more, so a chapter could ship well past
+    the configured bound — every extra panel being an image the user pays for.
+    Over the ceiling, panels that were split apart from the same beat are merged
+    back together (never dropped).
     """
     refs = character_references or {}
     panels = shot_list.all_panels()
@@ -226,16 +358,24 @@ def enforce_rules(
     # --- Rule: ≤2 bubbles/panel, and split a long speaker into a new panel. ---
     split_panels: list[Panel] = []
     for panel in panels:
-        bubbles = list(panel.bubbles)
-        # Find an over-long bubble (> MAX_WORDS_PER_BUBBLE Vietnamese words).
-        first_long_idx = next(
-            (
-                i
-                for i, b in enumerate(bubbles)
-                if _word_count_vi(b.text) > MAX_WORDS_PER_BUBBLE
-            ),
-            None,
-        )
+        # Break every over-long line into balloon-sized bubbles first. The old
+        # rule only moved a long speaker into another panel, which did nothing
+        # for the common case — one speaker, one 40-word line, index 0 — and
+        # left the compositor to shrink a balloon three times taller than its
+        # own frame. Splitting the TEXT is what a real comic does.
+        bubbles: list[Bubble] = []
+        first_long_idx: int | None = None
+        for b in panel.bubbles:
+            if _word_count_vi(b.text) > MAX_WORDS_PER_BUBBLE:
+                if first_long_idx is None:
+                    first_long_idx = len(bubbles)
+                for chunk in _split_bubble_text(b.text):
+                    piece = b.model_copy(deep=True)
+                    piece.text = chunk
+                    bubbles.append(piece)
+            else:
+                bubbles.append(b)
+
         if first_long_idx is not None and first_long_idx > 0:
             # Carry the long bubble (and everything after) into a new panel.
             head = panel.model_copy(deep=True)
@@ -254,6 +394,12 @@ def enforce_rules(
                 if start > 0:
                     chunk.captions = []
                 split_panels.append(chunk)
+            continue
+        if len(bubbles) != len(panel.bubbles):
+            # Bubbles were expanded above; keep the expansion.
+            expanded = panel.model_copy(deep=True)
+            expanded.bubbles = bubbles
+            split_panels.append(expanded)
             continue
         split_panels.append(panel)
 
@@ -298,6 +444,12 @@ def enforce_rules(
     for i, panel in enumerate(panels, 1):
         panel.n = i
 
+    # --- Rule: respect the panels_max ceiling by merging, never dropping. ---
+    if max_panels and len(panels) > max_panels:
+        panels = _merge_to_budget(panels, max_panels)
+        for i, panel in enumerate(panels, 1):
+            panel.n = i
+
     splash_idx = (
         max(range(len(panels)), key=lambda i: _beat_weight(panels[i]))
         if panels
@@ -328,7 +480,9 @@ def enforce_rules(
         pages.append(
             Page(
                 page=page_num,
-                layout=_layout_for(len(buf)) if len(buf) > 1 else "TWO_TIER",
+                # A lone leftover gets the single-cell SOLO layout: labelling it
+                # TWO_TIER left the bottom half of the page blank.
+                layout=_layout_for(len(buf)) if len(buf) > 1 else "SOLO",
                 panels=list(buf),
             )
         )
@@ -492,7 +646,11 @@ class ShotListExtractor:
                         chapter.chapter_number,
                         cov_e,
                     )
-            return enforce_rules(shot_list, character_references=character_references)
+            return enforce_rules(
+                shot_list,
+                character_references=character_references,
+                max_panels=self._panel_ceiling(num_panels),
+            )
         except Exception as e:
             logger.warning(
                 "Shot-list extraction failed for ch %s: %s",
@@ -500,6 +658,23 @@ class ShotListExtractor:
                 e,
             )
             return ShotList(chapter_number=chapter.chapter_number, pages=[])
+
+    @staticmethod
+    def _panel_ceiling(num_panels: int) -> int:
+        """The hard panel budget for one chapter.
+
+        ``panels_max`` is the configured bound, but a fixed ``panels_per_chapter``
+        larger than it must still be honoured — the ceiling never sits below what
+        the caller actually asked for.
+        """
+        try:
+            from config import ConfigManager
+
+            cfg = ConfigManager().pipeline
+            ceiling = int(getattr(cfg, "panels_max", 24) or 24)
+        except Exception:
+            ceiling = 24
+        return max(int(num_panels or 0), ceiling)
 
     def _repair_coverage(self, chapter: Chapter, shot_list: ShotList) -> ShotList:
         """Verifier pass: find chapter details no beat covers, insert panels.

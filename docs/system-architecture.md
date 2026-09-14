@@ -280,6 +280,9 @@ Layer 1 generates story structure in stages:
 - `consistency_validators.py` — Non-fatal post-write validation (timeline, names, arc drift)
 - `story_bible_manager.py` — Long-term memory for 100+ chapter stories
 - `post_processing.py` — Summary, state, event extraction + context updates
+- `repair/` — Bounded post-write repair loop (default on). Collects findings from
+  every detector, repairs them in ONE rewrite, verifies with deterministic
+  detectors only. See below and `docs/agentic-repair-loop-spec.md`.
 - `story_continuation.py` — Resume generation from checkpoint
 
 **Quality Enhancements** (Phase 1):
@@ -360,6 +363,55 @@ web/
 | SQLite | LLM response cache (local), embeddings | Per-instance (optional) |
 | Redis | Rate limiting, token revocation, session state | Shared (required for scale) |
 | JSON files | Agent prompts, presets, exports | Mounted volume |
+
+## Chapter Repair Loop (`pipeline/layer1_story/repair/`)
+
+Post-write repair used to be five independent passes, each regenerating the whole
+chapter knowing only its own concern — worst case 8 LLM calls per chapter, 5 of
+them full regenerations. They also overwrote each other: the payoff rewrite could
+shorten a chapter below target and the length expansion could then drop the payoff
+it had just inserted, because no single request ever held both requirements.
+
+The loop replaces four of those passes (payoff, consistency, pacing, length) with
+one bounded cycle. Self-critique becomes detect-only and feeds it.
+
+```
+Chapter written + post_processing done
+    ↓
+collector.collect_findings()          zero LLM calls — reads what post-write computed
+    + collect_pacing_finding()        1 call, only if pacing enforcement is on
+    ↓
+planner.plan_repair()                 K-B: deterministic. K-C: 1 LLM call.
+    ↓
+executor.execute_repair()             1 call — ONE rewrite carrying EVERY constraint
+    ↓
+collector.recheck_findings()          zero LLM calls — re-measures the candidate
+    ↓
+coordinator._score()                  worse? revert. better? commit.
+    ↓
+budget spent with work left?  →  legacy passes as fallback
+```
+
+**The rule that makes this pay for itself:** the verifier is always a
+deterministic detector — `count_words`, `consistency_validators`,
+`verify_payoffs` (embeddings). Never an LLM judging its own prose. Intrinsic
+self-correction degrades quality, which is why the one legacy pass built on it
+(self-critique) is also the only one that ever needed a rollback.
+
+Only `payoff`, `name`, `location` and `length` findings are scored. `pacing`
+(costs a call to measure), `arc` (`detect_arc_drift` reads `character_states`,
+not prose) and `critique` (LLM self-grading) are carried as rewrite constraints
+but never re-scored — comparing a fresh measurement against a stale one accepts
+rewrites that are plainly worse.
+
+**Config** (`config/defaults.py`): `enable_agentic_repair` (default on),
+`repair_max_rounds` (2), `repair_budget_calls` (4, a hard ceiling),
+`repair_regression_tolerance`, `repair_fallback_to_legacy`, `repair_min_severity`.
+Kill switch: `STORYFORGE_AGENTIC_REPAIR=0`. The legacy passes stay in the tree,
+stay tested, and remain the fallback.
+
+**Observability**: `trace.summary()["repair"]` — calls, rounds, rollbacks,
+fallbacks, findings before/after.
 
 ## Phase 1 Consistency Architecture
 
@@ -701,9 +753,9 @@ See [deployment-production.md](./deployment-production.md) for detailed setup.
 
 ## FlowKit Integration (Phase 6)
 
-**Optional image/video generation via Google Labs (Imagen 3 + Veo).**
+**Optional image generation via Google Labs (Imagen 3).**
 
-FlowKit is a Chrome MV3 extension + WebSocket proxy that lets StoryForge generate Imagen/Veo assets locally (not hosted). Architecture:
+FlowKit is a Chrome MV3 extension + WebSocket proxy that lets StoryForge generate Imagen assets locally (not hosted). Architecture:
 
 ```
 Chrome Extension (flowkit_extension/)
@@ -713,14 +765,12 @@ Chrome Extension (flowkit_extension/)
 
 FastAPI Backend (api/flowkit.py + services/media/)
     ├─ /api/ws/flowkit — WebSocket server (FlowService)
-    ├─ /api/ext/callback — Extension posts Imagen/Veo job results
+    ├─ /api/ext/callback — Extension posts Imagen job results
     ├─ /api/flowkit/status — Polling endpoint (5s cadence frontend)
     └─ Adaptive worker ramp: initial=1, ceil=4, ramp after 10 successes
 
-Job Queue
-    ├─ data/flowkit/jobs.db — SQLite queue
-    ├─ output/images/{slug}_{sid}/ — Downloaded asset cache
-    └─ output/videos/{slug}_{sid}/ — Video output cache
+Output
+    └─ output/images/{slug}_{sid}/ — Downloaded asset cache
 ```
 
 **Account-Ban Risk**: Google Labs rate-limits/bans accounts detected doing automated traffic. Use a secondary Google account. Backend enforces `flowkit_risk_acknowledged=true` before enabling; frontend surfaces risk-ack checkbox in Settings.
@@ -730,6 +780,5 @@ Job Queue
 - `flowkit_request_timeout` — Sync-bridge timeout (floor 30s)
 - `flowkit_use_refiner` — Gemini prompt-refiner (doubles token cost)
 - `flowkit_concurrent_workers_max` — Adaptive ramp ceiling (4)
-- `flowkit_veo_poll_interval` — Veo async job poll cadence (5s)
 
 See [flowkit-integration.md](./flowkit-integration.md) for install, troubleshooting, and account policy.

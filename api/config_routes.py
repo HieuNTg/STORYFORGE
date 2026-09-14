@@ -37,6 +37,8 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional
@@ -172,6 +174,7 @@ class ConfigUpdate(BaseModel):
     model: Optional[str] = None
     temperature: Optional[float] = None
     max_tokens: Optional[int] = None
+    request_timeout: Optional[float] = None
     cheap_model: Optional[str] = None
     cheap_base_url: Optional[str] = None
     language: Optional[str] = None
@@ -179,8 +182,20 @@ class ConfigUpdate(BaseModel):
     layer2_model: Optional[str] = None
     enable_self_review: Optional[bool] = None
     self_review_threshold: Optional[float] = None
+    # Length gate (L1): expand a chapter that came back under target.
+    enable_length_gate: Optional[bool] = None
+    length_gate_min_ratio: Optional[float] = None
+    stream_first_chunk_timeout: Optional[int] = None
+    stream_chunk_timeout: Optional[int] = None
     image_provider: Optional[str] = None
     codex_model: Optional[str] = None
+    # Qwen local proxy (separate OpenAI-compatible server driving chat.qwen.ai)
+    qwen_local_base_url: Optional[str] = None
+    qwen_local_api_key: Optional[str] = None
+    qwen_local_model: Optional[str] = None
+    qwen_local_size: Optional[str] = None
+    qwen_local_use_edit_for_refs: Optional[bool] = None
+    qwen_local_timeout: Optional[float] = None
     hf_token: Optional[str] = None
     hf_image_model: Optional[str] = None
     image_prompt_style: Optional[str] = None
@@ -195,7 +210,6 @@ class ConfigUpdate(BaseModel):
     flowkit_style_reference_path: Optional[str] = None
     flowkit_concurrent_workers_max: Optional[int] = None
     flowkit_workers_ramp_threshold: Optional[int] = None
-    flowkit_veo_poll_interval: Optional[float] = None
     flowkit_account_warning_shown: Optional[bool] = None
     flowkit_risk_acknowledged: Optional[bool] = None
     flowkit_image_input_type_split: Optional[bool] = None
@@ -263,6 +277,7 @@ def get_config(response: Response):
             "model": cfg.llm.model,
             "temperature": cfg.llm.temperature,
             "max_tokens": cfg.llm.max_tokens,
+            "request_timeout": cfg.llm.request_timeout,
             "cheap_model": cfg.llm.cheap_model,
             "cheap_base_url": cfg.llm.cheap_base_url,
             "api_keys_masked": [
@@ -284,28 +299,34 @@ def get_config(response: Response):
             "language": cfg.pipeline.language,
             "enable_self_review": cfg.pipeline.enable_self_review,
             "self_review_threshold": cfg.pipeline.self_review_threshold,
+            "enable_length_gate": cfg.pipeline.enable_length_gate,
+            "length_gate_min_ratio": cfg.pipeline.length_gate_min_ratio,
+            "stream_first_chunk_timeout": cfg.pipeline.stream_first_chunk_timeout,
+            "stream_chunk_timeout": cfg.pipeline.stream_chunk_timeout,
             "image_provider": cfg.pipeline.image_provider,
-            "codex_model": getattr(cfg.pipeline, "codex_model", ""),
+            "codex_model": cfg.pipeline.codex_model,
+            "qwen_local_base_url": cfg.pipeline.qwen_local_base_url,
+            # Masked like every other secret the GET surface returns.
+            "qwen_local_api_key_masked": _mask_key(
+                cfg.pipeline.qwen_local_api_key
+            ),
+            "qwen_local_model": cfg.pipeline.qwen_local_model,
+            "qwen_local_size": cfg.pipeline.qwen_local_size,
+            "qwen_local_use_edit_for_refs": cfg.pipeline.qwen_local_use_edit_for_refs,
+            "qwen_local_timeout": cfg.pipeline.qwen_local_timeout,
             "hf_token_masked": masked_hf_token,
             "hf_image_model": cfg.pipeline.hf_image_model,
             "image_prompt_style": cfg.pipeline.image_prompt_style,
-            "enable_simulation_transcript": getattr(
-                cfg.pipeline, "enable_simulation_transcript", False
-            ),
-            "enable_drama_climax": getattr(cfg.pipeline, "enable_drama_climax", False),
-            "enable_pipeline_overlay": getattr(
-                cfg.pipeline, "enable_pipeline_overlay", False
-            ),
-            "enable_chapter_illustration": getattr(
-                cfg.pipeline, "enable_chapter_illustration", False
-            ),
+            "enable_simulation_transcript": cfg.pipeline.enable_simulation_transcript,
+            "enable_drama_climax": cfg.pipeline.enable_drama_climax,
+            "enable_pipeline_overlay": cfg.pipeline.enable_pipeline_overlay,
+            "enable_chapter_illustration": cfg.pipeline.enable_chapter_illustration,
             "flowkit_enabled": cfg.pipeline.flowkit_enabled,
             "flowkit_port": cfg.pipeline.flowkit_port,
             "flowkit_style_reference_path": cfg.pipeline.flowkit_style_reference_path,
             "flowkit_concurrent_workers": cfg.pipeline.flowkit_concurrent_workers,
             "flowkit_concurrent_workers_max": cfg.pipeline.flowkit_concurrent_workers_max,
             "flowkit_workers_ramp_threshold": cfg.pipeline.flowkit_workers_ramp_threshold,
-            "flowkit_veo_poll_interval": cfg.pipeline.flowkit_veo_poll_interval,
             "flowkit_account_warning_shown": cfg.pipeline.flowkit_account_warning_shown,
             "flowkit_risk_acknowledged": cfg.pipeline.flowkit_risk_acknowledged,
             "flowkit_image_input_type_split": cfg.pipeline.flowkit_image_input_type_split,
@@ -392,6 +413,9 @@ def save_config(body: ConfigUpdate):
         cfg.llm.temperature = body.temperature
     if body.max_tokens is not None:
         cfg.llm.max_tokens = int(body.max_tokens)
+    if body.request_timeout is not None:
+        # Floor 30s — below that even healthy providers get abandoned mid-call.
+        cfg.llm.request_timeout = max(30.0, float(body.request_timeout))
     if body.cheap_model is not None:
         cfg.llm.cheap_model = body.cheap_model
     if body.cheap_base_url is not None:
@@ -408,10 +432,32 @@ def save_config(body: ConfigUpdate):
         cfg.pipeline.enable_self_review = body.enable_self_review
     if body.self_review_threshold is not None:
         cfg.pipeline.self_review_threshold = body.self_review_threshold
+    if body.enable_length_gate is not None:
+        cfg.pipeline.enable_length_gate = body.enable_length_gate
+    if body.length_gate_min_ratio is not None:
+        cfg.pipeline.length_gate_min_ratio = body.length_gate_min_ratio
+    if body.stream_first_chunk_timeout is not None:
+        cfg.pipeline.stream_first_chunk_timeout = body.stream_first_chunk_timeout
+    if body.stream_chunk_timeout is not None:
+        cfg.pipeline.stream_chunk_timeout = body.stream_chunk_timeout
     if body.image_provider is not None:
         cfg.pipeline.image_provider = body.image_provider
     if body.codex_model is not None:
         cfg.pipeline.codex_model = body.codex_model
+    if body.qwen_local_base_url is not None:
+        cfg.pipeline.qwen_local_base_url = body.qwen_local_base_url
+    # An empty string means "leave the stored key alone" — the UI never echoes
+    # the real value back, so a blank field must not wipe it.
+    if body.qwen_local_api_key:
+        cfg.pipeline.qwen_local_api_key = body.qwen_local_api_key
+    if body.qwen_local_model is not None:
+        cfg.pipeline.qwen_local_model = body.qwen_local_model
+    if body.qwen_local_size is not None:
+        cfg.pipeline.qwen_local_size = body.qwen_local_size
+    if body.qwen_local_use_edit_for_refs is not None:
+        cfg.pipeline.qwen_local_use_edit_for_refs = body.qwen_local_use_edit_for_refs
+    if body.qwen_local_timeout is not None:
+        cfg.pipeline.qwen_local_timeout = body.qwen_local_timeout
     if body.hf_token is not None:
         cfg.pipeline.hf_token = body.hf_token
     if body.hf_image_model is not None:
@@ -435,7 +481,6 @@ def save_config(body: ConfigUpdate):
         "flowkit_style_reference_path",
         "flowkit_concurrent_workers_max",
         "flowkit_workers_ramp_threshold",
-        "flowkit_veo_poll_interval",
         "flowkit_account_warning_shown",
         "flowkit_risk_acknowledged",
         "flowkit_image_input_type_split",
@@ -457,6 +502,25 @@ def save_config(body: ConfigUpdate):
 
     LLMClient.reset()
     return {"status": "ok"}
+
+
+@router.get("/qwen-local/status", dependencies=[_CONFIGURE_PIPELINE])
+def qwen_local_status():
+    """Probe the local Qwen proxy: is it up, and did its Qwen provider start?
+
+    A sync handler on purpose — FastAPI runs these in a worker thread, so the
+    blocking HTTP probe never touches the event loop. Always answers 200; the
+    body carries the failure so the settings badge can render a reason.
+    """
+    from services.media.qwen_local_client import QwenLocalClient
+
+    cfg = ConfigManager().pipeline
+    client = QwenLocalClient(
+        base_url=cfg.qwen_local_base_url,
+        api_key=cfg.qwen_local_api_key,
+        model=cfg.qwen_local_model,
+    )
+    return client.status()
 
 
 @router.post("/test-connection", dependencies=[_CONFIGURE_PIPELINE])
@@ -512,9 +576,18 @@ def test_connection():
         logger.warning("test-connection persist failed: %s", e)
 
     all_ok = all(r["ok"] for r in results if r["ok"] is not None)
+    # On failure, say WHICH provider failed. Reporting the primary's message
+    # here meant a healthy primary + a broken fallback produced `ok: false`
+    # carrying the text "Kết nối thành công" — the UI dutifully rendered a red
+    # error toast that read "connection successful", and named nobody.
+    if all_ok:
+        message = "All providers OK"
+    else:
+        failures = [r for r in results if r["ok"] is False]
+        message = "; ".join(f"{r['name']}: {r['message']}" for r in failures) or msg
     return {
         "ok": all_ok,
-        "message": msg if not all_ok else "All providers OK",
+        "message": message,
         "profiles": results,
     }
 
@@ -580,12 +653,102 @@ class ModelsRequest(BaseModel):
     api_key: str = ""
 
 
+def _fetch_openai_compatible_models(base_url: str, api_key: str) -> list[dict]:
+    """GET {base_url}/models and return the ids it advertises.
+
+    The OpenAI-compatible discovery endpoint — the one thing every such server
+    (OpenAI, Gemini's OpenAI shim, vLLM, Ollama, LM Studio, a proxy, a provider
+    we ship no card for) has in common. Anthropic is the odd one out: same URL
+    shape, but it authenticates with `x-api-key` + a version header instead of
+    a bearer token, so send both and let the server pick.
+
+    Blocking urllib is fine here: the caller is a sync route, so FastAPI
+    already runs it in a worker thread.
+    """
+    import json as _json
+    import urllib.request
+
+    url = base_url.rstrip("/") + "/models"
+    req = urllib.request.Request(url)
+    if api_key:
+        req.add_header("Authorization", f"Bearer {api_key}")
+        if "anthropic.com" in base_url.lower():
+            req.add_header("x-api-key", api_key)
+            req.add_header("anthropic-version", "2023-06-01")
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        raw = _json.loads(resp.read().decode("utf-8"))
+    entries = raw.get("data", raw if isinstance(raw, list) else [])
+    out = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            mid = entry.get("id")
+            label = entry.get("display_name") or entry.get("name") or mid
+        else:
+            mid = label = entry
+        if mid:
+            out.append({"id": str(mid), "label": str(label)})
+    return out
+
+
+def _host(url: str) -> str:
+    return (urlparse(url or "").hostname or "").lower()
+
+
+def _preset_models_for(base_url: str) -> list[dict]:
+    """The curated model list of whichever provider card owns `base_url`.
+
+    Fallback for when live discovery fails (offline, no key yet, provider
+    without a /models endpoint) — so the dropdown is never empty just because
+    the network was. config/presets.py stays the single source of truth; this
+    route keeps no second copy of the lists.
+    """
+    host = _host(base_url)
+    if not host:
+        return []
+    for preset in PROVIDER_PRESETS:
+        if _host(preset.get("base_url", "")) == host:
+            return list(preset.get("models") or [])
+    return []
+
+
+def _stored_key_for(base_url: str) -> str:
+    """The key already saved for this endpoint, if any.
+
+    Lets the UI auto-refresh a configured provider's model list without the
+    user re-typing a secret the server already holds. Never returned to the
+    client — only used to authenticate the outgoing discovery call.
+    """
+    host = _host(base_url)
+    if not host:
+        return ""
+    cfg = ConfigManager()
+    candidates = list(cfg.llm.fallback_models) + [
+        {"base_url": cfg.llm.base_url, "api_key": cfg.llm.api_key}
+    ]
+    for profile in candidates:
+        if _host(profile.get("base_url") or "") == host and profile.get("api_key"):
+            return str(profile["api_key"])
+    return ""
+
+
 @router.post("/provider/models", dependencies=[_MANAGE_API_KEYS])
 def get_provider_models(body: ModelsRequest):
-    """Fetch available models from a provider (OpenRouter, Kyma, etc.)."""
+    """Ask a provider which models it can actually run.
+
+    Live discovery for EVERY provider, not just the custom card: a hardcoded
+    list here goes stale the week a provider ships a new model, and the user
+    then has to know the exact id by heart. OpenRouter keeps its own path
+    because that discovery also filters for models worth generating Vietnamese
+    prose with; everything else asks GET {base_url}/models directly.
+
+    A failure is never fatal — the curated list from the provider's own card is
+    returned instead, alongside the error, so the dropdown still works offline.
+    """
     validate_base_url(body.base_url)
     provider = _detect_provider_name(body.base_url)
-    models = []
+    # An already-configured provider can refresh without the user re-typing a
+    # secret the server already stores.
+    api_key = body.api_key or _stored_key_for(body.base_url)
 
     if provider == "openrouter":
         try:
@@ -593,40 +756,28 @@ def get_provider_models(body: ModelsRequest):
 
             models = [
                 {"id": m, "label": m.split("/")[-1].replace(":free", "")}
-                for m in get_free_models(body.api_key)
+                for m in get_free_models(api_key)
             ]
+            if models:
+                return {"provider": provider, "models": models}
         except Exception as e:
-            return {"provider": provider, "models": [], "error": str(e)}
+            return {
+                "provider": provider,
+                "models": _preset_models_for(body.base_url),
+                "error": str(e),
+            }
 
-    elif provider == "kyma":
-        try:
-            from services.kyma_model_discovery import get_kyma_models
+    try:
+        models = _fetch_openai_compatible_models(body.base_url, api_key)
+    except Exception as e:
+        return {
+            "provider": provider,
+            "models": _preset_models_for(body.base_url),
+            "error": str(e),
+        }
 
-            models = [{"id": m, "label": m} for m in get_kyma_models(body.api_key)]
-        except Exception as e:
-            return {"provider": provider, "models": [], "error": str(e)}
-
-    elif provider == "anthropic":
-        models = [
-            {"id": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
-            {"id": "claude-haiku-4-5-20251001", "label": "Claude Haiku 4.5"},
-            {"id": "claude-opus-4-20250514", "label": "Claude Opus 4"},
-        ]
-
-    elif provider == "openai":
-        models = [
-            {"id": "gpt-4o", "label": "GPT-4o"},
-            {"id": "gpt-4o-mini", "label": "GPT-4o Mini"},
-            {"id": "gpt-4-turbo", "label": "GPT-4 Turbo"},
-        ]
-
-    elif provider == "gemini":
-        models = [
-            {"id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash"},
-            {"id": "gemini-2.5-pro", "label": "Gemini 2.5 Pro"},
-            {"id": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
-        ]
-
+    if not models:
+        models = _preset_models_for(body.base_url)
     return {"provider": provider, "models": models}
 
 

@@ -578,3 +578,33 @@ class TestStoryContinuationEnhanceChapters(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+# ---------------------------------------------------------------------------
+# The pipeline media stage and the Reader path must run the SAME comic stages.
+# ---------------------------------------------------------------------------
+
+
+def test_pipeline_media_stage_uses_the_shared_comic_path():
+    """orchestrator_media must call generate_chapter_comic, not its own routine.
+
+    Regression: the media stage used to call the legacy prose-scene extractor
+    directly, so an end-to-end story came out as loose illustrations with no
+    dialogue while the Reader's button produced real comic pages.
+    """
+    import inspect
+
+    import pipeline.orchestrator_media as om
+
+    src = inspect.getsource(om)
+    assert "generate_chapter_comic" in src
+    assert "ComicSettings" in src
+
+
+def test_reader_handler_uses_the_shared_comic_path():
+    import inspect
+
+    import services.handlers as handlers
+
+    src = inspect.getsource(handlers)
+    assert "generate_chapter_comic" in src

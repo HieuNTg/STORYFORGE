@@ -64,6 +64,16 @@ def run_chapter_self_critique(
                 pacing,
                 model=layer_model,
             )
+
+            # Batch K: with the repair loop on, critique is a *detector*. Its
+            # weak_sections are stashed for the unified rewrite instead of
+            # triggering a rewrite plus a re-score of its own — two calls whose
+            # only signal is the model grading its own prose, which is the one
+            # signal the loop refuses to act on alone.
+            if pipeline_config.enable_agentic_repair:
+                story_context.repair_pending_critique = crit or None
+                return
+
             if crit:
                 original_content = chapter.content
                 score_before = aggregate_critique_score(crit)

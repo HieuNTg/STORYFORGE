@@ -48,6 +48,13 @@ class PluginManager:
             # Skip loader infrastructure files
             if path.stem in ("__init__", "base", "loader"):
                 continue
+            # Skip shipped examples. `example-custom-genre.py` registers a genre
+            # AND adds a bonus in on_score, so loading it would quietly change
+            # every user's quality scores just because the repo ships
+            # documentation. Copy an example to a name of your own to enable it.
+            if path.stem.startswith(("example-", "example_")):
+                logger.debug("plugin_manager: skipping example %s", path.name)
+                continue
             self._load_file(path)
         logger.info("plugin_manager: %d plugin(s) loaded", len(self._plugins))
 

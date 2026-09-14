@@ -411,3 +411,71 @@ def test_bake_caption_only_panel_letters_caption_not_silence_guard():
     assert "free of lettering" not in low
     # No speech balloon instruction for a dialogue-free panel.
     assert "balloon" not in low
+
+
+# ---------------------------------------------------------------------------
+# Colour steering — comic prompts sit on the monochrome slice of the training
+# data, so every builder must ask for colour explicitly.
+# ---------------------------------------------------------------------------
+
+
+def test_every_prompt_template_demands_colour():
+    from services.media.image_prompt_generator import (
+        _PANEL_PROMPT_GEN,
+        _SCENE_EXTRACT_PROMPT,
+    )
+
+    for template in (_PANEL_PROMPT_GEN, _SCENE_EXTRACT_PROMPT):
+        low = template.lower()
+        assert "full color" in low
+        assert "monochrome" in low
+
+
+def test_fallback_panel_prompt_is_colour():
+    from services.media._util import COLOR_CLAUSE
+
+    gen = ImagePromptGenerator(style="manhwa comic panel")
+    panel = types.SimpleNamespace(
+        shot="MS",
+        subject="Kiên",
+        action="rút kiếm",
+        setting="sân đình",
+        mood="căng thẳng",
+        beat="",
+    )
+    assert COLOR_CLAUSE in gen._fallback_panel_prompt(panel)
+
+
+def test_shot_list_prompts_negate_monochrome(monkeypatch):
+    """The negative prompt attached to every panel must fight grayscale too."""
+    gen = ImagePromptGenerator(style="manhwa")
+    monkeypatch.setattr(
+        gen, "llm", types.SimpleNamespace(generate=lambda **kw: "not json")
+    )
+    prompts = gen.generate_from_shot_list(_two_panel_shot_list(), _shot_chapter())
+    assert prompts
+    for p in prompts:
+        assert "monochrome" in p.negative_prompt
+        assert "grayscale" in p.negative_prompt
+
+
+def test_avatar_and_cover_prompts_are_colour():
+    from models.schemas import ForgeCharacter
+    from services.character_avatar import _build_avatar_prompt
+    from services.cover_image import _build_cover_prompt
+    from services.media._util import COLOR_CLAUSE
+
+    char = ForgeCharacter(
+        name="Kiên",
+        role="protagonist",
+        traits={"strength": 3, "wisdom": 3, "agility": 3, "scheme": 3},
+        description="tóc đen",
+        backstory="mồ côi",
+        secret="mang huyết mạch cổ",
+        conflict="báo thù",
+    )
+    avatar = _build_avatar_prompt(char, genre="Tiên Hiệp")
+    cover = _build_cover_prompt("Truyện", "Tiên Hiệp", "tóm tắt")
+    for prompt in (avatar, cover):
+        assert COLOR_CLAUSE in prompt
+        assert "NOT monochrome" in prompt

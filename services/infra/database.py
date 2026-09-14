@@ -74,13 +74,27 @@ def get_engine() -> Optional["AsyncEngine"]:  # noqa: F821
             # Double-checked locking
             if _engine is None:
                 logger.info("Creating async SQLAlchemy engine for PostgreSQL.")
-                _engine = create_async_engine(
-                    url,
-                    echo=os.environ.get("DB_ECHO", "").lower() in ("1", "true"),
-                    pool_size=int(os.environ.get("DB_POOL_SIZE", "5")),
-                    max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "10")),
-                    pool_pre_ping=True,
-                )
+                try:
+                    _engine = create_async_engine(
+                        url,
+                        echo=os.environ.get("DB_ECHO", "").lower() in ("1", "true"),
+                        pool_size=int(os.environ.get("DB_POOL_SIZE", "5")),
+                        max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "10")),
+                        pool_pre_ping=True,
+                    )
+                except Exception as exc:
+                    # A sync driver URL (sqlite:// rather than sqlite+aiosqlite://)
+                    # raises here. This used to sit outside the try, so a
+                    # DATABASE_URL of exactly the shape the repo's own .env ships
+                    # aborted startup instead of degrading to no-database.
+                    logger.error(
+                        "Cannot create async engine for DATABASE_URL (%s). "
+                        "An async driver is required, e.g. "
+                        "postgresql+asyncpg:// or sqlite+aiosqlite://. "
+                        "Continuing without a database.",
+                        exc,
+                    )
+                    return None
                 _setup_sqlite_pragmas(_engine)
                 _setup_pool_metrics(_engine)
                 _session_factory = async_sessionmaker(

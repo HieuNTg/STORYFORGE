@@ -3,10 +3,25 @@
 import json
 import logging
 import re
+import time
 from typing import Optional
 
 
 logger = logging.getLogger(__name__)
+
+# Output budget for connection pings. It used to be 5, which made the health
+# check lie: a thinking model hit the cap with nothing written, the provider
+# raised "LLM returned empty content", and the UI showed "Lỗi kết nối" for a
+# provider that had just answered HTTP 200.
+#
+# The size is measured, not guessed. gemma-4-31b-it answering "ping":
+#     max_output_tokens=5   → thoughts=2,   finish=MAX_TOKENS, text=None
+#     max_output_tokens=64  → thoughts=61,  finish=MAX_TOKENS, text=None
+#     max_output_tokens=256 → thoughts=114, candidates=14, finish=STOP, "pong!"
+# `max_output_tokens` covers the thinking budget too, so the cap must clear
+# the model's thoughts before a single visible character appears. 256 does,
+# with room to spare, and still costs a fraction of a cent per test.
+_PING_MAX_TOKENS = 256
 
 
 def _config_manager():
@@ -47,6 +62,12 @@ class GenerationMixin:
 
         ``list_key`` is only meaningful when ``expect="dict"``.
         """
+        # One LLM-driven repair pass per generate_json call, not per parse
+        # attempt. Without this the shape-mismatch retry below got its own
+        # repair budget, so a single generate_json could traverse the whole
+        # fallback chain four times before raising.
+        repair_budget = {"remaining": 1}
+
         result = self._parse_json_with_repair(
             system_prompt,
             user_prompt,
@@ -54,6 +75,7 @@ class GenerationMixin:
             max_tokens,
             model_tier,
             model,
+            repair_budget,
         )
 
         if expect is None:
@@ -82,6 +104,7 @@ class GenerationMixin:
             max_tokens,
             model_tier,
             model,
+            repair_budget,
         )
         coerced, ok = _coerce_to_shape(retry_result, expect, list_key)
         if ok:
@@ -101,8 +124,16 @@ class GenerationMixin:
         max_tokens: Optional[int],
         model_tier: str,
         model: Optional[str],
+        repair_budget: Optional[dict] = None,
     ):
-        """Run the LLM and parse JSON with the existing 3-attempt repair flow."""
+        """Run the LLM and parse JSON with the existing 3-attempt repair flow.
+
+        ``repair_budget`` is a shared ``{"remaining": n}`` counter that bounds
+        how many LLM-driven repair calls the whole ``generate_json`` may spend.
+        Omitting it keeps the historical one-shot budget for direct callers.
+        """
+        if repair_budget is None:
+            repair_budget = {"remaining": 1}
         text = self._generate_json_text(
             system_prompt,
             user_prompt,
@@ -131,6 +162,13 @@ class GenerationMixin:
                 f"JSON parse failed: LLM returned near-empty response "
                 f"({len(text)} chars): {text!r}"
             )
+        if repair_budget["remaining"] <= 0:
+            preview = text[:800]
+            raise ValueError(
+                f"JSON parse failed and the LLM repair budget is spent. "
+                f"Last text ({len(text)} chars, showing first 800): {preview!r}"
+            )
+        repair_budget["remaining"] -= 1
         logger.warning("JSON repair failed, asking LLM to fix")
         fixed = self.generate(
             system_prompt="Fix this malformed JSON. Return ONLY valid JSON, no explanation.",
@@ -265,17 +303,41 @@ class GenerationMixin:
                 yield from p.stream(messages, m, effective_temp, eff_max_tokens)
 
             entry_yielded = 0
+            # Accumulate what we yield so the call can be costed on success.
+            # The streamed chapter body is the single largest token consumer in
+            # a run and was invisible to the wallet, the per-story usage sidecar
+            # and the trace — so budget caps could never fire on it.
+            streamed_parts: list[str] = []
+            stream_started = time.monotonic()
             try:
+                # Read from config: a reasoning model's time-to-first-token can
+                # exceed any fixed default, and a too-short ceiling throws away
+                # the work mid-thought rather than waiting for it.
+                # `config` is the one already resolved at the top of this method
+                # — LLMClient itself has no `.config` attribute.
+                _pcfg = getattr(config, "pipeline", None)
                 for chunk in self._stream_with_chunk_timeout(
                     self._stream_with_retry(_api_gen, f"stream:{entry['label']}"),
-                    chunk_timeout=30,
-                    first_chunk_timeout=60,
+                    chunk_timeout=int(
+                        getattr(_pcfg, "stream_chunk_timeout", 30) or 30
+                    ),
+                    first_chunk_timeout=int(
+                        getattr(_pcfg, "stream_first_chunk_timeout", 180) or 180
+                    ),
                 ):
                     entry_yielded += 1
                     total_yielded += 1
+                    streamed_parts.append(chunk)
                     yield chunk
                 logger.info(
                     f"Stream success via {entry['label']} ({entry_yielded} chunks)"
+                )
+                self._account_for_stream(
+                    model=entry_model,
+                    label=entry.get("label", ""),
+                    messages=messages,
+                    text="".join(streamed_parts),
+                    duration_ms=int((time.monotonic() - stream_started) * 1000),
                 )
                 return
             except Exception as e:
@@ -319,6 +381,59 @@ class GenerationMixin:
             f"All LLM providers failed (streaming). Errors: {'; '.join(all_errors)}"
         )
 
+
+    def _account_for_stream(
+        self, *, model: str, label: str, messages: list, text: str, duration_ms: int
+    ) -> None:
+        """Cost a completed stream: trace entry plus wallet charge.
+
+        Streaming responses rarely carry usage counts, so tokens are estimated —
+        but with the Vietnamese-aware estimator rather than len//4. Never raises
+        except for a budget cap, which must propagate so the run aborts.
+        """
+        from services.llm.client import (
+            LLMBudgetExceededError,
+            LLMClient,
+            _estimate_tokens,
+            _record_trace_call,
+        )
+
+        try:
+            prompt_text = "".join(
+                (m.get("content") or "") for m in messages if isinstance(m, dict)
+            )
+            prompt_tokens = _estimate_tokens(prompt_text)
+            completion_tokens = _estimate_tokens(text)
+        except Exception:  # pragma: no cover - defensive
+            return
+
+        try:
+            _record_trace_call(
+                model=model,
+                model_tier=(label or "").split(":", 1)[0] or "primary",
+                messages=messages,
+                result=text,
+                duration_ms=duration_ms,
+                success=True,
+                error="",
+                usage={
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                },
+            )
+        except Exception as exc:  # pragma: no cover - telemetry must not break output
+            logger.debug("Stream trace record failed: %s", exc)
+
+        try:
+            from services.llm_pricing import compute_cost
+
+            cost = compute_cost(model, prompt_tokens, completion_tokens)
+            LLMClient.charge_wallet(cost, prompt_tokens + completion_tokens)
+        except LLMBudgetExceededError:
+            raise
+        except Exception as exc:  # pragma: no cover
+            logger.debug("Stream wallet charge failed: %s", exc)
+
     def check_connection(self) -> tuple[bool, str]:
         """Check API backend connection using full fallback chain."""
         try:
@@ -326,7 +441,7 @@ class GenerationMixin:
                 system_prompt="Reply OK",
                 user_prompt="ping",
                 temperature=0.0,
-                max_tokens=5,
+                max_tokens=_PING_MAX_TOKENS,
             )
             return True, "Kết nối thành công"
         except Exception as e:
@@ -344,7 +459,7 @@ class GenerationMixin:
                 messages=[{"role": "user", "content": "ping"}],
                 model=model,
                 temperature=0.0,
-                max_tokens=5,
+                max_tokens=_PING_MAX_TOKENS,
             )
             return True, "OK"
         except Exception as e:

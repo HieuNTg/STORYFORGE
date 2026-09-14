@@ -20,6 +20,23 @@ logger = logging.getLogger(__name__)
 STORYFORGE_SECRET_KEY_ENV = "STORYFORGE_SECRET_KEY"
 _ENC_PREFIX = "ENC:"
 
+# Placeholder values shipped in .env templates. Encrypting with one of these is
+# worse than storing plaintext: anyone with the file can decrypt it, while the
+# ENC: prefix makes the values look protected. Treat them as "no key set".
+_PLACEHOLDER_KEYS = frozenset(
+    {
+        "change-me-in-production",
+        "change-me",
+        "changeme",
+        "your-secret-key-here",
+        "secret",
+    }
+)
+
+
+def is_placeholder_key(raw_key: str) -> bool:
+    return raw_key.strip().lower() in _PLACEHOLDER_KEYS
+
 # Field names that contain secrets — matched by substring (case-insensitive)
 _SENSITIVE_SUBSTRINGS = ("key", "secret", "token", "password")
 
@@ -31,9 +48,16 @@ def _is_sensitive(field_name: str) -> bool:
 
 
 def _get_fernet():
-    """Get Fernet instance from env var. Returns None if key not set."""
+    """Get Fernet instance from env var. Returns None if no usable key is set."""
     raw_key = os.environ.get(STORYFORGE_SECRET_KEY_ENV, "")
     if not raw_key:
+        return None
+    if is_placeholder_key(raw_key):
+        logger.warning(
+            "%s is still a template placeholder — refusing to encrypt with a "
+            "publicly known key. Set a real key to enable secrets at rest.",
+            STORYFORGE_SECRET_KEY_ENV,
+        )
         return None
     # Derive a valid Fernet key from arbitrary string
     key = base64.urlsafe_b64encode(hashlib.sha256(raw_key.encode()).digest())
@@ -143,3 +167,56 @@ def load_encrypted(filepath: str) -> dict:
     except (OSError, json.JSONDecodeError, Exception) as e:
         logger.warning(f"Failed to load {filepath}: {e}")
         return {}
+
+
+def has_plaintext_secrets(data: dict) -> bool:
+    """True if any sensitive string field is present and not yet encrypted."""
+
+    def _walk(key: str, value) -> bool:
+        if isinstance(value, dict):
+            return any(_walk(k, v) for k, v in value.items())
+        if isinstance(value, list):
+            return any(_walk(key, item) for item in value)
+        return (
+            isinstance(value, str)
+            and _is_sensitive(key)
+            and bool(value)
+            and not value.startswith(_ENC_PREFIX)
+        )
+
+    return any(_walk(k, v) for k, v in data.items())
+
+
+def migrate_plaintext_secrets(filepath: str) -> bool:
+    """Encrypt any plaintext secrets already sitting in `filepath`.
+
+    Until .env was loaded, STORYFORGE_SECRET_KEY was never set, so every save
+    wrote secrets in the clear. Once a key exists the next ordinary save would
+    encrypt new values but leave the existing file readable; this rewrites it
+    once. No key configured means no encryption is expected — return quietly.
+
+    Returns True if the file was rewritten.
+    """
+    if _get_fernet() is None:
+        return False
+    try:
+        with open(filepath, "r", encoding="utf-8") as f:
+            data = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return False
+
+    if not isinstance(data, dict) or not has_plaintext_secrets(data):
+        return False
+
+    tmp = filepath + ".tmp"
+    with open(tmp, "w", encoding="utf-8") as f:
+        json.dump(encrypt_sensitive_fields(data), f, ensure_ascii=False, indent=2)
+    os.replace(tmp, filepath)
+    logger.warning(
+        "Encrypted the plaintext secrets stored in %s. These values can only be "
+        "read back with the current %s — keep it backed up, or the keys must be "
+        "re-entered in Settings.",
+        filepath,
+        STORYFORGE_SECRET_KEY_ENV,
+    )
+    return True

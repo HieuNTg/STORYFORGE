@@ -23,6 +23,7 @@ import { PipelineScreen } from "@/components/pipeline/PipelineScreen";
 import {
   useLibraryStore,
   rehydrateLibrary,
+  getLibraryPersistError,
   LIBRARY_MAX_STORIES,
 } from "@/stores/library-store";
 import {
@@ -63,6 +64,19 @@ export default function ForgePage() {
       const ok = addStory(story);
       if (!ok) {
         toast.error(t("save_failed_full", { max: LIBRARY_MAX_STORIES }));
+        return;
+      }
+      // The write to localStorage happens after the in-memory update and can
+      // fail on quota. Confirm it landed before claiming the story is saved —
+      // otherwise the success toast is a lie the user only discovers on reload.
+      const persistError = getLibraryPersistError();
+      if (persistError) {
+        toast.error(
+          persistError === "quota"
+            ? t("save_failed_quota")
+            : t("save_failed_storage"),
+          { description: story.title },
+        );
         return;
       }
       setSavedStoryId(story.id);

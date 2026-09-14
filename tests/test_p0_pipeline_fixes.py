@@ -472,31 +472,30 @@ class TestFix9StructuralRewriteCappedPerChapter:
 
 
 class TestFix10ContractGateRevalidatesVoice:
-    """_post_gate_validate uses VoiceContract from chapter_contract.py.
+    """_post_gate_validate checks the rewritten chapter against a VoiceContract.
 
-    Chapter is a Pydantic model with no extra fields, so we attach voice_contract
-    dynamically via a MagicMock wrapping a real Chapter or use a plain MagicMock.
-    The function uses getattr(new_chapter, "voice_contract", None).
+    These tests used to attach `voice_contract` to a SimpleNamespace, because
+    Chapter — the type production actually passes — has no such field. That was
+    the bug: `getattr(new_chapter, "voice_contract", None)` was always None in
+    production, so the voice re-validation advertised here never ran and the
+    function always returned True. The contract is now an explicit argument,
+    supplied from `sim_result.voice_contracts`, so these drive it that way.
     """
 
     def _make_ns(self, ch_num: int, content: str, with_voice_contract: bool = True):
-        """Return a SimpleNamespace that looks like a Chapter, optionally with voice_contract."""
+        """A Chapter-shaped object. `with_voice_contract` is kept for call-site
+        readability; the contract itself now travels as a separate argument."""
         from types import SimpleNamespace
+
+        return SimpleNamespace(chapter_number=ch_num, content=content)
+
+    def _contract(self, ch_num: int):
         from pipeline.layer2_enhance.chapter_contract import VoiceContract
 
-        ns = SimpleNamespace(
+        return VoiceContract(
             chapter_number=ch_num,
-            content=content,
-            voice_contract=(
-                VoiceContract(
-                    chapter_number=ch_num,
-                    per_character={"Minh": {"vocabulary_level": "formal"}},
-                )
-                if with_voice_contract
-                else None
-            ),
+            per_character={"Minh": {"vocabulary_level": "formal"}},
         )
-        return ns
 
     def test_post_gate_validate_reverts_on_voice_drop(self):
         """_post_gate_validate returns False (revert) when voice compliance < floor."""
@@ -520,7 +519,7 @@ class TestFix10ContractGateRevalidatesVoice:
             "pipeline.layer2_enhance.chapter_contract.validate_chapter_voice",
             return_value=low_validation,
         ):
-            result = _post_gate_validate(new_ch, original_ch)
+            result = _post_gate_validate(new_ch, original_ch, self._contract(1))
 
         assert result is False, (
             "_post_gate_validate must return False (revert) when compliance < floor"
@@ -548,7 +547,7 @@ class TestFix10ContractGateRevalidatesVoice:
             "pipeline.layer2_enhance.chapter_contract.validate_chapter_voice",
             return_value=high_validation,
         ):
-            result = _post_gate_validate(new_ch, original_ch)
+            result = _post_gate_validate(new_ch, original_ch, self._contract(2))
 
         assert result is True, (
             "_post_gate_validate must return True (keep) when compliance >= floor"
@@ -565,14 +564,14 @@ class TestFix10ContractGateRevalidatesVoice:
             "pipeline.layer2_enhance.chapter_contract.validate_chapter_voice",
             side_effect=RuntimeError("LLM timeout"),
         ):
-            result = _post_gate_validate(new_ch, original_ch)
+            result = _post_gate_validate(new_ch, original_ch, self._contract(3))
 
         assert result is False, (
             "_post_gate_validate must return False when validator raises (safe revert)"
         )
 
     def test_post_gate_validate_no_voice_contract_keeps_rewrite(self):
-        """_post_gate_validate returns True when chapter has no voice_contract."""
+        """No contract for this chapter — nothing to validate, keep the rewrite."""
         from pipeline.layer2_enhance.contract_gate import _post_gate_validate
 
         original_ch = self._make_ns(4, "some content", with_voice_contract=False)

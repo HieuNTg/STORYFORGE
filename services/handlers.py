@@ -372,58 +372,19 @@ def handle_generate_images(
 
         from config import ConfigManager
 
+        from services.media.comic_chapter import (
+            ComicSettings as _ComicSettings,
+            generate_chapter_comic as _generate_chapter_comic,
+            make_shot_extractor as _make_shot_extractor,
+        )
+
         _pipeline_cfg = ConfigManager().pipeline
-        # Per-chapter panel count. With ``panels_auto`` on, each chapter is paneled
-        # to its OWN length — a long chapter gets more panels, a short one fewer —
-        # so the comic breathes with the prose instead of forcing a rigid count
-        # onto every chapter. Bounded by panels_min..panels_max at roughly one
-        # panel per ``words_per_panel`` words; with it off, every chapter uses the
-        # fixed ``panels_per_chapter``. The SAME count feeds both the base-prompt
-        # extractor and the shot-list stage so they stay zip-aligned (see
-        # apply_shot_list_to_prompts).
-        _panels_fixed = max(1, int(getattr(_pipeline_cfg, "panels_per_chapter", 8)))
-        _panels_auto = bool(getattr(_pipeline_cfg, "panels_auto", True))
-        _panels_min = max(1, int(getattr(_pipeline_cfg, "panels_min", 4)))
-        _panels_max = max(_panels_min, int(getattr(_pipeline_cfg, "panels_max", 12)))
-        _words_per_panel = max(1, int(getattr(_pipeline_cfg, "words_per_panel", 200)))
-
-        def _panels_for(chapter) -> int:
-            if not _panels_auto:
-                return _panels_fixed
-            words = len((getattr(chapter, "content", "") or "").split())
-            return max(_panels_min, min(_panels_max, round(words / _words_per_panel)))
-
-        # Comic Phase 2: Beat→Shot-list stage. Gated dark by default so it can be
-        # A/B'd and rolled back safely; image generation is unchanged when off.
+        # Panel count, shot list, sizing and page composition all live in
+        # services/media/comic_chapter.py so this handler and the pipeline media
+        # stage cannot drift apart again.
         _shot_list_enabled = bool(
             getattr(_pipeline_cfg, "comic_shot_list_enabled", False)
         )
-        _shot_extractor = None
-        if _shot_list_enabled:
-            try:
-                from services.shot_list import ShotListExtractor
-
-                _shot_extractor = ShotListExtractor()
-            except Exception as _sl_e:
-                logger.warning("Shot-list stage unavailable, skipping: %s", _sl_e)
-                _shot_extractor = None
-
-        # Comic Phase 3: Page Compositor. Only meaningful when the shot-list stage
-        # is also on (it consumes the shot-list's bubbles/captions/screen_side).
-        # When both are enabled, the clean panels are composited into finished comic
-        # PAGE PNGs which then REPLACE the loose panels in ``ch.images`` (and the
-        # returned paths) so the frontend reader surfaces pages with no contract
-        # change. Loose panels stay on disk alongside. Gated dark; any failure
-        # degrades to loose panels.
-        _compositor_enabled = bool(
-            getattr(_pipeline_cfg, "comic_compositor_enabled", False)
-        )
-
-        # Provider branch: Codex/ChatGPT renders in-image Vietnamese text well,
-        # so for that provider we bake the speech bubbles + dialogue INTO each
-        # panel (and skip the vector-bubble compositor below). FlowKit and the
-        # other providers keep clean text-free panels + the compositor overlay.
-        _is_codex = str(provider or "").strip().lower() == "codex"
 
         # Comic: extract character → MAKE a character reference image → feed it
         # into panel generation, so faces/outfits stay consistent across panels.
@@ -433,7 +394,8 @@ def handle_generate_images(
         # generate_story_images). Gated to comic mode + reference-capable providers
         # and idempotent — characters that already have a usable reference on disk
         # are skipped, so this costs one portrait/character only on the first run.
-        _REF_CAPABLE = {"flowkit", "codex", "seedream", "replicate"}
+        from services.media.comic_chapter import REF_CAPABLE as _REF_CAPABLE
+
         if _shot_list_enabled and provider in _REF_CAPABLE and characters:
             import re as _re
 
@@ -496,134 +458,70 @@ def handle_generate_images(
                     len(character_references),
                 )
 
-        _coverage_check = bool(
-            getattr(_pipeline_cfg, "comic_coverage_check_enabled", True)
-        )
         all_paths: list[str] = []
-        for ch in target_chapters:
-            num_panels = _panels_for(ch)
-            prompts = []
-            _chapter_shot_list = None  # populated below when the shot-list stage runs
-            # Beat→Shot-list FIRST: when it succeeds, every image prompt is
-            # derived from the SAME panel beats the compositor letters (1:1 in
-            # reading order), so each picture matches the dialogue drawn over it
-            # and panels inserted by the coverage check get images too. The
-            # legacy scene-extraction path below remains the fallback whenever
-            # the stage is off or fails. The shot-list is persisted onto
-            # ``ch.shot_list`` (carried alongside the panels for Phase 3's
-            # compositor) and its panel metadata (shot_type/dialogue/
-            # screen_side) is threaded onto the ImagePrompts. Image prompt TEXT
-            # stays text-free (FlowKit) — dialogue is compositor-only — UNLESS
-            # the provider is Codex, which bakes the bubbles into the panel
-            # itself (see the _is_codex branch below).
-            if _shot_extractor is not None:
-                try:
-                    shot_list = _shot_extractor.extract(
-                        ch,
-                        characters=characters or None,
-                        num_panels=num_panels,
-                        character_references=character_references or None,
-                        visual_profiles=visual_profiles or None,
-                        coverage_check=_coverage_check,
-                    )
-                    if shot_list.pages:
-                        ch.shot_list = shot_list.model_dump()
-                        _chapter_shot_list = shot_list
-                        prompts = prompt_gen.generate_from_shot_list(
-                            shot_list,
-                            ch,
-                            characters=characters or None,
-                            visual_profiles=visual_profiles or None,
-                        )
-                except Exception as _sl_e:
-                    logger.warning(
-                        "Shot-list extraction failed for ch %s, continuing without: %s",
-                        ch.chapter_number,
-                        _sl_e,
-                    )
-            if not prompts:
-                # Legacy path: scenes extracted from prose, independent of any
-                # shot-list (used when the stage is off, failed, or empty).
-                prompts = prompt_gen.generate_from_chapter(
-                    ch,
-                    characters=characters or None,
-                    num_images=num_panels,
-                    visual_profiles=visual_profiles or None,
-                )
-            if not prompts:
-                continue
-            if _chapter_shot_list is not None:
-                try:
-                    from services.shot_list import apply_shot_list_to_prompts
+        _comic_settings = _ComicSettings(_pipeline_cfg, provider)
+        _shot_extractor = _make_shot_extractor(_comic_settings)
 
-                    apply_shot_list_to_prompts(prompts, _chapter_shot_list)
-                    if _is_codex:
-                        # Codex draws the bubbles itself — rewrite the prompts
-                        # to bake in this panel's dialogue (verbatim VN text)
-                        # instead of the clean text-free panel FlowKit uses.
-                        from services.image_prompt_generator import (
-                            bake_dialogue_into_prompts,
-                        )
-
-                        bake_dialogue_into_prompts(prompts)
-                except Exception as _sl_e:
-                    logger.warning(
-                        "Shot-list threading failed for ch %s, continuing without: %s",
-                        ch.chapter_number,
-                        _sl_e,
-                    )
-            ch_paths = image_gen.generate_story_images(
-                prompts,
-                chapter_number=ch.chapter_number,
+        def _comic_for_chapter(ch):
+            # One shared implementation for both entry points — see
+            # services/media/comic_chapter.py. The pipeline media stage calls the
+            # same function, so a chapter looks identical however it was made.
+            return _generate_chapter_comic(
+                ch,
+                prompt_gen=prompt_gen,
+                image_gen=image_gen,
+                settings=_comic_settings,
+                shot_extractor=_shot_extractor,
+                characters=characters or None,
                 character_references=character_references or None,
+                visual_profiles=visual_profiles or None,
             )
-            # Comic Phase 3: composite the clean loose panels into finished comic
-            # PAGE PNGs and surface THOSE through ch.images / the returned paths.
-            # Loose panels remain on disk (ch_paths above); only what the chapter
-            # *exposes* changes. Any failure degrades silently to loose panels.
-            if (
-                _compositor_enabled
-                and _shot_list_enabled
-                and _chapter_shot_list is not None
-                and ch_paths
-                and not _is_codex  # codex panels already carry baked-in bubbles
-            ):
-                try:
-                    from services.media.page_compositor import (
-                        compose_chapter,
-                        PageGeometry,
-                    )
-                    import os as _os
 
-                    _pages_dir = _os.path.join(image_gen.output_dir, "pages")
-                    _geom = PageGeometry.from_canvas_spec(
-                        getattr(_pipeline_cfg, "comic_page_canvas", None)
-                    )
-                    _font = getattr(_pipeline_cfg, "comic_font", None) or None
-                    _mode = getattr(_pipeline_cfg, "comic_layout_mode", "shot_list")
-                    page_paths = compose_chapter(
-                        _chapter_shot_list,
-                        ch_paths,
-                        _pages_dir,
-                        chapter_number=ch.chapter_number,
-                        geometry=_geom,
-                        font_path=_font,
-                        layout_mode=_mode,
-                    )
-                    if page_paths:
-                        ch_paths = page_paths
-                except Exception as _comp_e:
-                    logger.warning(
-                        "Page compositor failed for ch %s, using loose panels: %s",
-                        ch.chapter_number,
-                        _comp_e,
-                    )
+        # Chapters run concurrently here, as they already did in the pipeline
+        # media stage — this path looped them one at a time, so asking the
+        # Reader for a whole story's comic cost the sum of its chapters. The
+        # provider is protected by the process-wide ceiling inside
+        # ImageGenerator, not by this worker count, which is why fanning out at
+        # two levels is safe.
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from services.output_paths import rel_to_output_root
+
+        _workers = max(
+            1, min(len(target_chapters), int(_pipeline_cfg.comic_chapter_workers))
+        )
+        _results: dict[int, list[str]] = {}
+        if _workers == 1 or len(target_chapters) == 1:
+            for ch in target_chapters:
+                _results[id(ch)] = _comic_for_chapter(ch) or []
+        else:
+            with ThreadPoolExecutor(max_workers=_workers) as _executor:
+                _futures = {
+                    _executor.submit(_comic_for_chapter, ch): ch
+                    for ch in target_chapters
+                }
+                for _future in as_completed(_futures):
+                    _ch = _futures[_future]
+                    try:
+                        _results[id(_ch)] = _future.result() or []
+                    except Exception as _ce:
+                        # One chapter failing must not cost the others their art.
+                        logger.warning(
+                            "Comic generation failed for chapter %s: %s",
+                            getattr(_ch, "chapter_number", "?"),
+                            _ce,
+                        )
+                        _results[id(_ch)] = []
+
+        # Applied in chapter order, not completion order: `all_paths` is what
+        # the caller shows, and a shuffled gallery would be a regression.
+        for ch in target_chapters:
+            ch_paths = _results.get(id(ch)) or []
+            if not ch_paths:
+                continue
             # Store paths relative to the output root so the ``/media`` mount
             # (which serves OUTPUT_ROOT) resolves them as ``/media/<rel>``.
             # Panels live at ``output/<story-slug>/images/...`` under the
             # per-story layout.
-            from services.output_paths import rel_to_output_root
-
             ch.images = [rel_to_output_root(p) for p in ch_paths]
             all_paths.extend(ch_paths)
 

@@ -677,11 +677,16 @@ class TestCheckConnection(unittest.TestCase):
         ok, msg = client.check_connection()
         self.assertTrue(ok)
         self.assertIn("thành công", msg)
+        # Assert the constant, not a literal: the ping budget is measured
+        # against real thinking models (see services/llm/generation.py) and a
+        # hardcoded number here just goes stale the next time it is retuned.
+        from services.llm.generation import _PING_MAX_TOKENS
+
         client.generate.assert_called_once_with(
             system_prompt="Reply OK",
             user_prompt="ping",
             temperature=0.0,
-            max_tokens=5,
+            max_tokens=_PING_MAX_TOKENS,
         )
 
     @patch("services.llm_client.ConfigManager")

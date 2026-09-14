@@ -6,7 +6,7 @@ ghi log và có thể tự động sửa.
 """
 
 import logging
-from models.schemas import EnhancedStory, StoryDraft, Chapter, count_words
+from models.schemas import EnhancedStory, StoryDraft, count_words
 from pipeline.layer2_enhance._envelope_access import (
     conflict_web as _envelope_conflict_web,
 )
@@ -128,12 +128,11 @@ def fix_coherence_issues(
                 max_tokens=8192,
             )
 
-            enhanced.chapters[idx] = Chapter(
-                chapter_number=ch_num,
-                title=chapter.title,
-                content=rewritten,
-                word_count=count_words(rewritten),
-                summary=chapter.summary,
+            enhanced.chapters[idx] = chapter.model_copy(
+                update={
+                    "content": rewritten,
+                    "word_count": count_words(rewritten),
+                }
             )
             fixed += 1
             logger.info(f"Đã sửa vấn đề nhất quán ở chương {ch_num}")

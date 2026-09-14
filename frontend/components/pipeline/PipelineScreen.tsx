@@ -203,9 +203,16 @@ export function PipelineScreen({
       if (store.status === "running") {
         if (store.sessionId) {
           store.pushError(
-            "Mất kết nối với máy chủ khi đang sinh truyện. Tải lại trang để kiểm tra Thư viện — truyện có thể đã sinh xong.",
+            "Mất kết nối với máy chủ khi đang sinh truyện. Đang thử kết nối lại...",
           );
           store.setStatus("interrupted");
+          // Hand the run over to the recovery poller. It is gated on
+          // `!pendingBody`, which only handleCancel used to clear — so a
+          // dropped stream left the poller disabled and the user had to
+          // reload the page by hand to rejoin a run the server was still
+          // executing. The stream is already dead here, so releasing the
+          // body closes nothing that is still live.
+          setPendingBody(null);
         } else {
           store.pushError(
             "Không thể bắt đầu phiên sinh truyện (máy chủ không phản hồi). Hãy thử lại.",
@@ -223,8 +230,10 @@ export function PipelineScreen({
       const store = usePipelineStore.getState();
       if (store.status === "running") {
         store.setStatus("interrupted");
+        // Same handover as onError: let the poller pick the run back up.
+        setPendingBody(null);
         toast.warning(
-          "Luồng tiến trình kết thúc nhưng chưa nhận tín hiệu hoàn tất. Tải lại trang để kiểm tra Thư viện.",
+          "Luồng tiến trình kết thúc nhưng chưa nhận tín hiệu hoàn tất. Đang thử kết nối lại...",
         );
       }
     },
@@ -274,9 +283,16 @@ export function PipelineScreen({
   const handleCancel = React.useCallback(() => {
     stream.abort();
     setPendingBody(null);
+    // Drop `?session=` too. Clearing only pendingBody satisfied the recovery
+    // poller's gate, so it immediately picked the cancelled run back up, walked
+    // it through `running` again and auto-saved it on `done` — the opposite of
+    // what Cancel promises. The backend worker cannot be hard-killed (see the
+    // shutdown note in api/pipeline_routes), so Cancel means "stop watching":
+    // forgetting the session id is what makes that true in the UI.
+    void setSessionQuery(null);
     usePipelineStore.getState().setStatus("interrupted");
-    toast.warning("Đã huỷ phiên sinh truyện");
-  }, [stream]);
+    toast.warning("Đã huỷ theo dõi phiên sinh truyện");
+  }, [stream, setSessionQuery]);
 
   const pending = status === "running" || stream.readyState === "connecting";
 
