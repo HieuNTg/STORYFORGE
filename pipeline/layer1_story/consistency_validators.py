@@ -114,23 +114,46 @@ def validate_character_names(content: str, characters: list) -> list[str]:
         if len(parts) >= 3:
             valid_forms.add(f"{parts[0]} {parts[-1]}")
 
-    # Group consecutive capitalized words (Unicode-safe via .isupper())
-    all_words = re.findall(r"[^\W\d_]+", content, re.UNICODE)
-    groups = []
+    # Group consecutive capitalized words (Unicode-safe via .isupper()) — but
+    # only words joined by plain spaces. Words used to be extracted with the
+    # punctuation stripped, so `"Ai?" Lâm Phong` became the group "Ai Lâm Phong"
+    # and `Dạ Sát.\n\n"Kẻ` became "Dạ Sát Kẻ", each "almost" a character name.
+    # Measured on every saved story (scripts/measure_entity_gaps.py): 13 of the
+    # 18 warnings were this, and the other 5 were sentence-initial words (below).
+    # They are not cosmetic — they are a scored finding in the repair loop.
+    groups: list[tuple[str, bool]] = []  # (group, starts a sentence)
     current_group: list[str] = []
-    for word in all_words:
-        if word and word[0].isupper():
+    current_starts = False
+    prev_end = 0
+    for match in re.finditer(r"[^\W\d_]+", content, re.UNICODE):
+        word = match.group()
+        gap = content[prev_end : match.start()]
+        first_token = prev_end == 0
+        prev_end = match.end()
+        joined = bool(gap) and not gap.strip(" \t")
+        if current_group and not (word[0].isupper() and joined):
+            groups.append((" ".join(current_group), current_starts))
+            current_group = []
+        if word[0].isupper():
+            if not current_group:
+                current_starts = first_token or bool(re.search(r"[.!?…\n]", gap))
             current_group.append(word)
-        else:
-            if current_group:
-                groups.append(" ".join(current_group))
-                current_group = []
     if current_group:
-        groups.append(" ".join(current_group))
+        groups.append((" ".join(current_group), current_starts))
 
     seen_warnings: set[tuple[str, str]] = set()
-    for found in groups:
+    for found, starts_sentence in groups:
         if found in valid_forms or len(found) < 2:
+            continue
+        # A sentence-initial word is capitalized by grammar. If the same word
+        # also occurs in lowercase, it is an ordinary word ("Thân là…" next to
+        # "thân thể"), not a misspelled name — a misspelling ("Minnh") never
+        # appears in lowercase, so this needs no dictionary.
+        if (
+            starts_sentence
+            and " " not in found
+            and re.search(rf"(?<!\w){re.escape(found.lower())}(?!\w)", content)
+        ):
             continue
         for valid in valid_forms:
             if len(valid) >= 3 and _is_name_variant(found, valid):
