@@ -458,11 +458,50 @@ def handle_generate_images(
                     len(character_references),
                 )
 
+        # Character forms (Batch L, L3): a character who changes robes or loses
+        # an arm is drawn as they look BY each chapter, not as their chapter-1
+        # self. Scanned and prepared here, one chapter at a time, before the
+        # chapters fan out below — so each worker only reads. Never fatal: a
+        # failure draws the chapter as before.
+        _forms_by_name: dict = {}
+        if characters and _pipeline_cfg.comic_character_forms_enabled:
+            try:
+                from services.character_visual_profile import (
+                    CharacterVisualProfileStore as _FormsStore,
+                )
+                from services.media import character_forms as _character_forms
+
+                _forms_store = _FormsStore(story_title=_story_title)
+                _character_forms.ensure_forms(
+                    _forms_store,
+                    _character_forms.LLMClient(),
+                    story.chapters,
+                    characters,
+                    upto_chapter=max(c.chapter_number for c in target_chapters),
+                )
+                _forms_by_name = _character_forms.prepare_form_references(
+                    _forms_store,
+                    characters,
+                    visual_profiles,
+                    character_references,
+                    image_gen,
+                    provider,
+                )
+            except Exception as _forms_e:
+                logger.warning("Character forms skipped: %s", _forms_e)
+
         all_paths: list[str] = []
         _comic_settings = _ComicSettings(_pipeline_cfg, provider)
         _shot_extractor = _make_shot_extractor(_comic_settings)
 
         def _comic_for_chapter(ch):
+            _profiles_ch, _refs_ch = visual_profiles, character_references
+            if _forms_by_name:
+                from services.media.character_forms import for_chapter as _forms_for
+
+                _profiles_ch, _refs_ch = _forms_for(
+                    ch.chapter_number, visual_profiles, character_references, _forms_by_name
+                )
             # One shared implementation for both entry points — see
             # services/media/comic_chapter.py. The pipeline media stage calls the
             # same function, so a chapter looks identical however it was made.
@@ -473,8 +512,8 @@ def handle_generate_images(
                 settings=_comic_settings,
                 shot_extractor=_shot_extractor,
                 characters=characters or None,
-                character_references=character_references or None,
-                visual_profiles=visual_profiles or None,
+                character_references=_refs_ch or None,
+                visual_profiles=_profiles_ch or None,
             )
 
         # Chapters run concurrently here, as they already did in the pipeline

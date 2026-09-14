@@ -120,6 +120,8 @@ class CharacterVisualProfileStore:
             if existing
             else datetime.now().isoformat(),
             "updated_at": datetime.now().isoformat(),
+            # Rebuilding the base look must not erase what later chapters did to it.
+            "forms": existing.get("forms", []) if existing else [],
         }
         write_profile_json(self._profile_path(name), profile)
         logger.info(
@@ -175,6 +177,75 @@ class CharacterVisualProfileStore:
         if profile.get("frozen_prompt"):
             return profile["frozen_prompt"]
         return profile.get("description", "")
+
+    # ── Character forms (Batch L, L3) ───────────────────────────────────────
+    # A form is a lasting change of appearance from a given chapter on:
+    #   {"from_chapter": 7, "description": "...", "evidence": "...", "reference_image": ""}
+    # Forms live in the character's own profile.json, beside the frozen prompt
+    # and base reference they modify. Which chapters have been scanned, and at
+    # what content, is story-wide and lives in one index file.
+
+    _FORMS_SCAN_FILE = "_forms_scan.json"
+
+    def get_forms(self, name: str) -> list:
+        """The character's forms, oldest first; [] when none or unreadable."""
+        profile = self.load_profile(name)
+        forms = (profile or {}).get("forms")
+        return [f for f in forms if isinstance(f, dict)] if isinstance(forms, list) else []
+
+    def add_form(self, name: str, form: dict) -> bool:
+        """Append a form. False when the character has no profile to attach it to."""
+        profile = self.load_profile(name)
+        if not profile:
+            return False
+        forms = [f for f in profile.get("forms") or [] if isinstance(f, dict)]
+        forms.append(dict(form))
+        forms.sort(key=lambda f: int(f.get("from_chapter") or 0))
+        profile["forms"] = forms
+        profile["updated_at"] = datetime.now().isoformat()
+        write_profile_json(self._profile_path(name), profile)
+        return True
+
+    def remove_forms_from_chapter(self, chapter_number: int) -> None:
+        """Drop every character's forms that start at ``chapter_number``.
+
+        Used before re-scanning a chapter whose text changed, so a rewrite that
+        no longer changes a character's look does not leave the old form behind.
+        """
+        for profile in self.list_profiles():
+            forms = profile.get("forms")
+            if not isinstance(forms, list) or not profile.get("name"):
+                continue
+            kept = [
+                f
+                for f in forms
+                if not (isinstance(f, dict) and int(f.get("from_chapter") or -1) == chapter_number)
+            ]
+            if len(kept) != len(forms):
+                profile["forms"] = kept
+                write_profile_json(self._profile_path(profile["name"]), profile)
+
+    def set_form_reference(self, name: str, from_chapter: int, image_path: str) -> bool:
+        """Record the reference image rendered for one form."""
+        profile = self.load_profile(name)
+        if not profile:
+            return False
+        for form in profile.get("forms") or []:
+            if isinstance(form, dict) and int(form.get("from_chapter") or -1) == int(from_chapter):
+                form["reference_image"] = image_path
+        profile["updated_at"] = datetime.now().isoformat()
+        write_profile_json(self._profile_path(name), profile)
+        return True
+
+    def get_scanned_chapters(self) -> dict:
+        """{chapter_number (str): content digest} of chapters already scanned for forms."""
+        data = read_profile_json(os.path.join(self.base_dir, self._FORMS_SCAN_FILE), "_forms_scan")
+        return data if isinstance(data, dict) else {}
+
+    def mark_chapter_scanned(self, chapter_number: int, digest: str) -> None:
+        data = self.get_scanned_chapters()
+        data[str(chapter_number)] = digest
+        write_profile_json(os.path.join(self.base_dir, self._FORMS_SCAN_FILE), data)
 
     def build_visual_description(self, character) -> str:
         """Build a visual description from Character object attributes.
