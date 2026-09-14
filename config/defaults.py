@@ -208,6 +208,12 @@ class PipelineConfig:
     # prompts still carry NO dialogue text. Now ON by default — with it off the
     # product generates loose illustrations, not a comic; turn it off to A/B or
     # roll back, image generation is unchanged when off.
+    # Character forms (Batch L, L3): draw each chapter with a character as they
+    # look BY that chapter — new robes, a lost arm, white hair after awakening —
+    # instead of their chapter-1 self forever. Costs one cheap LLM call per
+    # chapter on its first comic run (cached by chapter content), plus one
+    # reference image per form on reference-capable providers.
+    comic_character_forms_enabled: bool = True
     comic_shot_list_enabled: bool = True
     # Coverage verification for the shot-list stage. When on (and the shot-list
     # stage itself is on), a second cheap-tier LLM pass re-reads the full chapter
