@@ -395,9 +395,25 @@ cho batch này. Bản đánh giá gốc đã được đối chiếu với code.
 - [ ] 8 regression test trong spec, kể cả `test_repair_loop_ignores_registered_alias`.
 
 #### L2. Shot list không mất phần cuối chương
-- [ ] L2a: fixer của `generate_json` không nhận bản bị cắt (`len(text) > 4000` thì ném lỗi). Có test.
-- [ ] L2b: cắt chương theo đoạn. Các chunk chạy tuần tự trong một chương và mang panel trước sang. Kiểm độ phủ theo từng chunk, `enforce_rules` chạy một lần.
-- [ ] L2c: phát hiện bị cắt cụt một cách tất định (parse lỗi và ngoặc chưa đóng) thì chia đôi và gọi lại, giới hạn độ sâu 3. Đường lùi về rỗng ở `:654` phải ghi lý do.
+- [x] L2a: fixer của `generate_json` không nhận bản bị cắt (`len(text) > 4000` thì ném lỗi). Có test. Đã làm cùng lỗi P0 dàn ý (`5280bd5`).
+- [x] L2b: cắt chương theo đoạn. Các chunk chạy tuần tự trong một chương và mang panel trước sang. Kiểm độ phủ theo từng chunk, `enforce_rules` chạy một lần.
+- [x] L2c (gate: 5.146 test pass, 0 fail): phát hiện bị cắt cụt một cách tất định (parse lỗi và ngoặc chưa đóng) thì chia đôi và gọi lại, giới hạn độ sâu 3. Đường lùi về rỗng ở `:654` phải ghi lý do.
+  - **Đổi so với spec:** không cần tự đếm ngoặc chưa đóng, và vẫn dùng `generate_json`, vì mọi test hiện có giả `generate_json`.
+    - Từ L2a, `generate_json` đã ném lỗi khi response không parse được và dài quá 4000 ký tự. Lỗi đó giờ có kiểu riêng là `JSONTooLongToRepairError`, subclass của `ValueError`, nên mọi caller đang bắt `ValueError` vẫn chạy như cũ.
+    - Shot list bắt đúng kiểu lỗi này thì chia đôi chunk ở ranh giới đoạn, không có thì ở ranh giới câu. Giới hạn là độ sâu 3 và chunk tối thiểu 800 ký tự.
+    - Response bị cắt mà ngắn hơn 4000 ký tự vẫn đi qua fixer như trước. Khi đã cắt theo chunk, trường hợp này hiếm, vì `max_tokens` tăng theo số panel của từng chunk.
+  - `tests/test_shot_list_chunking.py`: 8/11 fail trên code cũ. 3 test còn lại khóa hành vi cũ: chương ngắn vẫn gọi đúng 1 lần, lỗi không chia được thì lùi về rỗng, và không chunk nào vượt cửa sổ.
+  - **Chạy thật qua proxy (2026-09-14)** trên chương 3 của smoke run legacy, dài 22.527 ký tự:
+    - Chia thành 3 chunk (7.673 / 7.759 / 7.085 ký tự), 3 call, 58 giây. Chunk 2 và 3 đều có ghi chú TIẾP NỐI.
+    - Ra 36 panel. Panel cuối ("Mùa nước nổi vẫn đang dâng cao…") khớp đoạn kết thật. Trước đây shot list chỉ thấy khoảng 1/3 đầu chương.
+  - [x] **Quyết định sản phẩm: trần panel — CEO chọn A (giữ trần mềm), 2026-09-14.** Không đổi code: mọi beat giữ ảnh riêng, số ảnh tăng theo độ dài chương. Bối cảnh của quyết định: ra 36 panel dù `panels_max = 24`.
+    - `_merge_to_budget` chỉ gộp các panel liền kề của **cùng** một beat và không bao giờ bỏ beat. Đây là thiết kế có chủ ý: vượt trần thì giữ nguyên, chỉ log.
+    - Model cũng không theo mục tiêu số panel: được xin khoảng 4 mỗi chunk, trả về khoảng 12.
+    - Trước L2, cửa sổ 8.000 ký tự vô tình giữ số panel thấp. Giờ số ảnh tăng theo độ dài chương, tốn thêm quota ảnh Qwen/ngày và thời gian.
+    - Hai phương án:
+      - **A:** giữ trần mềm. Đủ mọi beat, ảnh nhiều hơn.
+      - **B:** trần cứng. Gộp các beat liền kề có `_beat_weight` thấp nhất, dồn thoại và caption vào panel còn lại, cho tới khi đạt `panels_max`. Vẫn phủ cả chương vì việc gộp rải khắp chương, nhưng mất ảnh cho beat nhỏ.
+  - **Phát hiện L1, không phải lỗi L2:** panel #9–15 lặp một cảnh vì **chính văn bản chương** kể lại cảnh đó hai lần. Câu "Thôi được…" nằm ở vị trí 7.595 và 9.626; không có cửa sổ 200 ký tự nào trùng khít, tức cùng một cảnh được viết lại bằng lời khác. Khớp với việc chương dài 5.002 từ so với mục tiêu 1.500. Nghi các lượt viết lại hậu kỳ của legacy (pacing, consistency) chèn thêm thay vì thay thế. Cần kiểm trước khi quyết về trần độ dài.
 - [ ] 7 regression test trong spec, kể cả test chương ngắn vẫn đúng 1 call.
 
 #### L3. Hình thái nhân vật cho ảnh — chờ quyết định A/B (spec §4)
