@@ -53,6 +53,9 @@ export interface ProviderPresetDTO {
   // (see config/presets.py). Prefilled into the card's key box so setup is
   // one click. Never present for real hosted providers.
   default_key?: string;
+  // The free-form card: the user types the provider name, base URL and model
+  // instead of picking from a dropdown.
+  custom?: boolean;
 }
 
 export interface StorySummary {

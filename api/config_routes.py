@@ -37,6 +37,8 @@ import logging
 import re
 import time
 from datetime import datetime, timezone
+from urllib.parse import urlparse
+
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional
@@ -574,9 +576,18 @@ def test_connection():
         logger.warning("test-connection persist failed: %s", e)
 
     all_ok = all(r["ok"] for r in results if r["ok"] is not None)
+    # On failure, say WHICH provider failed. Reporting the primary's message
+    # here meant a healthy primary + a broken fallback produced `ok: false`
+    # carrying the text "Kết nối thành công" — the UI dutifully rendered a red
+    # error toast that read "connection successful", and named nobody.
+    if all_ok:
+        message = "All providers OK"
+    else:
+        failures = [r for r in results if r["ok"] is False]
+        message = "; ".join(f"{r['name']}: {r['message']}" for r in failures) or msg
     return {
         "ok": all_ok,
-        "message": msg if not all_ok else "All providers OK",
+        "message": message,
         "profiles": results,
     }
 
@@ -642,12 +653,102 @@ class ModelsRequest(BaseModel):
     api_key: str = ""
 
 
+def _fetch_openai_compatible_models(base_url: str, api_key: str) -> list[dict]:
+    """GET {base_url}/models and return the ids it advertises.
+
+    The OpenAI-compatible discovery endpoint — the one thing every such server
+    (OpenAI, Gemini's OpenAI shim, vLLM, Ollama, LM Studio, a proxy, a provider
+    we ship no card for) has in common. Anthropic is the odd one out: same URL
+    shape, but it authenticates with `x-api-key` + a version header instead of
+    a bearer token, so send both and let the server pick.
+
+    Blocking urllib is fine here: the caller is a sync route, so FastAPI
+    already runs it in a worker thread.
+    """
+    import json as _json
+    import urllib.request
+
+    url = base_url.rstrip("/") + "/models"
+    req = urllib.request.Request(url)
+    if api_key:
+        req.add_header("Authorization", f"Bearer {api_key}")
+        if "anthropic.com" in base_url.lower():
+            req.add_header("x-api-key", api_key)
+            req.add_header("anthropic-version", "2023-06-01")
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        raw = _json.loads(resp.read().decode("utf-8"))
+    entries = raw.get("data", raw if isinstance(raw, list) else [])
+    out = []
+    for entry in entries:
+        if isinstance(entry, dict):
+            mid = entry.get("id")
+            label = entry.get("display_name") or entry.get("name") or mid
+        else:
+            mid = label = entry
+        if mid:
+            out.append({"id": str(mid), "label": str(label)})
+    return out
+
+
+def _host(url: str) -> str:
+    return (urlparse(url or "").hostname or "").lower()
+
+
+def _preset_models_for(base_url: str) -> list[dict]:
+    """The curated model list of whichever provider card owns `base_url`.
+
+    Fallback for when live discovery fails (offline, no key yet, provider
+    without a /models endpoint) — so the dropdown is never empty just because
+    the network was. config/presets.py stays the single source of truth; this
+    route keeps no second copy of the lists.
+    """
+    host = _host(base_url)
+    if not host:
+        return []
+    for preset in PROVIDER_PRESETS:
+        if _host(preset.get("base_url", "")) == host:
+            return list(preset.get("models") or [])
+    return []
+
+
+def _stored_key_for(base_url: str) -> str:
+    """The key already saved for this endpoint, if any.
+
+    Lets the UI auto-refresh a configured provider's model list without the
+    user re-typing a secret the server already holds. Never returned to the
+    client — only used to authenticate the outgoing discovery call.
+    """
+    host = _host(base_url)
+    if not host:
+        return ""
+    cfg = ConfigManager()
+    candidates = list(cfg.llm.fallback_models) + [
+        {"base_url": cfg.llm.base_url, "api_key": cfg.llm.api_key}
+    ]
+    for profile in candidates:
+        if _host(profile.get("base_url") or "") == host and profile.get("api_key"):
+            return str(profile["api_key"])
+    return ""
+
+
 @router.post("/provider/models", dependencies=[_MANAGE_API_KEYS])
 def get_provider_models(body: ModelsRequest):
-    """Fetch available models from a provider (OpenRouter, Kyma, etc.)."""
+    """Ask a provider which models it can actually run.
+
+    Live discovery for EVERY provider, not just the custom card: a hardcoded
+    list here goes stale the week a provider ships a new model, and the user
+    then has to know the exact id by heart. OpenRouter keeps its own path
+    because that discovery also filters for models worth generating Vietnamese
+    prose with; everything else asks GET {base_url}/models directly.
+
+    A failure is never fatal — the curated list from the provider's own card is
+    returned instead, alongside the error, so the dropdown still works offline.
+    """
     validate_base_url(body.base_url)
     provider = _detect_provider_name(body.base_url)
-    models = []
+    # An already-configured provider can refresh without the user re-typing a
+    # secret the server already stores.
+    api_key = body.api_key or _stored_key_for(body.base_url)
 
     if provider == "openrouter":
         try:
@@ -655,40 +756,28 @@ def get_provider_models(body: ModelsRequest):
 
             models = [
                 {"id": m, "label": m.split("/")[-1].replace(":free", "")}
-                for m in get_free_models(body.api_key)
+                for m in get_free_models(api_key)
             ]
+            if models:
+                return {"provider": provider, "models": models}
         except Exception as e:
-            return {"provider": provider, "models": [], "error": str(e)}
+            return {
+                "provider": provider,
+                "models": _preset_models_for(body.base_url),
+                "error": str(e),
+            }
 
-    elif provider == "kyma":
-        try:
-            from services.kyma_model_discovery import get_kyma_models
+    try:
+        models = _fetch_openai_compatible_models(body.base_url, api_key)
+    except Exception as e:
+        return {
+            "provider": provider,
+            "models": _preset_models_for(body.base_url),
+            "error": str(e),
+        }
 
-            models = [{"id": m, "label": m} for m in get_kyma_models(body.api_key)]
-        except Exception as e:
-            return {"provider": provider, "models": [], "error": str(e)}
-
-    elif provider == "anthropic":
-        models = [
-            {"id": "claude-sonnet-4-20250514", "label": "Claude Sonnet 4"},
-            {"id": "claude-haiku-4-5-20251001", "label": "Claude Haiku 4.5"},
-            {"id": "claude-opus-4-20250514", "label": "Claude Opus 4"},
-        ]
-
-    elif provider == "openai":
-        models = [
-            {"id": "gpt-4o", "label": "GPT-4o"},
-            {"id": "gpt-4o-mini", "label": "GPT-4o Mini"},
-            {"id": "gpt-4-turbo", "label": "GPT-4 Turbo"},
-        ]
-
-    elif provider == "gemini":
-        models = [
-            {"id": "gemini-2.5-flash", "label": "Gemini 2.5 Flash"},
-            {"id": "gemini-2.5-pro", "label": "Gemini 2.5 Pro"},
-            {"id": "gemini-2.0-flash", "label": "Gemini 2.0 Flash"},
-        ]
-
+    if not models:
+        models = _preset_models_for(body.base_url)
     return {"provider": provider, "models": models}
 
 

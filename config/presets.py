@@ -56,7 +56,6 @@ _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 # Vietnamese-capable models prioritized — models that produce poor Vietnamese
 # (e.g. coder models, tiny models, English-only fine-tunes) cause language
 # drift where summaries/context turn English and later chapters follow suit.
-_KYMA_BASE = "https://kymaapi.com/v1"
 
 # Local OpenAI-compatible bridge to the Gemini + Qwen web apps (gemini-webapi
 # server). Runs at http://localhost:8000 — see Gemini-API/server/README.md.
@@ -71,7 +70,10 @@ _GEMINI_LOCAL_KEY = "changeme-internal-key"
 #
 # Each entry is a per-provider setup card: a base_url, a list of selectable
 # models, and a key placeholder. The user picks a model and enters their own
-# API key to create a profile.
+# API key to create a profile. `base_url` here is only the DEFAULT — the card
+# renders it in an editable box, so a user behind a proxy or a mirror can point
+# any card somewhere else. `custom: True` marks the free-form card (no fixed
+# name, no model dropdown).
 #
 # Keep this the ONLY place provider cards are defined — the frontend no longer
 # hardcodes them. Keys are snake_case (API convention); the UI maps base_url →
@@ -177,30 +179,6 @@ PROVIDER_PRESETS = [
         "placeholder": "sk-or-...",
     },
     {
-        "name": "Z.AI",
-        "label": "Z.AI",
-        "base_url": "https://api.z.ai/api/paas/v4",
-        "model": "glm-4.7-flash",
-        "models": [
-            {"id": "glm-4.7-flash", "label": "GLM 4.7 Flash"},
-            {"id": "glm-4.6", "label": "GLM 4.6"},
-            {"id": "glm-4-flash", "label": "GLM 4 Flash"},
-        ],
-        "placeholder": "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx.xxxxx",
-    },
-    {
-        "name": "Kyma",
-        "label": "Kyma",
-        "base_url": _KYMA_BASE,
-        "model": "qwen-3.6-plus",
-        "models": [
-            {"id": "qwen-3.6-plus", "label": "Qwen 3.6 Plus"},
-            {"id": "qwen-3.6", "label": "Qwen 3.6"},
-            {"id": "deepseek-v3.2", "label": "DeepSeek V3.2"},
-        ],
-        "placeholder": "ky-...",
-    },
-    {
         # Local OpenAI-compatible bridge to the Gemini + Qwen web apps.
         # Requires running the bridge at localhost:8000 — see Gemini-API/server/README.md.
         #
@@ -240,5 +218,18 @@ PROVIDER_PRESETS = [
         # over it. Only ever a localhost dev token — never ship a real key here.
         "default_key": _GEMINI_LOCAL_KEY,
         "placeholder": _GEMINI_LOCAL_KEY,
+    },
+    {
+        # Escape hatch for any OpenAI-compatible endpoint we don't ship a card
+        # for — a self-hosted vLLM/Ollama, a personal proxy, a provider that
+        # launched last week. `custom` tells the UI to render free-text name /
+        # base URL / model boxes instead of a fixed label and a model dropdown.
+        "name": "Custom",
+        "label": "Custom (OpenAI-compatible)",
+        "base_url": "",
+        "model": "",
+        "models": [],
+        "placeholder": "sk-...",
+        "custom": True,
     },
 ]

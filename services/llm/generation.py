@@ -9,6 +9,20 @@ from typing import Optional
 
 logger = logging.getLogger(__name__)
 
+# Output budget for connection pings. It used to be 5, which made the health
+# check lie: a thinking model hit the cap with nothing written, the provider
+# raised "LLM returned empty content", and the UI showed "Lỗi kết nối" for a
+# provider that had just answered HTTP 200.
+#
+# The size is measured, not guessed. gemma-4-31b-it answering "ping":
+#     max_output_tokens=5   → thoughts=2,   finish=MAX_TOKENS, text=None
+#     max_output_tokens=64  → thoughts=61,  finish=MAX_TOKENS, text=None
+#     max_output_tokens=256 → thoughts=114, candidates=14, finish=STOP, "pong!"
+# `max_output_tokens` covers the thinking budget too, so the cap must clear
+# the model's thoughts before a single visible character appears. 256 does,
+# with room to spare, and still costs a fraction of a cent per test.
+_PING_MAX_TOKENS = 256
+
 
 def _config_manager():
     """Lazy-resolve ConfigManager through compat hub for test mock support."""
@@ -427,7 +441,7 @@ class GenerationMixin:
                 system_prompt="Reply OK",
                 user_prompt="ping",
                 temperature=0.0,
-                max_tokens=5,
+                max_tokens=_PING_MAX_TOKENS,
             )
             return True, "Kết nối thành công"
         except Exception as e:
@@ -445,7 +459,7 @@ class GenerationMixin:
                 messages=[{"role": "user", "content": "ping"}],
                 model=model,
                 temperature=0.0,
-                max_tokens=5,
+                max_tokens=_PING_MAX_TOKENS,
             )
             return True, "OK"
         except Exception as e:
