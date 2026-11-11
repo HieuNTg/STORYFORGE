@@ -51,15 +51,13 @@ export function ProviderRow({
   testResult = "idle",
 }: ProviderRowProps) {
   const t = useTranslations("providers");
-  const [editing, setEditing] = React.useState(false);
-  const [draft, setDraft] = React.useState(data.baseUrl ?? "");
-
-  React.useEffect(() => {
-    if (!editing) setDraft(data.baseUrl ?? "");
-  }, [data.baseUrl, editing]);
+  // `null` means "not editing"; a string is the in-progress draft.
+  const [draft, setDraft] = React.useState<string | null>(null);
+  const editing = draft !== null;
 
   const commit = React.useCallback(() => {
-    setEditing(false);
+    if (draft === null) return;
+    setDraft(null);
     const trimmed = draft.trim();
     if (trimmed !== (data.baseUrl ?? "")) {
       onEditBaseUrl(data.name, trimmed);
@@ -67,9 +65,8 @@ export function ProviderRow({
   }, [draft, data.baseUrl, data.name, onEditBaseUrl]);
 
   const cancel = React.useCallback(() => {
-    setEditing(false);
-    setDraft(data.baseUrl ?? "");
-  }, [data.baseUrl]);
+    setDraft(null);
+  }, []);
 
   const getStatusLabel = (status: ProviderTestStatus) => {
     switch (status) {
@@ -100,7 +97,7 @@ export function ProviderRow({
         {editing ? (
           <Input
             autoFocus
-            value={draft}
+            value={draft ?? ""}
             onChange={(event) => setDraft(event.target.value)}
             onBlur={commit}
             onKeyDown={(event) => {
@@ -118,7 +115,7 @@ export function ProviderRow({
         ) : (
           <button
             type="button"
-            onClick={() => setEditing(true)}
+            onClick={() => setDraft(data.baseUrl ?? "")}
             className="w-full truncate rounded-md px-2 py-1 text-left font-mono text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             {data.baseUrl?.trim() ? data.baseUrl : t("set_base_url")}

@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * Playwright a11y spec — walks every Phase 0–4 route in both light and dark
  * mode, injects axe-core, captures violations, and prints a structured per-

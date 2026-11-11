@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { NextIntlClientProvider, type AbstractIntlMessages } from "next-intl";
@@ -32,19 +32,16 @@ function readClientLocale(fallback: string) {
 
 export function Providers({ children, locale, messages }: ProvidersProps) {
   const [queryClient] = useState(() => makeQueryClient());
-  const [clientLocale, setClientLocale] = useState(locale);
-
-  useEffect(() => {
-    setClientLocale(readClientLocale(locale));
-
-    function onLocaleChange(event: Event) {
-      const next = (event as CustomEvent<string>).detail;
-      if (next in CLIENT_MESSAGES) setClientLocale(next);
-    }
-
-    window.addEventListener("storyforge:locale", onLocaleChange);
-    return () => window.removeEventListener("storyforge:locale", onLocaleChange);
-  }, [locale]);
+  // The locale switcher persists the choice (cookie + localStorage) before it
+  // dispatches "storyforge:locale", so re-reading the persisted value is enough.
+  const clientLocale = useSyncExternalStore(
+    (onChange) => {
+      window.addEventListener("storyforge:locale", onChange);
+      return () => window.removeEventListener("storyforge:locale", onChange);
+    },
+    () => readClientLocale(locale),
+    () => locale,
+  );
 
   const clientMessages = useMemo(
     () => CLIENT_MESSAGES[clientLocale] ?? messages,

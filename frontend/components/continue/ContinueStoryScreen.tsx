@@ -44,8 +44,9 @@ export function ContinueStoryScreen() {
   const appendChapter = useLibraryStore((s) => s.appendChapter);
   const updateStory = useLibraryStore((s) => s.updateStory);
 
-  const [storyId, setStoryId] = React.useState("");
+  const [pickedStoryId, setStoryId] = React.useState("");
   const [chapterCount, setChapterCount] = React.useState(1);
+  // (clamped to `maxBatch` below, during render)
   const [direction, setDirection] = React.useState("");
   /** null = follow the story's own rhythm (see `suggestWordCount`). */
   const [wordCountOverride, setWordCountOverride] = React.useState<number | null>(
@@ -78,18 +79,20 @@ export function ContinueStoryScreen() {
     rehydrateLibrary();
   }, []);
 
+  // Derived: a valid deep-link id wins, then the user's pick, then the
+  // library's selected story, then the first story.
+  const queryStoryValid = !!queryId && stories.some((s) => s.id === queryId);
+  const storyId = queryStoryValid
+    ? queryId
+    : pickedStoryId ||
+      (selectedId && stories.some((s) => s.id === selectedId)
+        ? selectedId
+        : (stories[0]?.id ?? ""));
+
+  // Keep the library store's selection in sync with the deep link.
   React.useEffect(() => {
-    if (queryId && stories.some((s) => s.id === queryId)) {
-      setStoryId(queryId);
-      selectStory(queryId);
-      return;
-    }
-    if (!storyId && selectedId && stories.some((s) => s.id === selectedId)) {
-      setStoryId(selectedId);
-      return;
-    }
-    if (!storyId && stories.length > 0) setStoryId(stories[0].id);
-  }, [queryId, selectedId, selectStory, stories, storyId]);
+    if (queryStoryValid && queryId) selectStory(queryId);
+  }, [queryStoryValid, queryId, selectStory]);
 
   const story = React.useMemo(
     () => stories.find((s) => s.id === storyId) ?? null,
@@ -112,9 +115,7 @@ export function ContinueStoryScreen() {
   const planKey = `${storyId}:${chapterCount}`;
   const outlines = plan?.key === planKey ? plan.outlines : null;
 
-  React.useEffect(() => {
-    if (chapterCount > maxBatch) setChapterCount(maxBatch);
-  }, [chapterCount, maxBatch]);
+  if (chapterCount > maxBatch) setChapterCount(maxBatch);
 
   /**
    * False while a run is in flight and has not yet produced a terminal frame.
@@ -578,9 +579,11 @@ function LegacyTargetInline({
   applyLabel: string;
 }) {
   const [val, setVal] = React.useState(defaultValue);
-  React.useEffect(() => {
+  const [syncedDefault, setSyncedDefault] = React.useState(defaultValue);
+  if (syncedDefault !== defaultValue) {
+    setSyncedDefault(defaultValue);
     setVal(defaultValue);
-  }, [defaultValue]);
+  }
   return (
     <div className="mt-2 flex flex-wrap items-center gap-2">
       <input

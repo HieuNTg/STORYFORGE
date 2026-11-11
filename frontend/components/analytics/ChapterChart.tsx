@@ -37,7 +37,7 @@ interface TooltipRenderProps {
 }
 
 interface ChartTooltipProps extends TooltipRenderProps {
-  t: any;
+  t: ReturnType<typeof useTranslations<"analytics">>;
   locale: string;
 }
 

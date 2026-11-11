@@ -27,7 +27,7 @@ export function ReaderStartScreen() {
   const stories = useLibraryStore((s) => s.stories);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const hydrated = useLibraryStore((s) => s.hydrated);
-  const [storyId, setStoryId] = React.useState("");
+  const [pickedStoryId, setStoryId] = React.useState("");
   const [chapterIdx, setChapterIdx] = React.useState(0);
 
   const hydrateReader = useReaderStore((s) => s.hydrate);
@@ -36,35 +36,42 @@ export function ReaderStartScreen() {
     hydrateReader();
   }, [hydrateReader]);
 
-  React.useEffect(() => {
-    if (queryId && stories.some((s) => s.id === queryId)) {
-      if (storyId !== queryId) setStoryId(queryId);
-      return;
-    }
-    if (!storyId && selectedId && stories.some((s) => s.id === selectedId)) {
-      setStoryId(selectedId);
-      return;
-    }
-    if (!storyId && stories.length > 0) setStoryId(stories[0].id);
-  }, [queryId, selectedId, stories, storyId]);
+  // Derived: a valid deep-link id wins, then the user's pick, then the
+  // library's selected story, then the first story.
+  const storyId =
+    queryId && stories.some((s) => s.id === queryId)
+      ? queryId
+      : pickedStoryId ||
+        (selectedId && stories.some((s) => s.id === selectedId)
+          ? selectedId
+          : (stories[0]?.id ?? ""));
 
   const selectedStory = React.useMemo(
     () => stories.find((s) => s.id === storyId) ?? null,
     [stories, storyId],
   );
 
-  React.useEffect(() => {
-    setChapterIdx(0);
-  }, [selectedStory?.id]);
-
-  // Deep link from the Library's "Có tranh" rows: /reader/?id=...&chapter=N
-  // (1-based). Declared AFTER the reset effect so it wins on story change.
-  React.useEffect(() => {
-    if (!queryChapter || !selectedStory) return;
-    const n = Number(queryChapter);
-    if (!Number.isInteger(n)) return;
-    if (n >= 1 && n <= selectedStory.chapters.length) setChapterIdx(n - 1);
-  }, [queryChapter, selectedStory]);
+  // Reset the chapter when the story changes, then apply the deep link from
+  // the Library's "Có tranh" rows: /reader/?id=...&chapter=N (1-based).
+  // Adjusted during render (not in an effect) so there is no extra render.
+  const selectedStoryId = selectedStory?.id ?? null;
+  const [syncedKey, setSyncedKey] = React.useState<{
+    story: string | null;
+    chapter: string | null;
+  } | null>(null);
+  if (
+    syncedKey === null ||
+    syncedKey.story !== selectedStoryId ||
+    syncedKey.chapter !== queryChapter
+  ) {
+    setSyncedKey({ story: selectedStoryId, chapter: queryChapter });
+    let next = syncedKey === null || syncedKey.story !== selectedStoryId ? 0 : chapterIdx;
+    if (queryChapter && selectedStory) {
+      const n = Number(queryChapter);
+      if (Number.isInteger(n) && n >= 1 && n <= selectedStory.chapters.length) next = n - 1;
+    }
+    if (next !== chapterIdx) setChapterIdx(next);
+  }
 
   const chapters = selectedStory?.chapters ?? [];
   const safeIdx = chapters.length === 0 ? 0 : Math.max(0, Math.min(chapterIdx, chapters.length - 1));

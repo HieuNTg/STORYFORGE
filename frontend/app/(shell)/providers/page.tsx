@@ -56,25 +56,22 @@ export default function ProvidersPage() {
   // Per-row test status, keyed by profile index. Index is stable for the
   // lifetime of a config snapshot — when profiles are added/removed the
   // backend reissues fresh indices and React Query invalidation resets state.
-  const [testResults, setTestResults] = React.useState<
+  const [sessionResults, setTestResults] = React.useState<
     Record<number, ProviderTestStatus>
   >({});
 
-  // Hydrate testResults from the per-profile `last_test_ok` persisted by the
+  // Derive testResults from the per-profile `last_test_ok` persisted by the
   // backend so a passing test survives a page refresh. In-session results
   // (set by `runTestAll`) take precedence over the persisted snapshot.
-  React.useEffect(() => {
-    if (!config) return;
-    setTestResults((prev) => {
-      const next = { ...prev };
-      config.llm.profiles.forEach((p, idx) => {
-        if (p.last_test_ok === true) next[idx] = "pass";
-        else if (p.last_test_ok === false) next[idx] = "fail";
-        else if (!next[idx]) next[idx] = "idle";
-      });
-      return next;
+  const testResults = React.useMemo(() => {
+    const next: Record<number, ProviderTestStatus> = {};
+    config?.llm.profiles.forEach((p, idx) => {
+      if (p.last_test_ok === true) next[idx] = "pass";
+      else if (p.last_test_ok === false) next[idx] = "fail";
+      else next[idx] = "idle";
     });
-  }, [config]);
+    return { ...next, ...sessionResults };
+  }, [config, sessionResults]);
 
   const rows: ProviderRowData[] = React.useMemo(() => {
     if (!config) return [];
@@ -112,7 +109,7 @@ export default function ProvidersPage() {
   );
 
   const handleToggleEnabled = React.useCallback(
-    async (index: number, _enabled: boolean) => {
+    async (index: number) => {
       if (!config?.llm.profiles[index]) return;
       try {
         await toggle.mutateAsync(index);
@@ -186,7 +183,7 @@ export default function ProvidersPage() {
   }, [test, t]);
 
   const handleTestConnection = React.useCallback(
-    async (_index: number) => {
+    async () => {
       // Backend exposes a single all-profiles test endpoint. We run it once
       // and demultiplex into the per-row map.
       await runTestAll();

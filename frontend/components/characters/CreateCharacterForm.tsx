@@ -106,7 +106,7 @@ export function CreateCharacterForm({
 
   const getGenreLabel = (genre: string) => {
     const key = genre.toLowerCase().replace(/\s+/g, "_");
-    return tGenres.has(key) ? tGenres(key as any) : genre;
+    return tGenres.has(key) ? tGenres(key as Parameters<typeof tGenres>[0]) : genre;
   };
 
   return (

@@ -50,7 +50,7 @@ export function BranchStartScreen() {
   const stories = useLibraryStore((s) => s.stories);
   const selectedId = useLibraryStore((s) => s.selectedId);
   const hydrated = useLibraryStore((s) => s.hydrated);
-  const [storyId, setStoryId] = React.useState<string>("");
+  const [pickedStoryId, setStoryId] = React.useState<string>("");
   const [chapterId, setChapterId] = React.useState<string>("__all__");
   const [conflictSummary, setConflictSummary] = React.useState("");
   const [loading, setLoading] = React.useState(false);
@@ -59,23 +59,27 @@ export function BranchStartScreen() {
     rehydrateLibrary();
   }, []);
 
-  React.useEffect(() => {
-    if (!storyId && selectedId && stories.some((s) => s.id === selectedId)) {
-      setStoryId(selectedId);
-      return;
-    }
-    if (!storyId && stories.length > 0) setStoryId(stories[0].id);
-  }, [selectedId, stories, storyId]);
+  // Derived: the user's pick, else the library's selected story, else the first.
+  const storyId =
+    pickedStoryId ||
+    (selectedId && stories.some((s) => s.id === selectedId)
+      ? selectedId
+      : (stories[0]?.id ?? ""));
 
   const selectedStory = React.useMemo(
     () => stories.find((s) => s.id === storyId) ?? null,
     [stories, storyId],
   );
 
-  React.useEffect(() => {
+  // Reset the chapter range and conflict summary when the story (or its
+  // description) changes. Adjusted during render rather than in an effect.
+  const storySyncKey = `${selectedStory?.id ?? ""}|${selectedStory?.description ?? ""}`;
+  const [syncedStoryKey, setSyncedStoryKey] = React.useState<string | null>(null);
+  if (syncedStoryKey !== storySyncKey) {
+    setSyncedStoryKey(storySyncKey);
     setChapterId("__all__");
     setConflictSummary(selectedStory?.description ?? "");
-  }, [selectedStory?.id, selectedStory?.description]);
+  }
 
   const branchText = selectedStory ? storyText(selectedStory, chapterId, t("range_chapter_label")).trim() : "";
   const canSubmit = !!selectedStory && branchText.length >= 10 && !loading;

@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Standalone Node CommonJS scripts, not part of the app bundle.
+    "tests/lighthouse/**",
+    "tests/e2e/axe-audit.js",
   ]),
 ]);
 

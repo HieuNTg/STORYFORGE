@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useState, useSyncExternalStore } from "react";
 import { Moon, Sun } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Button } from "@/components/ui/button";
@@ -14,16 +14,20 @@ function readInitial(): "light" | "dark" {
   return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
 }
 
+function subscribeNever() {
+  return () => {};
+}
+
 export function ThemeToggle() {
   const t = useTranslations("shell");
-  const [mounted, setMounted] = useState(false);
-  const [theme, setTheme] = useState<"light" | "dark">("light");
-
-  useEffect(() => {
-    const initial = readInitial();
-    setTheme(initial);
-    setMounted(true);
-  }, []);
+  // false on the server / first hydration pass, true once on the client.
+  const mounted = useSyncExternalStore(
+    subscribeNever,
+    () => true,
+    () => false,
+  );
+  const [chosen, setTheme] = useState<"light" | "dark" | null>(null);
+  const theme = chosen ?? (mounted ? readInitial() : "light");
 
   function toggle() {
     const next = theme === "dark" ? "light" : "dark";

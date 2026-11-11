@@ -80,10 +80,12 @@ export function SettingsWizardController({ config }: SettingsWizardControllerPro
   const [apiKey, setApiKey] = React.useState("");
   const [finishing, setFinishing] = React.useState(false);
 
-  // Sync open state once we know the config status.
-  React.useEffect(() => {
+  // Sync open state once we know the config status (adjusted during render).
+  const [syncedShouldOpen, setSyncedShouldOpen] = React.useState(shouldOpen);
+  if (syncedShouldOpen !== shouldOpen) {
+    setSyncedShouldOpen(shouldOpen);
     setOpen(shouldOpen);
-  }, [shouldOpen]);
+  }
 
   const provider = React.useMemo(
     () => PROVIDER_PRESETS.find((p) => p.id === providerId) ?? PROVIDER_PRESETS[0],
