@@ -66,6 +66,12 @@
       "title": "Guide"
     }
   },
+  "access": {
+    "title": "Access token",
+    "tokenLabel": "Access token",
+    "submit": "Unlock",
+    "invalid": "That token is not valid."
+  },
   "shell": {
     "search": "Search",
     "theme_toggle": "Toggle theme",

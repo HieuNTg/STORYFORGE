@@ -66,6 +66,12 @@
       "title": "Hướng dẫn"
     }
   },
+  "access": {
+    "title": "Mã truy cập",
+    "tokenLabel": "Mã truy cập",
+    "submit": "Mở khóa",
+    "invalid": "Mã không đúng."
+  },
   "shell": {
     "search": "Tìm kiếm",
     "theme_toggle": "Đổi chủ đề",

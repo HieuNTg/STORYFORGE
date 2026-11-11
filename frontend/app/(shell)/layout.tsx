@@ -4,10 +4,12 @@ import type { ReactNode } from "react";
 import { useTranslations } from "next-intl";
 import { Sidebar } from "@/components/shell/Sidebar";
 import { Topbar } from "@/components/shell/Topbar";
+import { AccessGate } from "@/components/shell/AccessGate";
 
 export default function ShellLayout({ children }: { children: ReactNode }) {
   const t = useTranslations("shell");
   return (
+    <AccessGate>
     <div className="flex h-screen w-full overflow-hidden">
       {/* Skip link — visible on keyboard focus only. Lets keyboard / screen
        * reader users bypass the sidebar nav (WCAG 2.4.1 Bypass Blocks). */}
@@ -29,5 +31,6 @@ export default function ShellLayout({ children }: { children: ReactNode }) {
         </main>
       </div>
     </div>
+    </AccessGate>
   );
 }
