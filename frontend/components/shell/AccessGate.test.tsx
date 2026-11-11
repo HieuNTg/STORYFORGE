@@ -74,4 +74,17 @@ describe("AccessGate", () => {
     await waitFor(() => expect(screen.getByText("invalid")).toBeTruthy());
     expect(screen.queryByText("protected-child")).toBeNull();
   });
+
+  it("shows a generic error on non-401 failures", async () => {
+    session = { required: true, valid: false };
+    openSession.mockRejectedValue(new ApiError(500, "http_500", "boom"));
+    renderGate();
+    fireEvent.change(await screen.findByLabelText("tokenLabel"), {
+      target: { value: "abc" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "submit" }));
+    await waitFor(() => expect(screen.getByText("error")).toBeTruthy());
+    expect(screen.queryByText("invalid")).toBeNull();
+    expect(screen.queryByText("protected-child")).toBeNull();
+  });
 });

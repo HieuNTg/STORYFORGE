@@ -12,6 +12,7 @@ export function AccessGate({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient();
   const [token, setToken] = useState("");
   const [invalid, setInvalid] = useState(false);
+  const [failed, setFailed] = useState(false);
   const [busy, setBusy] = useState(false);
 
   const { data, isPending } = useQuery({
@@ -20,25 +21,26 @@ export function AccessGate({ children }: { children: ReactNode }) {
     retry: false,
   });
 
-  // Render nothing until the check resolves so protected UI never flashes.
-  if (isPending) return null;
-  // If the check itself failed, fall through to the app (its own errors surface).
-  if (!data || !data.required || data.valid) return <>{children}</>;
-
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
     setBusy(true);
     setInvalid(false);
+    setFailed(false);
     try {
       await openSession(token);
       await queryClient.invalidateQueries();
     } catch (err) {
       if (err instanceof ApiError && err.status === 401) setInvalid(true);
-      else throw err;
+      else setFailed(true);
     } finally {
       setBusy(false);
     }
   }
+
+  // Render nothing until the check resolves so protected UI never flashes.
+  if (isPending) return null;
+  // If the check itself failed, fall through to the app (its own errors surface).
+  if (!data || !data.required || data.valid) return <>{children}</>;
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-background p-6">
@@ -59,6 +61,11 @@ export function AccessGate({ children }: { children: ReactNode }) {
           {invalid && (
             <p role="alert" className="text-sm text-destructive">
               {t("invalid")}
+            </p>
+          )}
+          {failed && (
+            <p role="alert" className="text-sm text-destructive">
+              {t("error")}
             </p>
           )}
         </div>

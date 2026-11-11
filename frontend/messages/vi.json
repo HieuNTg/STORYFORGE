@@ -70,7 +70,8 @@
     "title": "Mã truy cập",
     "tokenLabel": "Mã truy cập",
     "submit": "Mở khóa",
-    "invalid": "Mã không đúng."
+    "invalid": "Mã không đúng.",
+    "error": "Không mở khóa được. Vui lòng thử lại."
   },
   "shell": {
     "search": "Tìm kiếm",

@@ -70,7 +70,8 @@
     "title": "Access token",
     "tokenLabel": "Access token",
     "submit": "Unlock",
-    "invalid": "That token is not valid."
+    "invalid": "That token is not valid.",
+    "error": "Could not unlock. Try again."
   },
   "shell": {
     "search": "Search",
