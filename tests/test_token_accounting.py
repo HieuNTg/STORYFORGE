@@ -39,9 +39,22 @@ class TestVietnameseAwareEstimation:
         assert len(text) // 8 < est < len(text)
 
 
-def test_english_estimate_unchanged_by_vi_threshold():
-    text = "The quick brown fox jumps over the lazy dog. " * 20
-    assert _estimate_tokens(text) == len(text) // 4
+    def test_english_estimate_unchanged_by_vi_threshold(self):
+        text = "The quick brown fox jumps over the lazy dog. " * 20
+        assert _estimate_tokens(text) == len(text) // 4
+
+    @staticmethod
+    def _mixed(n_diacritic: int, total: int = 1000) -> str:
+        return "ạ" * n_diacritic + "a" * (total - n_diacritic)
+
+    def test_no_cliff_around_old_threshold(self):
+        low = _estimate_tokens(self._mixed(140))
+        high = _estimate_tokens(self._mixed(160))
+        assert abs(high - low) / low < 0.10
+
+    def test_estimate_is_monotonic_in_diacritic_share(self):
+        ests = [_estimate_tokens(self._mixed(n)) for n in range(0, 1001, 10)]
+        assert all(b >= a for a, b in zip(ests, ests[1:]))
 
 
 class TestProviderUsageCapture:

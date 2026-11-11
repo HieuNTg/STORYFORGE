@@ -28,8 +28,10 @@ _CHARS_PER_TOKEN_LATIN = 4.0
 # Empirical ratio: 1 token ~ 2.0-2.5 Vietnamese chars
 _CHARS_PER_TOKEN_VIETNAMESE = 2.2
 
-# Mixed-script threshold: if >15% of non-space chars are CJK/Vietnamese, use VI ratio
-_VI_RATIO_THRESHOLD = 0.15
+# Non-ASCII share at which text is treated as fully Vietnamese. Real Vietnamese prose
+# is ~0.30 non-ASCII (most base letters are plain ASCII), so the chars-per-token
+# rate interpolates linearly from Latin (ratio 0) to Vietnamese (ratio >= this).
+_VI_RATIO_SATURATION = 0.30
 
 
 def _is_vietnamese_or_cjk(ch: str) -> bool:
@@ -67,12 +69,10 @@ def estimate_tokens(text: str) -> int:
 
     # Heuristic path
     vi_ratio = _detect_script_ratio(text)
-    if vi_ratio >= _VI_RATIO_THRESHOLD:
-        # Vietnamese prose is mostly ASCII-range base letters (ratio ~0.3), so a
-        # linear blend would barely move off the Latin rate; use the VI rate.
-        chars_per_token = _CHARS_PER_TOKEN_VIETNAMESE
-    else:
-        chars_per_token = _CHARS_PER_TOKEN_LATIN
+    frac = min(1.0, vi_ratio / _VI_RATIO_SATURATION)
+    chars_per_token = (
+        frac * _CHARS_PER_TOKEN_VIETNAMESE + (1.0 - frac) * _CHARS_PER_TOKEN_LATIN
+    )
 
     return max(1, int(len(text) / chars_per_token))
 
