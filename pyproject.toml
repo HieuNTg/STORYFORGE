@@ -100,7 +100,17 @@ tests_dir = "tests"
 # Exclude vendor, data fixtures, and generated artefacts
 runner = "python -m pytest -x -q"
 
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82", "F401", "F811", "F841"]
+
 [tool.ruff.lint.per-file-ignores]
+# Package __init__ files re-export names on purpose; tests and production
+# patch through these aliases, so F401 must not remove them.
+"**/__init__.py" = ["F401"]
 # Tests stub sys.modules / monkeypatch state before importing the code under
 # test; scripts insert the repo root into sys.path before any project import.
 # In both, import-after-statement (E402) is load-bearing, not accidental.

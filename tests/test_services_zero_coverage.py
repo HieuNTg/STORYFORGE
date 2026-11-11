@@ -16,7 +16,6 @@ import json
 import os
 import sys
 import tempfile
-import threading
 import types
 import unittest
 from unittest.mock import MagicMock, patch
