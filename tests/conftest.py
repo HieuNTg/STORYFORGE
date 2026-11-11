@@ -20,6 +20,13 @@ os.environ.setdefault("STORYFORGE_SKIP_DOTENV", "1")
 # mode set it themselves with monkeypatch.
 os.environ.pop("STORYFORGE_ACCESS_TOKEN", None)
 
+# Hermetic Host check: Starlette's TestClient sends ``Host: testserver``,
+# which the API's Host allow list (middleware/hosts.py) rejects. Trust it for
+# the session; production defaults are untouched. Assigned, not setdefault, so
+# a developer's exported list cannot leak in. Tests of the Host check itself
+# send explicit Host headers.
+os.environ["STORYFORGE_ALLOWED_HOSTS"] = "testserver"
+
 # Hermetic LLM cache: point it at a throwaway file. Tests have always written to
 # the developer's real data/llm_cache.db; now that the cache key is fixed and
 # reads actually hit, sharing it would let one test be served another's cached

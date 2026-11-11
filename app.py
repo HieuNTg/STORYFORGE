@@ -5,7 +5,7 @@ The UI is served by Next.js from frontend/ (run separately on :3000).
 
 CORS policy:
   Allowed origins are read from the STORYFORGE_ALLOWED_ORIGINS env var
-  (comma-separated list). Defaults to localhost:7860 only.
+  (comma-separated list). Defaults to the local frontend (:3001) and API (:7860).
   Wildcard "*" is intentionally NOT used — set explicit origins for production.
 """
 
@@ -65,40 +65,60 @@ _START_TIME = time.time()
 # CORS configuration helpers
 # ---------------------------------------------------------------------------
 #
-# SEC-5 CORS Audit (Sprint 15) — verified safe:
-#   - No wildcard '*' is used in production. Wildcard entries in
-#     STORYFORGE_ALLOWED_ORIGINS are detected and rejected with a warning.
-#   - Default fallback is localhost:7860 only (safe for development).
-#   - Production deployments MUST set STORYFORGE_ALLOWED_ORIGINS to the
-#     explicit list of frontend origins, e.g.:
-#       STORYFORGE_ALLOWED_ORIGINS=https://app.storyforge.io,https://www.storyforge.io
-#   - Credentials are allowed (allow_credentials=True), requiring explicit
-#     origins — this is incompatible with '*' by the CORS spec.
+# The allow list lives in middleware/hosts.py (the branch WebSocket checks
+# Origin against the same list); re-exported here for callers of app.py.
+#   - No wildcard '*': wildcard entries in STORYFORGE_ALLOWED_ORIGINS are
+#     rejected with a warning (credentials are allowed, which '*' forbids).
+#   - Defaults: the frontend on :3001 and the API on :7860, by name and IP.
 #   - Allowed methods: GET, POST, PUT, DELETE, OPTIONS (no TRACE/CONNECT).
-#   - Allowed headers: Authorization, Content-Type, Accept (minimal set).
 #
-_DEFAULT_ORIGINS = ["http://localhost:7860", "http://127.0.0.1:7860"]
+from middleware.hosts import _DEFAULT_ORIGINS, _get_allowed_origins  # noqa: F401
+
+# ---------------------------------------------------------------------------
+# Bind address and exposure guard
+# ---------------------------------------------------------------------------
+
+_LOOPBACK_BIND_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
 
 
-def _get_allowed_origins() -> list[str]:
-    """Read allowed CORS origins from STORYFORGE_ALLOWED_ORIGINS env var.
+def resolve_bind() -> tuple[str, int]:
+    """(host, port) from STORYFORGE_HOST / STORYFORGE_PORT; loopback:7860 by default."""
+    host = os.environ.get("STORYFORGE_HOST", "").strip() or "127.0.0.1"
+    raw_port = os.environ.get("STORYFORGE_PORT", "").strip() or "7860"
+    try:
+        port = int(raw_port)
+    except ValueError:
+        logger.error("STORYFORGE_PORT=%r is not a port number", raw_port)
+        raise SystemExit(2) from None
+    return host, port
 
-    Falls back to localhost:7860 defaults. Rejects wildcard '*' with a warning.
 
-    Production usage:
-        export STORYFORGE_ALLOWED_ORIGINS="https://app.storyforge.io,https://cdn.storyforge.io"
+def check_exposure(host: str, token: str | None, in_container: bool) -> None:
+    """Refuse to serve a non-loopback address without an access token.
+
+    Binding 0.0.0.0 (or a LAN IP) with no STORYFORGE_ACCESS_TOKEN would hand
+    every API route, provider keys included, to the whole network, so that
+    exits with code 2. Inside a container the bind is always 0.0.0.0 and the
+    real exposure is decided by the published port (compose publishes on
+    127.0.0.1), so there it is only a warning.
     """
-    raw = os.environ.get("STORYFORGE_ALLOWED_ORIGINS", "")
-    if raw.strip():
-        origins = [o.strip() for o in raw.split(",") if o.strip()]
-        if "*" in origins:
-            logger.warning(
-                "STORYFORGE_ALLOWED_ORIGINS contains '*' — ignoring and using "
-                "safe defaults instead. Set explicit origins for production."
-            )
-            return _DEFAULT_ORIGINS
-        return origins
-    return _DEFAULT_ORIGINS
+    if host.strip().lower() in _LOOPBACK_BIND_HOSTS or token:
+        return
+    if in_container:
+        logger.warning(
+            "Listening on %s without STORYFORGE_ACCESS_TOKEN. This is safe only "
+            "while the container port is published on 127.0.0.1. Set "
+            "STORYFORGE_ACCESS_TOKEN before publishing it to a network.",
+            host,
+        )
+        return
+    logger.error(
+        "Refusing to start: STORYFORGE_HOST=%s is reachable from other machines "
+        "and STORYFORGE_ACCESS_TOKEN is not set. Set STORYFORGE_ACCESS_TOKEN, or "
+        "bind to 127.0.0.1.",
+        host,
+    )
+    raise SystemExit(2)
 
 
 def _preflight_check() -> bool:
@@ -325,6 +345,12 @@ def create_app() -> FastAPI:
 
     main_app.add_middleware(BodySizeLimitMiddleware)
 
+    # --- Trusted Host header (added last = outermost: rejects DNS-rebinding
+    # requests before any other layer runs). Allow list: middleware/hosts.py.
+    from middleware.hosts import TrustedHostsMiddleware
+
+    main_app.add_middleware(TrustedHostsMiddleware)
+
     # Static files (locales only — UI served by Next.js from frontend/)
     base_dir = os.path.dirname(os.path.abspath(__file__))
     locales_dir = os.path.join(base_dir, "locales")
@@ -388,6 +414,14 @@ def create_app() -> FastAPI:
 
 def main():
     """Launch the StoryForge backend API."""
+    from middleware.access import access_token
+
+    # Before anything else: a non-loopback bind without a token never starts.
+    host, port = resolve_bind()
+    check_exposure(
+        host, access_token(), os.environ.get("STORYFORGE_IN_CONTAINER") == "1"
+    )
+
     main_app = create_app()
 
     _secret = os.environ.get("STORYFORGE_SECRET_KEY", "")
@@ -403,10 +437,12 @@ def main():
         sys.exit(1)
 
     logger.info(
-        "StoryForge backend API at http://localhost:7860 — "
-        "UI runs separately at http://localhost:3001 (cd frontend && npm run dev -- --port 3001)"
+        "StoryForge backend API at http://%s:%d — UI runs separately at "
+        "http://localhost:3001 (cd frontend && npm run dev -- --port 3001)",
+        host,
+        port,
     )
-    uvicorn.run(main_app, host="0.0.0.0", port=7860, log_level="info")
+    uvicorn.run(main_app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

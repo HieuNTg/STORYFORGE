@@ -14,7 +14,8 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional
 
-from config import ConfigManager, PIPELINE_PRESETS, PROVIDER_PRESETS
+from config import ConfigManager, PIPELINE_PRESETS
+from config.presets import provider_presets
 from config.persistence import REMOVED_IMAGE_PROVIDERS
 from middleware.access import require_access
 from services.i18n import I18n, SUPPORTED_LANGUAGES
@@ -491,9 +492,10 @@ def get_provider_presets():
 
     Single source of truth — the frontend renders these instead of a hardcoded
     list, so adding a provider here makes it appear in the UI with no frontend
-    change. See config/presets.py::PROVIDER_PRESETS.
+    change. See config/presets.py::PROVIDER_PRESETS. Resolved per request
+    (provider_presets()) so the Ollama card follows STORYFORGE_IN_CONTAINER.
     """
-    return {"presets": PROVIDER_PRESETS}
+    return {"presets": provider_presets()}
 
 
 @router.post("/profiles/detect")
@@ -570,7 +572,7 @@ def _preset_models_for(base_url: str) -> list[dict]:
     host = _host(base_url)
     if not host:
         return []
-    for preset in PROVIDER_PRESETS:
+    for preset in provider_presets():
         if _host(preset.get("base_url", "")) == host:
             return list(preset.get("models") or [])
     return []

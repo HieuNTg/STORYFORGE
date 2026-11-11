@@ -5,6 +5,7 @@ import logging
 from typing import Dict, Set
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
+from middleware.hosts import origin_allowed
 from services.branch_narrative import manager
 
 router = APIRouter(prefix="/ws/branch", tags=["branch-websocket"])
@@ -85,6 +86,13 @@ async def branch_websocket(websocket: WebSocket, session_id: str):
     - Server broadcasts: {"type": "user_joined", "user_count": N}
     - Server broadcasts: {"type": "user_left", "user_count": N}
     """
+    # Cross-site WebSocket hijacking: CORS does not apply to WebSockets, so
+    # refuse foreign origins here, before accept() and before revealing
+    # whether the session exists.
+    if not origin_allowed(websocket.headers.get("origin")):
+        await websocket.close(code=1008, reason="Origin not allowed")
+        return
+
     # Verify session exists
     try:
         manager.get_current_node(session_id)

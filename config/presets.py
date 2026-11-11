@@ -1,5 +1,8 @@
 """Pipeline presets and provider presets for StoryForge."""
 
+import copy
+import os
+
 PIPELINE_PRESETS = {
     "beginner": {
         "label": "Người mới — Cơ bản, dễ dùng",
@@ -52,6 +55,19 @@ PIPELINE_PRESETS = {
 }
 
 _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
+
+# Ollama on the user's machine. From inside the api container "localhost" is
+# the container itself, so there the host is reached as host.docker.internal
+# (compose maps it; url_validator exempts exactly that name).
+_OLLAMA_LOCAL_BASE = "http://localhost:11434/v1"
+_OLLAMA_CONTAINER_BASE = "http://host.docker.internal:11434/v1"
+
+
+def ollama_base_url() -> str:
+    """Ollama's default base URL for where the API runs. Read per call."""
+    if os.environ.get("STORYFORGE_IN_CONTAINER") == "1":
+        return _OLLAMA_CONTAINER_BASE
+    return _OLLAMA_LOCAL_BASE
 
 # Vietnamese-capable models prioritized — models that produce poor Vietnamese
 # (e.g. coder models, tiny models, English-only fine-tunes) cause language
@@ -172,6 +188,23 @@ PROVIDER_PRESETS = [
         "placeholder": "sk-or-...",
     },
     {
+        # Local models via Ollama's OpenAI-compatible endpoint. base_url here
+        # is the outside-Docker default; provider_presets() swaps in the
+        # container address at request time. Ollama ignores the key, but the
+        # card asks for one, so the placeholder says any value works.
+        "name": "Ollama",
+        "label": "Ollama (local)",
+        "base_url": _OLLAMA_LOCAL_BASE,
+        "model": "qwen2.5:7b",
+        "models": [
+            {"id": "qwen2.5:7b", "label": "Qwen 2.5 7B"},
+            {"id": "qwen3:8b", "label": "Qwen3 8B"},
+            {"id": "gemma3:12b", "label": "Gemma 3 12B"},
+            {"id": "llama3.1:8b", "label": "Llama 3.1 8B"},
+        ],
+        "placeholder": "ollama (any value)",
+    },
+    {
         # Escape hatch for any OpenAI-compatible endpoint we don't ship a card
         # for — a self-hosted vLLM/Ollama, a personal proxy, a provider that
         # launched last week. `custom` tells the UI to render free-text name /
@@ -185,3 +218,17 @@ PROVIDER_PRESETS = [
         "custom": True,
     },
 ]
+
+
+def provider_presets() -> list[dict]:
+    """PROVIDER_PRESETS with environment-dependent defaults resolved.
+
+    Evaluated per call (GET /api/config/provider-presets), not at import, so
+    the Ollama card points at host.docker.internal only when
+    STORYFORGE_IN_CONTAINER=1 at request time. Returns copies.
+    """
+    presets = copy.deepcopy(PROVIDER_PRESETS)
+    for preset in presets:
+        if preset["name"] == "Ollama":
+            preset["base_url"] = ollama_base_url()
+    return presets
