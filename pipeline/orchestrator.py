@@ -11,7 +11,6 @@ for all pipeline operations.  Heavy layer-execution logic lives in:
 """
 
 import logging
-import os
 import threading
 import uuid
 from typing import Optional
@@ -36,30 +35,8 @@ from pipeline.orchestrator_layers import (
 
 logger = logging.getLogger(__name__)
 
-_SESSION_TTL = 86400  # 24 hours
-
-
 def _session_key(session_id: str, namespace: str) -> str:
     return f"storyforge:session:{session_id}:{namespace}"
-
-
-def _make_redis_client():
-    """Create Redis client from REDIS_URL. Raises RuntimeError if unavailable."""
-    redis_url = os.environ.get("REDIS_URL", "").strip()
-    if not redis_url:
-        raise RuntimeError(
-            "REDIS_URL is not set. Redis is required for session state. "
-            "Start Redis via docker-compose and set REDIS_URL."
-        )
-    try:
-        import redis as _redis_lib
-    except ImportError as exc:
-        raise RuntimeError(
-            "redis package is not installed. Run: pip install redis"
-        ) from exc
-    client = _redis_lib.from_url(redis_url, decode_responses=True)
-    client.ping()
-    return client
 
 
 class PipelineOrchestrator:
@@ -70,7 +47,8 @@ class PipelineOrchestrator:
     - Keep sub-components pointing at the current self.output via _sync_output.
     - Delegate all heavy work to orchestrator_layers / sub-component modules.
     - Expose a stable public API so callers never need to import sub-modules.
-    - Persist pipeline output in Redis under session-scoped keys (24h TTL).
+    - Keep pipeline output in a per-instance in-memory store under
+      session-scoped keys.
     """
 
     CHECKPOINT_DIR = CHECKPOINT_DIR
@@ -90,25 +68,10 @@ class PipelineOrchestrator:
         self.enhancer = StoryEnhancer()
         self._lock = threading.RLock()
         self.session_id = session_id or str(uuid.uuid4())
-        # P2: per-instance fallback store + lock so concurrent sessions cannot
-        # see each other's keys when Redis is unavailable.
+        # P2: per-instance store + lock so concurrent sessions cannot see
+        # each other's keys.
         self._memory_store = {}
         self._memory_store_lock = threading.Lock()
-
-        self._redis = None
-        try:
-            self._redis = _make_redis_client()
-            logger.debug(
-                "PipelineOrchestrator: Redis connected for session %s", self.session_id
-            )
-        except Exception as exc:
-            if os.environ.get("STORYFORGE_REDIS_REQUIRED", "").lower() in ("1", "true"):
-                raise
-            logger.warning(
-                "PipelineOrchestrator: Redis unavailable, using in-memory fallback "
-                "(session state will not survive restarts): %s",
-                exc,
-            )
 
         # Load persisted output or start fresh
         self.output = self._load_output() or PipelineOutput()
@@ -130,20 +93,13 @@ class PipelineOrchestrator:
             self.checkpoint,
         )
 
-    # ── Redis output persistence ─────────────────────────────────────────────
+    # ── In-memory output persistence ─────────────────────────────────────────
 
     def _output_key(self) -> str:
         return _session_key(self.session_id, "output")
 
-    def _store_set(self, key: str, value: str, ttl: int = _SESSION_TTL) -> None:
-        """Store a value in Redis or in-memory fallback."""
-        if self._redis:
-            try:
-                self._redis.set(key, value)
-                self._redis.expire(key, ttl)
-                return
-            except Exception as exc:
-                logger.warning("Redis store_set failed, using memory: %s", exc)
+    def _store_set(self, key: str, value: str) -> None:
+        """Store a value in the in-memory store, evicting the oldest when full."""
         with self._memory_store_lock:
             if len(self._memory_store) >= self._MEMORY_STORE_MAX:
                 oldest = next(iter(self._memory_store))
@@ -151,27 +107,19 @@ class PipelineOrchestrator:
             self._memory_store[key] = value
 
     def _store_get(self, key: str) -> Optional[str]:
-        """Get a value from Redis or in-memory fallback."""
-        if self._redis:
-            try:
-                val = self._redis.get(key)
-                if val is not None:
-                    self._redis.expire(key, _SESSION_TTL)
-                return val
-            except Exception as exc:
-                logger.warning("Redis store_get failed, using memory: %s", exc)
+        """Get a value from the in-memory store."""
         with self._memory_store_lock:
             return self._memory_store.get(key)
 
     def _save_output(self) -> None:
-        """Persist self.output to Redis or in-memory fallback."""
+        """Persist self.output to the in-memory store."""
         try:
             self._store_set(self._output_key(), self.output.model_dump_json())
         except Exception as exc:
             logger.warning("PipelineOrchestrator: save output error: %s", exc)
 
     def _load_output(self) -> Optional[PipelineOutput]:
-        """Load output from Redis or in-memory fallback."""
+        """Load output from the in-memory store."""
         try:
             raw = self._store_get(self._output_key())
             if raw is None:
@@ -193,7 +141,7 @@ class PipelineOrchestrator:
 
         Called after any operation that replaces self.output so that
         exporter, checkpoint, and continuation stay consistent.
-        Also persists the updated output to Redis.
+        Also persists the updated output to the in-memory store.
         """
         self.exporter.output = self.output
         self.checkpoint.output = self.output

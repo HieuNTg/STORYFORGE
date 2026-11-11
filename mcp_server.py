@@ -28,7 +28,6 @@ echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":
 """
 
 import json
-import os
 import sys
 import uuid
 import logging
@@ -42,62 +41,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Graceful redis import
+# Job store — in-memory dict (one local process)
 # ---------------------------------------------------------------------------
-try:
-    import redis as _redis_lib
-
-    _REDIS_AVAILABLE = True
-except ImportError:
-    _redis_lib = None  # type: ignore[assignment]
-    _REDIS_AVAILABLE = False
-
-# ---------------------------------------------------------------------------
-# Job store — Redis-backed when REDIS_URL is set, else in-memory dict
-# ---------------------------------------------------------------------------
-_REDIS_URL = os.environ.get("REDIS_URL", "").strip()
-_JOB_TTL = 86400  # 24 hours
-_JOB_PREFIX = "mcp_job:"
-
-_jobs: dict[str, dict] = {}  # fallback in-memory store
-_redis_client = None
-
-if _REDIS_URL and _REDIS_AVAILABLE:
-    try:
-        _redis_client = _redis_lib.from_url(_REDIS_URL, decode_responses=True)
-        _redis_client.ping()
-        logger.warning("MCP job store: Redis connected (%s)", _REDIS_URL.split("@")[-1])
-    except Exception as _e:
-        logger.warning(
-            "MCP job store: Redis unavailable (%s), using in-memory fallback.", _e
-        )
-        _redis_client = None
+_jobs: dict[str, dict] = {}
 
 
 def _get_job(job_id: str) -> "dict | None":
     """Retrieve job data by id."""
-    if _redis_client is not None:
-        try:
-            raw = _redis_client.get(f"{_JOB_PREFIX}{job_id}")
-            if raw:
-                return json.loads(raw)
-            return None
-        except Exception as e:
-            logger.warning("Redis get_job error: %s", e)
-            return _jobs.get(job_id)
     return _jobs.get(job_id)
 
 
 def _set_job(job_id: str, data: dict) -> None:
     """Persist job data."""
-    if _redis_client is not None:
-        try:
-            _redis_client.setex(
-                f"{_JOB_PREFIX}{job_id}", _JOB_TTL, json.dumps(data, ensure_ascii=False)
-            )
-            return
-        except Exception as e:
-            logger.warning("Redis set_job error: %s", e)
     _jobs[job_id] = data
 
 

@@ -1,9 +1,8 @@
-"""P6 Observability — diagnostics endpoint + service + Alembic migration tests."""
+"""P6 Observability — diagnostics endpoint + service tests."""
 
 from __future__ import annotations
 
 import uuid
-import pytest
 from unittest.mock import patch, MagicMock
 
 
@@ -213,115 +212,6 @@ class TestDiagnosticsRoute:
         assert data["story_id"] == story_id
         assert data["signals_ok"] == 1
         assert data["signal_health_summary"]["conflict_web"]["status"] == "ok"
-
-
-# ---------------------------------------------------------------------------
-# 3. Alembic migration test — upgrade + downgrade on in-memory SQLite
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_migration_upgrade_and_downgrade():
-    """Run migration 003 forward then backward on an in-memory SQLite DB."""
-    import sqlalchemy as sa
-    from sqlalchemy import create_engine, inspect
-
-    # Build a minimal DB with the pre-003 schema
-    engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}
-    )
-
-    with engine.begin() as conn:
-        conn.execute(
-            sa.text(
-                "CREATE TABLE pipeline_runs ("
-                "  id TEXT PRIMARY KEY,"
-                "  story_id TEXT,"
-                "  genre TEXT DEFAULT '',"
-                "  status TEXT DEFAULT 'running',"
-                "  layer_reached INTEGER DEFAULT 1,"
-                "  token_usage INTEGER DEFAULT 0,"
-                "  created_at DATETIME DEFAULT CURRENT_TIMESTAMP"
-                ")"
-            )
-        )
-        conn.execute(
-            sa.text(
-                "CREATE TABLE chapters ("
-                "  id TEXT PRIMARY KEY,"
-                "  story_id TEXT,"
-                "  chapter_number INTEGER,"
-                "  title TEXT DEFAULT '',"
-                "  content TEXT DEFAULT '',"
-                "  word_count INTEGER DEFAULT 0,"
-                "  quality_score REAL DEFAULT 0"
-                ")"
-            )
-        )
-
-    # Simulate upgrade
-    with engine.begin() as conn:
-        conn.execute(
-            sa.text("ALTER TABLE pipeline_runs ADD COLUMN handoff_envelope TEXT")
-        )
-        conn.execute(
-            sa.text("ALTER TABLE pipeline_runs ADD COLUMN handoff_health TEXT")
-        )
-        conn.execute(
-            sa.text("ALTER TABLE pipeline_runs ADD COLUMN handoff_signals_version TEXT")
-        )
-        conn.execute(
-            sa.text("ALTER TABLE chapters ADD COLUMN negotiated_contract TEXT")
-        )
-        conn.execute(
-            sa.text(
-                "ALTER TABLE chapters ADD COLUMN contract_reconciliation_warnings TEXT"
-            )
-        )
-
-    # Verify columns exist after upgrade
-    insp = inspect(engine)
-    pr_cols = {c["name"] for c in insp.get_columns("pipeline_runs")}
-    ch_cols = {c["name"] for c in insp.get_columns("chapters")}
-
-    assert "handoff_envelope" in pr_cols
-    assert "handoff_health" in pr_cols
-    assert "handoff_signals_version" in pr_cols
-    assert "negotiated_contract" in ch_cols
-    assert "contract_reconciliation_warnings" in ch_cols
-
-    # Simulate downgrade: SQLite doesn't support DROP COLUMN in older versions
-    # so we just verify the columns are nullable (can be NULL)
-    with engine.begin() as conn:
-        conn.execute(
-            sa.text("INSERT INTO pipeline_runs (id, story_id) VALUES ('pr1', 's1')")
-        )
-        conn.execute(
-            sa.text(
-                "INSERT INTO chapters (id, story_id, chapter_number) VALUES ('ch1', 's1', 1)"
-            )
-        )
-    with engine.connect() as conn:
-        row = conn.execute(
-            sa.text(
-                "SELECT handoff_envelope, handoff_health, handoff_signals_version "
-                "FROM pipeline_runs WHERE id = 'pr1'"
-            )
-        ).fetchone()
-        assert row[0] is None
-        assert row[1] is None
-        assert row[2] is None
-
-        ch_row = conn.execute(
-            sa.text(
-                "SELECT negotiated_contract, contract_reconciliation_warnings "
-                "FROM chapters WHERE id = 'ch1'"
-            )
-        ).fetchone()
-        assert ch_row[0] is None
-        assert ch_row[1] is None
-
-    engine.dispose()
 
 
 # ---------------------------------------------------------------------------

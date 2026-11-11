@@ -102,61 +102,25 @@ def _get_allowed_origins() -> list[str]:
 
 
 def _preflight_check() -> bool:
-    """Validate DB and Redis connectivity before starting the server.
+    """Check that the SQLite database is reachable before starting the server.
 
-    Returns True if all required services are reachable, False otherwise.
-
-    DB failure is always fatal. Redis failure is fatal only when
-    STORYFORGE_REDIS_REQUIRED=1, otherwise it is logged as a warning.
+    Returns True when the database answers, False otherwise (fatal).
     """
-    from api.health_routes import _check_database, _check_redis
+    from api.health_routes import _check_database
 
-    all_ok = True
-
-    # --- Database (required) ---
     db_result = _check_database()
-    db_status = db_result.get("status")
-    if db_status == "ok":
+    if db_result.get("status") == "ok":
         logger.info("Preflight: database OK")
-    elif db_status == "not_configured":
-        logger.info("Preflight: database not configured — skipping")
-    else:
-        logger.error(
-            "Preflight: database UNREACHABLE (%s) — cannot start",
-            db_result.get("detail", db_status),
-        )
-        all_ok = False
-
-    # --- Redis (optional unless STORYFORGE_REDIS_REQUIRED=1) ---
-    redis_result = _check_redis()
-    redis_status = redis_result.get("status")
-    redis_required = os.environ.get("STORYFORGE_REDIS_REQUIRED", "").lower() in (
-        "1",
-        "true",
+        return True
+    logger.error(
+        "Preflight: database UNREACHABLE (%s) — cannot start",
+        db_result.get("detail", db_result.get("status")),
     )
-
-    if redis_status == "ok":
-        logger.info("Preflight: Redis OK")
-    elif redis_status == "not_configured":
-        logger.info("Preflight: Redis not configured — running without cache")
-    elif redis_required:
-        logger.error(
-            "Preflight: Redis UNREACHABLE (%s) and STORYFORGE_REDIS_REQUIRED=1 — cannot start",
-            redis_result.get("detail", redis_status),
-        )
-        all_ok = False
-    else:
-        logger.warning(
-            "Preflight: Redis unavailable (%s) — continuing without cache (set "
-            "STORYFORGE_REDIS_REQUIRED=1 to make this fatal)",
-            redis_result.get("detail", redis_status),
-        )
-
-    return all_ok
+    return False
 
 
-def main():
-    """Launch StoryForge — Alpine.js Web UI at /."""
+def create_app() -> FastAPI:
+    """Build the StoryForge FastAPI app: middleware, routes, static mounts."""
     from api import api_router
 
     # STORYFORGE_ENABLE_DOCS defaults to "1" (enabled). Set to "0" in production
@@ -236,7 +200,7 @@ def main():
 
     main_app.add_middleware(SanitizationMiddleware)
 
-    # --- Rate limiting middleware (Redis or in-memory, per-IP) ---
+    # --- Rate limiting middleware (in-memory, per-IP) ---
     from middleware.rate_limiter import RateLimitMiddleware
 
     main_app.add_middleware(RateLimitMiddleware)
@@ -369,7 +333,7 @@ def main():
     os.makedirs(media_root, exist_ok=True)
     main_app.mount("/media", StaticFiles(directory=media_root), name="media")
 
-    # Health check — lightweight with cached DB/Redis probes (30s TTL)
+    # Health check — lightweight with a cached DB probe (30s TTL)
     from fastapi.responses import JSONResponse as _JSONResponse
 
     _health_cache: dict = {}
@@ -386,23 +350,13 @@ def main():
 
     @main_app.get("/api/health")
     async def health():
-        from api.health_routes import _check_database, _check_redis
+        from api.health_routes import _check_database
 
         cfg = ConfigManager()
         llm_ok = bool(cfg.llm.api_key)
 
         db_status = _cached_check("database", _check_database)
-        redis_status = _cached_check("redis", _check_redis)
-
-        db_ok = db_status.get("status") == "ok"
-        redis_str = redis_status.get("status", "unknown")
-        # Redis is optional (Phase 3) — report "fallback" not "error" when not required
-        if redis_str == "error" and os.environ.get(
-            "STORYFORGE_REDIS_REQUIRED", ""
-        ).lower() not in ("1", "true"):
-            redis_str = "fallback"
-
-        degraded = not db_ok and db_status.get("status") != "not_configured"
+        degraded = db_status.get("status") != "ok"
         status = "degraded" if degraded else "ok"
 
         return _JSONResponse(
@@ -414,10 +368,16 @@ def main():
                 "services": {
                     "llm": llm_ok,
                     "database": db_status.get("status", "unknown"),
-                    "redis": redis_str,
                 },
             },
         )
+
+    return main_app
+
+
+def main():
+    """Launch the StoryForge backend API."""
+    main_app = create_app()
 
     _secret = os.environ.get("STORYFORGE_SECRET_KEY", "")
     if _secret in ("", "change-me-in-production"):

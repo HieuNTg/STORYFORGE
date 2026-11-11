@@ -81,7 +81,6 @@ def _load_or_generate_rsa_keys() -> tuple[rsa.RSAPrivateKey, list[rsa.RSAPublicK
     active key ID changes (via STORYFORGE_JWT_KEY_ID env var).
 
     Note: In-memory revocation does not survive server restarts.
-    Deploy with REDIS_URL for persistent revocation in production.
     """
     global _cached_kid, _cached_priv, _cached_pubs
 

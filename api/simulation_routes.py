@@ -52,23 +52,6 @@ def _client_ip(request: Request) -> str:
 
 
 def _check_continue_rate(ip: str) -> bool:
-    if os.environ.get("REDIS_URL"):
-        try:
-            from middleware.rate_limiter import _get_redis  # type: ignore
-
-            r = _get_redis()
-            if r is not None:
-                key = f"sf:ratelimit:simulation:{ip}"
-                # Atomic INCR + EXPIRE via pipeline so a partial failure cannot
-                # leave a counter with no TTL (would leak the bucket forever).
-                pipe = r.pipeline()
-                pipe.incr(key)
-                pipe.expire(key, int(_CONTINUE_WINDOW), nx=True)
-                count, _ = pipe.execute()
-                return int(count) <= CONTINUE_LIMIT_PER_MIN
-        except Exception as e:  # noqa: BLE001
-            logger.debug("simulation rate redis path failed: %s", e)
-
     now = time.monotonic()
     with _continue_lock:
         bucket = _continue_state.setdefault(ip, [])

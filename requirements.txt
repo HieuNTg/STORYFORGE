@@ -39,8 +39,6 @@ bcrypt>=4.2.0,<5.0
 # cryptography <44.0: pin to current major to avoid unexpected cipher deprecations
 cryptography>=43.0.3,<46
 
-# ── Cache ──
-redis>=5.2.1,<6.0
 # ── Security ──
 nh3>=0.2.18,<1.0
 

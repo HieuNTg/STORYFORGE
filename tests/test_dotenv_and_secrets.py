@@ -3,8 +3,7 @@
 Nothing in the backend called load_dotenv, so STORYFORGE_SECRET_KEY was never
 set. secret_manager therefore had no key, encryption at rest silently did
 nothing, and data/config.json held API keys as plaintext. The same gap made all
-30 entries of persistence._ENV_MAP dead, along with STORYFORGE_ALLOWED_ORIGINS,
-REDIS_URL and DATABASE_URL.
+30 entries of persistence._ENV_MAP dead, along with STORYFORGE_ALLOWED_ORIGINS.
 """
 
 import json
@@ -201,13 +200,21 @@ class TestSecretMigration:
             assert migrate_plaintext_secrets(str(tmp_path / "absent.json")) is False
 
 
-class TestSyncDriverUrlDoesNotAbortStartup:
-    def test_sync_sqlite_url_degrades_instead_of_raising(self):
-        """The repo's own .env ships sqlite:///./data/storyforge.db — a sync URL."""
+class TestStaleDatabaseUrlIsIgnored:
+    def test_old_env_database_url_does_not_change_the_engine(self, tmp_path):
+        """Old .env files ship DATABASE_URL=sqlite:///./data/storyforge.db (a sync
+        URL that used to abort startup). It is no longer read at all: the engine
+        always opens STORYFORGE_DB_PATH through aiosqlite."""
         import services.infra.database as db
 
-        with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///./data/test.db"}):
-            db._engine = None
-            db._session_factory = None
+        db_file = tmp_path / "app.db"
+        with patch.dict(
+            os.environ,
+            {
+                "DATABASE_URL": "sqlite:///./data/test.db",
+                "STORYFORGE_DB_PATH": str(db_file),
+            },
+        ):
             engine = db.get_engine()  # must not raise
-        assert engine is None
+        assert engine.url.drivername == "sqlite+aiosqlite"
+        assert engine.url.database == str(db_file)

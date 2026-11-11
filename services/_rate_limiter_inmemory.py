@@ -1,6 +1,6 @@
 """InMemoryRateLimiter — tumbling-window in-process rate limiter.
 
-Internal module; public API is via services.rate_limiter_redis.
+Not wired into the app: middleware.rate_limiter keeps its own in-memory window.
 """
 
 from __future__ import annotations

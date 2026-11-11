@@ -3,9 +3,8 @@
 Implements the `_CacheBackend` Protocol from `services/embedding_service.py`.
 
 Key design:
-- Separate SQLite file (`data/embedding_cache.db`) — not the main PostgreSQL DB.
-  The main DB is async PostgreSQL; embedding cache is CPU-bound sync SQLite.
-  Mirrors the pattern used by `services/llm_cache.py`.
+- Separate SQLite file (`data/embedding_cache.db`), apart from the main
+  `data/storyforge.db`; the cache is CPU-bound sync SQLite. Mirrors the pattern used by `services/llm_cache.py`.
 - Key: sha256(model_id + NFC(text)) — computed by `embedding_service.cache_key()`.
   This module only stores/retrieves; normalisation happens in the service.
 - Value: float32 little-endian bytes of the embedding vector.

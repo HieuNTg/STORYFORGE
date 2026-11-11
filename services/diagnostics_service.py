@@ -11,18 +11,14 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 
 logger = logging.getLogger(__name__)
 
-_DB_URL = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
-
 
 def _sync_engine():
-    from sqlalchemy import create_engine
+    from services.infra.db_paths import make_sync_engine
 
-    connect_args = {"check_same_thread": False} if "sqlite" in _DB_URL else {}
-    return create_engine(_DB_URL, connect_args=connect_args)
+    return make_sync_engine()
 
 
 def build_handoff_diagnostics(story_id: str) -> dict | None:

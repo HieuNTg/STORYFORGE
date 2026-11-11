@@ -108,8 +108,6 @@ async def _load_story_from_db(story_id: str) -> Optional["_DBStoryWrapper"]:
         from sqlalchemy.orm import selectinload
 
         async with get_session() as session:
-            if session is None:
-                return None
             result = await session.execute(
                 select(Story)
                 .options(selectinload(Story.chapters))

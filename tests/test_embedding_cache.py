@@ -3,7 +3,7 @@
 Design:
 - All tests use a temporary SQLite file (tmp_path fixture) — no shared state.
 - The real embedding model is NEVER loaded. `SentenceTransformer` is mocked.
-- Migration test exercises the Alembic DDL paths via direct SQLAlchemy on SQLite.
+- A drop-and-recreate test checks EmbeddingCache rebuilds its own table.
 """
 
 from __future__ import annotations
@@ -275,79 +275,15 @@ class TestEmbeddingServiceIntegration:
 
 
 # ---------------------------------------------------------------------------
-# Migration test: DDL forward + downgrade
+# Table lifecycle: EmbeddingCache creates its own table
 # ---------------------------------------------------------------------------
 
 
-class TestMigrationDDL:
-    """Verify the Alembic migration SQL works on SQLite (same DDL)."""
-
-    def test_upgrade_creates_table_and_index(self, tmp_path):
-        import sqlite3
-
-        db = str(tmp_path / "mig.db")
-        conn = sqlite3.connect(db)
-        # Run upgrade DDL (mirrors alembic/versions/004_embedding_cache.py)
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS embedding_cache (
-                key        TEXT    NOT NULL PRIMARY KEY,
-                model_id   TEXT    NOT NULL,
-                dim        INTEGER NOT NULL,
-                vec        BLOB    NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE INDEX IF NOT EXISTS ix_embedding_cache_model_id
-                ON embedding_cache (model_id);
-        """)
-        conn.commit()
-        tables = {
-            r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        }
-        assert "embedding_cache" in tables
-        indexes = {
-            r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='index'"
-            ).fetchall()
-        }
-        assert "ix_embedding_cache_model_id" in indexes
-        conn.close()
-
-    def test_downgrade_drops_table_and_index(self, tmp_path):
-        import sqlite3
-
-        db = str(tmp_path / "mig_down.db")
-        conn = sqlite3.connect(db)
-        conn.executescript("""
-            CREATE TABLE IF NOT EXISTS embedding_cache (
-                key        TEXT    NOT NULL PRIMARY KEY,
-                model_id   TEXT    NOT NULL,
-                dim        INTEGER NOT NULL,
-                vec        BLOB    NOT NULL,
-                created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
-            );
-            CREATE INDEX IF NOT EXISTS ix_embedding_cache_model_id
-                ON embedding_cache (model_id);
-        """)
-        conn.commit()
-        # Downgrade
-        conn.execute("DROP INDEX IF EXISTS ix_embedding_cache_model_id")
-        conn.execute("DROP TABLE IF EXISTS embedding_cache")
-        conn.commit()
-        tables = {
-            r[0]
-            for r in conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table'"
-            ).fetchall()
-        }
-        assert "embedding_cache" not in tables
-        conn.close()
+class TestTableLifecycle:
+    """EmbeddingCache (re)creates its table; there are no migrations."""
 
     def test_upgrade_then_downgrade_then_upgrade_idempotent(self, tmp_path):
-        """Mirrors the alembic upgrade → downgrade → upgrade cycle."""
+        """Create → drop → create again: a new instance rebuilds the table."""
         from services.embedding_cache import EmbeddingCache
 
         db = str(tmp_path / "cycle.db")

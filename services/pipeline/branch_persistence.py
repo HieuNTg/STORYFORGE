@@ -1,8 +1,6 @@
-"""Branch persistence — dual-backend: Redis (production) or in-memory (local)."""
+"""Branch persistence — in-memory session store for the local single process."""
 
-import json
 import logging
-import os
 import threading
 import time
 from typing import Optional
@@ -10,19 +8,7 @@ from typing import Optional
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Graceful redis import
-# ---------------------------------------------------------------------------
-try:
-    import redis as _redis_lib
-
-    _REDIS_AVAILABLE = True
-except ImportError:
-    _redis_lib = None  # type: ignore[assignment]
-    _REDIS_AVAILABLE = False
-
-
-# ---------------------------------------------------------------------------
-# In-memory backend (default, single-process)
+# In-memory backend
 # ---------------------------------------------------------------------------
 
 
@@ -96,119 +82,26 @@ class InMemoryBranchStore:
 
 
 # ---------------------------------------------------------------------------
-# Redis backend (production, multi-process safe)
-# ---------------------------------------------------------------------------
-
-
-class RedisBranchStore:
-    """Redis-backed branch session store. Same interface as InMemoryBranchStore.
-
-    Suitable for multi-process production deployments. Sessions survive restarts.
-    """
-
-    _KEY_PREFIX = "branch_session:"
-
-    def __init__(self, redis_url: str, ttl_seconds: int = 86400):
-        if not _REDIS_AVAILABLE:
-            raise RuntimeError("redis package is not installed. Run: pip install redis")
-        self.ttl_seconds = ttl_seconds
-        self._client = _redis_lib.from_url(redis_url, decode_responses=True)
-        # Verify connectivity
-        try:
-            self._client.ping()
-        except Exception as e:
-            logger.error("RedisBranchStore ping failed: %s", e)
-            raise
-
-    def _key(self, session_id: str) -> str:
-        return f"{self._KEY_PREFIX}{session_id}"
-
-    def get(self, session_id: str) -> Optional[dict]:
-        """Get session data. Returns None if not found."""
-        try:
-            raw = self._client.get(self._key(session_id))
-            if raw is None:
-                return None
-            return json.loads(raw)
-        except Exception as e:
-            logger.warning("RedisBranchStore.get failed: %s", e)
-            return None
-
-    def put(self, session_id: str, data: dict) -> None:
-        """Store session data with TTL."""
-        try:
-            self._client.setex(
-                self._key(session_id),
-                self.ttl_seconds,
-                json.dumps(data),
-            )
-        except Exception as e:
-            logger.warning("RedisBranchStore.put failed: %s", e)
-
-    def delete(self, session_id: str) -> bool:
-        """Delete session. Returns True if existed."""
-        try:
-            return self._client.delete(self._key(session_id)) > 0
-        except Exception as e:
-            logger.warning("RedisBranchStore.delete failed: %s", e)
-            return False
-
-    def exists(self, session_id: str) -> bool:
-        """Check if session exists."""
-        try:
-            return self._client.exists(self._key(session_id)) > 0
-        except Exception as e:
-            logger.warning("RedisBranchStore.exists failed: %s", e)
-            return False
-
-    def list_sessions(self) -> list[str]:
-        """List all active session IDs."""
-        try:
-            keys = self._client.keys(f"{self._KEY_PREFIX}*")
-            return [k.replace(self._KEY_PREFIX, "") for k in keys]
-        except Exception as e:
-            logger.warning("RedisBranchStore.list_sessions failed: %s", e)
-            return []
-
-
-# ---------------------------------------------------------------------------
 # Factory
 # ---------------------------------------------------------------------------
 
 
 def create_branch_store(
-    redis_url: str = "",
     max_sessions: int = 50,
     ttl_seconds: int = 86400,
-) -> "InMemoryBranchStore | RedisBranchStore":
-    """Return a RedisBranchStore if redis_url is set, otherwise InMemoryBranchStore."""
-    url = redis_url or os.environ.get("REDIS_URL", "").strip()
-    if url:
-        if not _REDIS_AVAILABLE:
-            logger.warning(
-                "REDIS_URL is set but redis package not installed. Using in-memory store."
-            )
-            return InMemoryBranchStore(
-                max_sessions=max_sessions, ttl_seconds=ttl_seconds
-            )
-        try:
-            return RedisBranchStore(redis_url=url, ttl_seconds=ttl_seconds)
-        except Exception as e:
-            logger.warning("Redis connection failed, falling back to in-memory: %s", e)
-            return InMemoryBranchStore(
-                max_sessions=max_sessions, ttl_seconds=ttl_seconds
-            )
+) -> InMemoryBranchStore:
+    """Return a fresh in-memory branch session store."""
     return InMemoryBranchStore(max_sessions=max_sessions, ttl_seconds=ttl_seconds)
 
 
 # ---------------------------------------------------------------------------
 # Module-level singleton
 # ---------------------------------------------------------------------------
-_store_instance: "InMemoryBranchStore | RedisBranchStore | None" = None
+_store_instance: Optional[InMemoryBranchStore] = None
 _store_lock = threading.Lock()
 
 
-def get_branch_store() -> "InMemoryBranchStore | RedisBranchStore":
+def get_branch_store() -> InMemoryBranchStore:
     """Return the module-level singleton store, creating it on first call."""
     global _store_instance
     if _store_instance is None:

@@ -7,7 +7,6 @@ rather than implementation details.
 
 import asyncio
 import logging
-import os as _os
 import threading as _threading
 import time
 import uuid
@@ -34,33 +33,26 @@ logger = logging.getLogger(__name__)
 # P6: DB persistence helpers
 # ---------------------------------------------------------------------------
 # Module-level sync engine singleton — avoids create_engine/dispose per call.
+# Rebuilt when STORYFORGE_DB_PATH moves, so a redirected path never keeps
+# writing to the previous file.
 _sync_engine = None
+_sync_engine_url = None
 _sync_engine_lock = _threading.Lock()
 
 
 def _get_sync_engine():
     """Return (or lazily create) a module-level sync SQLAlchemy engine."""
-    global _sync_engine
-    if _sync_engine is None:
+    global _sync_engine, _sync_engine_url
+    from services.infra.db_paths import make_sync_engine, sync_url
+
+    url = sync_url()
+    if _sync_engine is None or _sync_engine_url != url:
         with _sync_engine_lock:
-            if _sync_engine is None:
-                from sqlalchemy import create_engine, event as _sa_event
-
-                db_url = _os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
-                connect_args = (
-                    {"check_same_thread": False} if "sqlite" in db_url else {}
-                )
-                _sync_engine = create_engine(db_url, connect_args=connect_args)
-
-                if "sqlite" in db_url:
-
-                    @_sa_event.listens_for(_sync_engine, "connect")
-                    def _set_pragmas(dbapi_conn, _conn_rec):
-                        cur = dbapi_conn.cursor()
-                        cur.execute("PRAGMA journal_mode=WAL")
-                        cur.execute("PRAGMA synchronous=NORMAL")
-                        cur.execute("PRAGMA busy_timeout=5000")
-                        cur.close()
+            if _sync_engine is None or _sync_engine_url != url:
+                if _sync_engine is not None:
+                    _sync_engine.dispose()
+                _sync_engine = make_sync_engine()
+                _sync_engine_url = url
 
     return _sync_engine
 

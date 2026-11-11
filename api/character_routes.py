@@ -6,7 +6,7 @@ Endpoints
 
 Behavior:
 - Returns 404 when ``PipelineConfig.enable_character_traits`` is False.
-- Rate-limited 10 req/min/IP (in-memory or Redis), separate bucket from forge.
+- Rate-limited 10 req/min/IP (in-memory), separate bucket from forge.
 - Mocked-LLM-testable via ``_get_llm`` indirection (same pattern as forge_routes).
 """
 
@@ -50,20 +50,6 @@ def _client_ip(request: Request) -> str:
 
 def _check_character_rate(ip: str) -> bool:
     """True if request is allowed under N/min/IP. Sliding window per IP."""
-    if os.environ.get("REDIS_URL"):
-        try:
-            from middleware.rate_limiter import _get_redis  # type: ignore
-
-            r = _get_redis()
-            if r is not None:
-                key = f"sf:ratelimit:character:{ip}"
-                count = r.incr(key)
-                if count == 1:
-                    r.expire(key, int(_CHARACTER_WINDOW))
-                return int(count) <= CHARACTER_LIMIT_PER_MIN
-        except Exception as e:  # noqa: BLE001
-            logger.debug("character rate redis path failed: %s", e)
-
     now = time.monotonic()
     with _character_lock:
         bucket = _character_state.setdefault(ip, [])

@@ -605,12 +605,8 @@ def test_chapter_semantic_findings_sqlite(tmp_path, monkeypatch):
         )
         conn.commit()
 
-    # _get_sync_engine caches a module-level singleton; reset it so the
-    # DATABASE_URL monkeypatch actually takes effect for this call.
-    import pipeline.orchestrator_layers as _ol
-
-    monkeypatch.setattr(_ol, "_sync_engine", None)
-    monkeypatch.setenv("DATABASE_URL", db_url)
+    # _get_sync_engine rebuilds its cached engine when STORYFORGE_DB_PATH moves.
+    monkeypatch.setenv("STORYFORGE_DB_PATH", db_path)
     findings = {"schema_version": "1.0.0", "chapter_num": 3, "payoff_matches": []}
     persist_chapter_semantic_findings(story_id, 3, findings)
 

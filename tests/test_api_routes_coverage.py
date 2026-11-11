@@ -36,10 +36,6 @@ class TestHealthRoutes:
         with (
             patch("api.health_routes._check_database", return_value={"status": "ok"}),
             patch(
-                "api.health_routes._check_redis",
-                return_value={"status": "not_configured"},
-            ),
-            patch(
                 "api.health_routes._check_disk",
                 return_value={
                     "status": "ok",
@@ -76,10 +72,6 @@ class TestHealthRoutes:
                 return_value={"status": "error", "detail": "conn failed"},
             ),
             patch(
-                "api.health_routes._check_redis",
-                return_value={"status": "not_configured"},
-            ),
-            patch(
                 "api.health_routes._check_disk",
                 return_value={
                     "status": "ok",
@@ -112,32 +104,15 @@ class TestHealthRoutes:
         result = _check_memory()
         assert "status" in result
 
-    def test_check_redis_not_configured(self):
-        """_check_redis returns not_configured when REDIS_URL absent."""
-        from api.health_routes import _check_redis
-
-        original = os.environ.pop("REDIS_URL", None)
-        try:
-            result = _check_redis()
-            assert result["status"] == "not_configured"
-        finally:
-            if original:
-                os.environ["REDIS_URL"] = original
-
-    def test_check_database_sqlite(self):
-        """_check_database works with SQLite."""
+    def test_check_database_sqlite(self, tmp_path):
+        """_check_database answers ok on the SQLite file at STORYFORGE_DB_PATH."""
         from api.health_routes import _check_database
-        import api.health_routes as hr
 
-        # Reset engine so it gets created fresh
-        orig = hr._health_engine
-        hr._health_engine = None
-        try:
-            with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///:memory:"}):
-                result = _check_database()
-            assert result["status"] in ("ok", "error")
-        finally:
-            hr._health_engine = orig
+        db_file = tmp_path / "health.db"
+        with patch.dict(os.environ, {"STORYFORGE_DB_PATH": str(db_file)}):
+            result = _check_database()
+        assert result["status"] == "ok"
+        assert db_file.exists()
 
     def test_check_llm_unreachable(self):
         """_check_llm returns unreachable for bogus URL."""

@@ -24,6 +24,15 @@ os.environ.setdefault(
     os.path.join(tempfile.mkdtemp(prefix="storyforge-test-cache-"), "llm_cache.db"),
 )
 
+# Hermetic app database: one throwaway SQLite file for the whole session, so
+# tests never write stories/pipeline_runs into the developer's
+# data/storyforge.db. Tests that need their own file monkeypatch
+# STORYFORGE_DB_PATH; every engine reads it per call. Assigned, not
+# setdefault: a path exported in the developer's shell must not leak in.
+os.environ["STORYFORGE_DB_PATH"] = os.path.join(
+    tempfile.mkdtemp(prefix="storyforge-test-db-"), "storyforge.db"
+)
+
 # ---------------------------------------------------------------------------
 # Hermetic config: redirect CONFIG_FILE for the WHOLE test session.
 #
@@ -248,7 +257,7 @@ def _unshadow_llm_singleton():
 
 
 # Reset orchestrator_layers' module-level sync engine before each test so
-# fixtures that patch DATABASE_URL don't inherit a prior test's engine
+# fixtures that patch STORYFORGE_DB_PATH don't inherit a prior test's engine
 # (which would silently write to the wrong DB). Dispose the pool to avoid
 # leaking connections across tests.
 @pytest.fixture(autouse=True)
@@ -262,6 +271,20 @@ def _reset_orchestrator_sync_engine():
             pass
         _ol._sync_engine = None
     yield
+
+
+@pytest.fixture
+def client():
+    """TestClient over the full app built by ``app.create_app()``.
+
+    Startup/shutdown hooks are not run (no ``with`` block), so no reaper
+    threads start; routes and middleware are exactly what ``main()`` serves.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import create_app
+
+    return TestClient(create_app())
 
 
 # ---------------------------------------------------------------------------

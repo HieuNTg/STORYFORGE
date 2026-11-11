@@ -1,4 +1,4 @@
-"""SQLAlchemy ORM models — cross-dialect (SQLite + PostgreSQL).
+"""SQLAlchemy ORM models for the local SQLite database (data/storyforge.db).
 
 Uses SQLAlchemy 2.0+ declarative style with mapped_column and type annotations.
 All tables include UUID primary keys (stored as String(36)) and audit timestamps.
@@ -51,48 +51,12 @@ def _uuid() -> str:
 # ---------------------------------------------------------------------------
 
 
-class User(Base):
-    """Application users."""
-
-    __tablename__ = "users"
-
-    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    username: Mapped[str] = mapped_column(String(100), nullable=False, unique=True)
-    email: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
-    password_hash: Mapped[str] = mapped_column(String(255), nullable=False, default="")
-    credits: Mapped[int] = mapped_column(Integer, nullable=False, default=20)
-    # Valid values: viewer | creator | admin | superadmin  (see middleware/rbac.py)
-    role: Mapped[str] = mapped_column(String(50), nullable=False, default="creator")
-    created_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now()
-    )
-    updated_at: Mapped[datetime] = mapped_column(
-        nullable=False, server_default=func.now(), onupdate=func.now()
-    )
-
-    # Relationships
-    stories: Mapped[list["Story"]] = relationship(
-        "Story", back_populates="user", lazy="select"
-    )
-    pipeline_runs: Mapped[list["PipelineRun"]] = relationship(
-        "PipelineRun", back_populates="user", lazy="select"
-    )
-
-    __table_args__ = (Index("ix_users_username", "username"),)
-
-    def __repr__(self) -> str:
-        return f"<User id={self.id!r} username={self.username!r}>"
-
-
 class Story(Base):
-    """Stories created by users."""
+    """Generated stories."""
 
     __tablename__ = "stories"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    user_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
     title: Mapped[str] = mapped_column(String(500), nullable=False)
     genre: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     synopsis: Mapped[str] = mapped_column(Text, nullable=False, default="")
@@ -109,7 +73,6 @@ class Story(Base):
     )
 
     # Relationships
-    user: Mapped[Optional["User"]] = relationship("User", back_populates="stories")
     chapters: Mapped[list["Chapter"]] = relationship(
         "Chapter", back_populates="story", lazy="select", cascade="all, delete-orphan"
     )
@@ -119,8 +82,6 @@ class Story(Base):
     feedback_entries: Mapped[list["Feedback"]] = relationship(
         "Feedback", back_populates="story", lazy="select", cascade="all, delete-orphan"
     )
-
-    __table_args__ = (Index("ix_stories_user_id", "user_id"),)
 
     def __repr__(self) -> str:
         return f"<Story id={self.id!r} title={self.title!r}>"
@@ -171,9 +132,6 @@ class PipelineRun(Base):
     __tablename__ = "pipeline_runs"
 
     id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
-    user_id: Mapped[Optional[str]] = mapped_column(
-        String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True
-    )
     story_id: Mapped[Optional[str]] = mapped_column(
         String(36),
         ForeignKey("stories.id", ondelete="SET NULL"),
@@ -202,14 +160,9 @@ class PipelineRun(Base):
     outline_metrics: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
 
     # Relationships
-    user: Mapped[Optional["User"]] = relationship(
-        "User", back_populates="pipeline_runs"
-    )
     story: Mapped[Optional["Story"]] = relationship(
         "Story", back_populates="pipeline_runs"
     )
-
-    __table_args__ = (Index("ix_pipeline_runs_user_id", "user_id"),)
 
     def __repr__(self) -> str:
         return f"<PipelineRun id={self.id!r} status={self.status!r}>"
@@ -292,7 +245,7 @@ class EmbeddingCacheEntry(Base):
 
 
 class Config(Base):
-    """Key-value configuration store backed by PostgreSQL JSON."""
+    """Key-value configuration store (JSON column)."""
 
     __tablename__ = "configs"
 

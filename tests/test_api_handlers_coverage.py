@@ -1416,34 +1416,6 @@ class TestLLMCache:
         key2 = cache._make_key(**params)
         assert key1 == key2
 
-    def test_create_cache_returns_sqlite_by_default(self, tmp_path):
-        from services.llm_cache import create_cache, LLMCache
-
-        db_path = str(tmp_path / "factory_cache.db")
-        with patch.dict(os.environ, {}, clear=False):
-            # Remove REDIS_URL if set
-            env = dict(os.environ)
-            env.pop("REDIS_URL", None)
-            with patch.dict(os.environ, env, clear=True):
-                cache = create_cache(redis_url="", db_path=db_path, ttl_days=1)
-        assert isinstance(cache, LLMCache)
-
-    def test_get_cache_singleton(self, tmp_path):
-        from services import llm_cache as lc
-
-        # Reset singleton
-        orig = lc._cache_instance
-        lc._cache_instance = None
-        try:
-            with patch("services.llm_cache.create_cache") as mock_create:
-                mock_cache = MagicMock()
-                mock_create.return_value = mock_cache
-                c1 = lc.get_cache()
-                c2 = lc.get_cache()
-            assert c1 is c2
-        finally:
-            lc._cache_instance = orig
-
     def test_hit_rate_calculation(self, cache):
         params = dict(
             system_prompt="hit_rate",

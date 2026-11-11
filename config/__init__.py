@@ -17,7 +17,7 @@ def _load_dotenv_once() -> None:
     set: secret_manager returned no key, encryption at rest silently did nothing,
     and API keys sat in data/config.json as plaintext. Every entry in
     persistence._ENV_MAP was dead for the same reason, along with
-    STORYFORGE_ALLOWED_ORIGINS, REDIS_URL and DATABASE_URL.
+    STORYFORGE_ALLOWED_ORIGINS.
 
     Loading here rather than in app.py covers every entry point — server, MCP
     server, scripts. Existing environment variables always win (load_dotenv does
