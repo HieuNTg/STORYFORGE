@@ -15,8 +15,6 @@ import { useTranslations, useLocale } from "next-intl";
 import { toast } from "sonner";
 
 import { GeneralForm } from "@/components/settings/GeneralForm";
-import { FlowkitSettings } from "@/components/settings/FlowkitSettings";
-import { QwenLocalSettings } from "@/components/settings/QwenLocalSettings";
 import {
   Select,
   SelectContent,
@@ -129,7 +127,6 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
   });
 
   const errors = form.formState.errors;
-  const currentProvider = form.watch("image_provider");
 
   return (
     <GeneralForm
@@ -188,9 +185,8 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
                 <SelectItem value="huggingface">HuggingFace (free)</SelectItem>
                 <SelectItem value="dalle">DALL·E</SelectItem>
                 <SelectItem value="seedream">Seedream</SelectItem>
-                <SelectItem value="flowkit">Flowkit (Google Labs)</SelectItem>
-                <SelectItem value="codex">ChatGPT (Codex)</SelectItem>
-                <SelectItem value="qwen-local">Qwen (proxy local)</SelectItem>
+                <SelectItem value="sd-api">Stable Diffusion API</SelectItem>
+                <SelectItem value="replicate">Replicate</SelectItem>
               </SelectContent>
             </Select>
           </Field>
@@ -220,12 +216,6 @@ export function GeneralFormFields({ config }: GeneralFormFieldsProps) {
           </Field>
 
         </div>
-        {currentProvider === "flowkit" ? (
-          <FlowkitSettings config={config} />
-        ) : null}
-        {currentProvider === "qwen-local" ? (
-          <QwenLocalSettings config={config} />
-        ) : null}
         </>
       }
     />

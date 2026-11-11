@@ -221,7 +221,7 @@ export function LibraryComicGenerator({
         // Only a genuinely-unconfigured provider (config === "none") locks the
         // UI: the backend can never produce output, so prompt Settings. A run
         // that produced zero images *with* a provider configured (e.g. a
-        // transient FlowKit worker drop) must NOT latch this flag — doing so
+        // transient provider error) must NOT latch this flag — doing so
         // disables the retry buttons and traps the user until a page reload.
         // That zero-output case is surfaced as a retryable toast below.
         if (status.provider === "none") {
@@ -247,7 +247,7 @@ export function LibraryComicGenerator({
               toast.info(t("comic_nothing_missing"));
             } else {
               // Chapters WERE targeted but produced zero images => generation
-              // genuinely failed, commonly because the FlowKit worker isn't
+              // genuinely failed, commonly because the image provider isn't
               // connected (or the selected provider returned nothing). This
               // also covers all / single-chapter regenerates. Retryable —
               // buttons stay live so the user can fix the provider and retry.

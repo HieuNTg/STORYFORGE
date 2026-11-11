@@ -10,6 +10,7 @@
 import * as React from "react";
 
 import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { PageHero } from "@/components/common/PageHero";
 import { ErrorState } from "@/components/common/ErrorState";
 import {
@@ -47,6 +48,20 @@ export default function SettingsPage() {
   const lastTab = useSettingsStore((s) => s.lastTab);
   const setLastTab = useSettingsStore((s) => s.setLastTab);
   const { data: config, isLoading, error, refetch } = useConfig();
+
+  // Show each one-off backend notice once per mount (e.g. a removed image
+  // provider that was reset to "none"). Deduped by notice string.
+  const shownNotices = React.useRef<Set<string>>(new Set());
+  React.useEffect(() => {
+    for (const notice of config?.notices ?? []) {
+      if (shownNotices.current.has(notice)) continue;
+      shownNotices.current.add(notice);
+      const [kind, name = ""] = notice.split(":", 2);
+      if (kind === "image_provider_removed") {
+        toast.warning(t("notices.imageProviderRemoved", { name }));
+      }
+    }
+  }, [config?.notices, t]);
 
   if (error) {
     return (

@@ -35,7 +35,7 @@ const nextConfig: NextConfig = {
   // only report as "Internal Server Error" — indistinguishable from a real
   // backend fault. StoryForge legitimately exceeds 30s on a single request:
   // `POST /api/config/test-connection` against a slow provider (the local
-  // Gemini/Qwen bridge drives a real browser, ~45s) and long SSE pipeline runs.
+  // slow-provider bridge, ~45s) and long SSE pipeline runs.
   // Raise the ceiling in dev so slow-but-working calls report the truth.
   // Prod is a static export served by FastAPI — no Next server, no proxy.
   ...(isDev ? { experimental: { proxyTimeout: 10 * 60_000 } } : {}),

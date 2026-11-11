@@ -10,7 +10,7 @@
  *   - enable_chapter_illustration (default on)
  *   - enable_simulation_transcript (default on)
  *
- * Unlike `FlowkitSettings` (batched Save button + risk-ack gate), these are
+ * Unlike the batched-Save General form, these are
  * plain switches that PUT immediately on change. No gate, no danger banner —
  * they're standard feature flags, not provider-enabling switches.
  *

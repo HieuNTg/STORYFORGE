@@ -33,41 +33,44 @@ const VALID_RESPONSE = {
   },
 };
 
-describe("qwen-local provider", () => {
-  it("is offered as an image provider", () => {
-    expect(IMAGE_PROVIDERS).toContain("qwen-local");
-    const parsed = generalFormSchema.parse({
-      language: "vi",
-      image_provider: "qwen-local",
-      image_prompt_style: "cinematic",
-      base_url: "https://api.openai.com/v1",
-      model: "gpt-4o-mini",
-    });
-    expect(parsed.image_provider).toBe("qwen-local");
+describe("removed web-session providers", () => {
+  it("rejects removed image providers", () => {
+    for (const p of ["flowkit", "codex", "qwen-local"]) {
+      expect(IMAGE_PROVIDERS).not.toContain(p);
+      expect(() =>
+        generalFormSchema.parse({
+          language: "vi",
+          image_provider: p,
+          image_prompt_style: "cinematic",
+          base_url: "https://api.openai.com/v1",
+          model: "gpt-4o-mini",
+        }),
+      ).toThrow();
+    }
   });
 
-  it("defaults the panel fields when the backend omits them", () => {
-    const parsed = configResponseSchema.parse(VALID_RESPONSE);
-    expect(parsed.pipeline.qwen_local_base_url).toBe("http://localhost:8000/v1");
-    expect(parsed.pipeline.qwen_local_use_edit_for_refs).toBe(true);
-    expect(parsed.pipeline.qwen_local_size).toBe("");
+  it("offers the supported image providers", () => {
+    expect([...IMAGE_PROVIDERS]).toEqual([
+      "none",
+      "dalle",
+      "sd-api",
+      "seedream",
+      "huggingface",
+      "replicate",
+    ]);
   });
 
-  it("accepts a qwen-local delta on the update body", () => {
-    const parsed = configUpdateSchema.parse({
-      qwen_local_base_url: "http://10.0.0.5:8000/v1",
-      qwen_local_api_key: "secret",
-      qwen_local_size: "16:9",
-      qwen_local_use_edit_for_refs: false,
-      qwen_local_timeout: 300,
-    });
-    expect(parsed.qwen_local_size).toBe("16:9");
-    expect(parsed.qwen_local_use_edit_for_refs).toBe(false);
+  it("accepts notices array", () => {
+    expect(
+      configResponseSchema.parse({
+        ...VALID_RESPONSE,
+        notices: ["image_provider_removed:legacy"],
+      }).notices,
+    ).toEqual(["image_provider_removed:legacy"]);
   });
 
-  it("rejects a timeout outside the accepted range", () => {
-    expect(() => configUpdateSchema.parse({ qwen_local_timeout: 5 })).toThrow();
-    expect(() => configUpdateSchema.parse({ qwen_local_timeout: 5000 })).toThrow();
+  it("defaults notices to an empty list", () => {
+    expect(configResponseSchema.parse(VALID_RESPONSE).notices).toEqual([]);
   });
 
   it("never exposes the raw key on the response schema", () => {
@@ -75,7 +78,7 @@ describe("qwen-local provider", () => {
     expect(() =>
       configResponseSchema.parse({
         ...VALID_RESPONSE,
-        pipeline: { ...VALID_RESPONSE.pipeline, qwen_local_api_key: "raw" },
+        pipeline: { ...VALID_RESPONSE.pipeline, hf_token: "raw" },
       }),
     ).toThrow();
   });

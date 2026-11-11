@@ -217,7 +217,7 @@ export function CharactersScreen() {
   }, [queryClient, storyId]);
 
   // Bulk avatar generation: queue every character on the backend (fire-and-
-  // forget — FlowKit serializes ~25-30s/portrait, so holding one request for
+  // forget — image providers can take ~25-30s/portrait, so holding one request for
   // all of them would trip the dev proxy), then poll until each file lands,
   // surfacing portraits on the list as they arrive.
   const [isGeneratingAll, setIsGeneratingAll] = React.useState(false);
