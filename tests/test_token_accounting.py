@@ -39,6 +39,11 @@ class TestVietnameseAwareEstimation:
         assert len(text) // 8 < est < len(text)
 
 
+def test_english_estimate_unchanged_by_vi_threshold():
+    text = "The quick brown fox jumps over the lazy dog. " * 20
+    assert _estimate_tokens(text) == len(text) // 4
+
+
 class TestProviderUsageCapture:
     def test_openai_shaped_usage_is_captured(self):
         out: dict = {}

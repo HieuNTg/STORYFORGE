@@ -13,7 +13,9 @@
 # Core test runner (already in requirements.txt — listed here for completeness)
 # ---------------------------------------------------------------------------
 pytest>=7.4.0
-pytest-asyncio>=0.23.0
+pytest-asyncio==0.24.0
+ruff>=0.6,<1
+pip-audit>=2.7
 
 # ---------------------------------------------------------------------------
 # Q1: Code coverage

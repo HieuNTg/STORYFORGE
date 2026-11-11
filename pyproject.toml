@@ -1,6 +1,11 @@
 # pyproject.toml — StoryForge project configuration
 # Coverage config for Q1: Code Coverage Reporting
 
+[project]
+name = "storyforge"
+version = "1.0.0"
+requires-python = ">=3.11"
+
 [tool.pytest.ini_options]
 # Directories pytest discovers tests in
 testpaths = ["tests"]
