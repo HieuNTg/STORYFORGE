@@ -159,7 +159,10 @@ def create_app() -> FastAPI:
             },
             {"name": "metrics", "description": "System performance metrics"},
             {"name": "dashboard", "description": "Dashboard summary data"},
-            {"name": "auth", "description": "Authentication and user management"},
+            {
+                "name": "session",
+                "description": "Optional access token (STORYFORGE_ACCESS_TOKEN) session cookie",
+            },
             {"name": "ab", "description": "A/B testing for pipeline variants"},
             {"name": "branch", "description": "Story branching and alternate paths"},
             {"name": "audio", "description": "Text-to-speech and audio generation"},
@@ -168,6 +171,14 @@ def create_app() -> FastAPI:
 
     # --- GZip compression (≥1KB responses; HTML/JS/CSS shrink ~5–7×) ---
     main_app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+
+    # --- Optional access token: /media/* and WebSocket upgrades ---
+    # API routes are guarded by require_access on their routers; this covers
+    # what never reaches a router dependency. Added before CORS so it sits
+    # inside it and 401s still carry CORS headers.
+    from middleware.access import AccessMiddleware
+
+    main_app.add_middleware(AccessMiddleware)
 
     # --- CORS middleware (restrictive: explicit origins only, no wildcard) ---
     allowed_origins = _get_allowed_origins()

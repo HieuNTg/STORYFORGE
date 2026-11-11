@@ -6,7 +6,7 @@ from typing import Optional
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import JSONResponse
 
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from services.llm.provider_config_keys import (
     get_api_keys_from_config as _get_api_keys_from_config,
 )
@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/providers",
     tags=["providers"],
-    dependencies=[Depends(require_permission_if_enabled(Permission.ACCESS_ANALYTICS))],
+    dependencies=[Depends(require_access)],
 )
 
 

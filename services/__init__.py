@@ -13,12 +13,6 @@ def _alias(old_name: str, new_name: str) -> None:
     sys.modules[old_name] = mod
 
 
-# auth domain
-_alias("services.auth_revocation", "services.auth.auth_revocation")
-_alias("services.jwt_manager", "services.auth.jwt_manager")
-_alias("services.user_store", "services.auth.user_store")
-_alias("services.user_manager", "services.auth.user_manager")
-
 # export domain
 # Note: services.epub_exporter kept as flat file (test_epub_exporter.py uses importlib.reload)
 _alias("services.html_exporter", "services.export.html_exporter")
@@ -47,7 +41,6 @@ except Exception:
 
 # security domain
 _alias("services.input_sanitizer", "services.security.input_sanitizer")
-_alias("services.credit_manager", "services.security.credit_manager")
 
 # infra domain
 _alias("services.database", "services.infra.database")

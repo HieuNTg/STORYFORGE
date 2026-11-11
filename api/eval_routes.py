@@ -5,13 +5,13 @@ import re
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, field_validator
 
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from services.eval_pipeline import EvalPipeline
 
 router = APIRouter(
     prefix="/v1/eval",
     tags=["eval"],
-    dependencies=[Depends(require_permission_if_enabled(Permission.ACCESS_ANALYTICS))],
+    dependencies=[Depends(require_access)],
 )
 
 _pipeline = EvalPipeline()

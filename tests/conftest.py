@@ -15,6 +15,11 @@ from unittest.mock import MagicMock, patch
 # live proxy. Set before the config import on the next line.
 os.environ.setdefault("STORYFORGE_SKIP_DOTENV", "1")
 
+# Hermetic access: a STORYFORGE_ACCESS_TOKEN exported in the developer's shell
+# would put every app-level test into token mode. Tests that exercise token
+# mode set it themselves with monkeypatch.
+os.environ.pop("STORYFORGE_ACCESS_TOKEN", None)
+
 # Hermetic LLM cache: point it at a throwaway file. Tests have always written to
 # the developer's real data/llm_cache.db; now that the cache key is fixed and
 # reads actually hit, sharing it would let one test be served another's cached

@@ -1,36 +1,7 @@
 """Config API routes — settings CRUD, connection test, cache management.
 
-RBAC examples
--------------
-These routes touch pipeline configuration and should be protected in production.
-Import the helpers from middleware.rbac and add them as Depends():
-
-    from fastapi import Depends
-    from middleware.rbac import require_permission, require_role, Permission, Role
-
-    # Require CONFIGURE_PIPELINE permission (admin + superadmin):
-    # @router.put("", dependencies=[Depends(require_permission(Permission.CONFIGURE_PIPELINE))])
-
-    # Require at least ADMIN role (coarser check):
-    # @router.put("", dependencies=[Depends(require_role(Role.ADMIN))])
-
-    # Inject user for handler-level logic (e.g., audit who changed config):
-    # @router.put("")
-    # def save_config(body: ConfigUpdate, user=Depends(require_permission(Permission.CONFIGURE_PIPELINE))):
-    #     logger.info("Config updated by %r", user["user_id"])
-    #     ...
-
-    # Restrict API key management to SUPERADMIN only:
-    # @router.get("/api-keys", dependencies=[Depends(require_permission(Permission.MANAGE_API_KEYS))])
-
-    # Restrict audit log access to SUPERADMIN only:
-    # @router.get("/audit", dependencies=[Depends(require_permission(Permission.VIEW_AUDIT_LOGS))])
-
-    # Restrict user management endpoints to ADMIN+:
-    # @router.get("/admin/users", dependencies=[Depends(require_permission(Permission.MANAGE_USERS))])
-
-    # Restrict analytics to ADMIN+:
-    # @router.get("/analytics", dependencies=[Depends(require_permission(Permission.ACCESS_ANALYTICS))])
+Every route is guarded router-wide by ``middleware.access.require_access``
+(a no-op unless STORYFORGE_ACCESS_TOKEN is set).
 """
 
 import logging
@@ -45,12 +16,16 @@ from typing import Optional
 
 from config import ConfigManager, PIPELINE_PRESETS, PROVIDER_PRESETS
 from config.persistence import REMOVED_IMAGE_PROVIDERS
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from services.i18n import I18n, SUPPORTED_LANGUAGES
 from services.security.url_validator import validate_base_url
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/config", tags=["config"])
+router = APIRouter(
+    prefix="/config",
+    tags=["config"],
+    dependencies=[Depends(require_access)],
+)
 
 
 def _mask_key(k: str) -> str:
@@ -199,12 +174,6 @@ class ConfigUpdate(BaseModel):
     enable_simulation_transcript: Optional[bool] = None
 
 
-_CONFIGURE_PIPELINE = Depends(
-    require_permission_if_enabled(Permission.CONFIGURE_PIPELINE)
-)
-_MANAGE_API_KEYS = Depends(require_permission_if_enabled(Permission.MANAGE_API_KEYS))
-
-
 # Mask-shape regex: matches the masked echo emitted by `_mask_key` and the
 # primary api_key mask (e.g. `sk-12***abcd`, `***abcd`, `abc***xyz`). Used to
 # reject PUT bodies that round-trip the masked echo as a "new" key (F5).
@@ -227,7 +196,7 @@ def _config_notices(pipeline) -> list[str]:
     return notices
 
 
-@router.get("", dependencies=[_CONFIGURE_PIPELINE])
+@router.get("")
 def get_config(response: Response):
     """Return current config (API key and HF token masked).
 
@@ -304,7 +273,7 @@ def get_config(response: Response):
     }
 
 
-@router.put("", dependencies=[_CONFIGURE_PIPELINE])
+@router.put("")
 def save_config(body: ConfigUpdate):
     """Save settings to config.json."""
     cfg = ConfigManager()
@@ -419,7 +388,7 @@ def save_config(body: ConfigUpdate):
     return {"status": "ok"}
 
 
-@router.post("/test-connection", dependencies=[_CONFIGURE_PIPELINE])
+@router.post("/test-connection")
 def test_connection():
     """Test LLM connection with current settings + all additional profiles."""
     from services.llm_client import LLMClient
@@ -500,7 +469,7 @@ def get_presets():
     return {"presets": PIPELINE_PRESETS}
 
 
-@router.post("/presets/{key}", dependencies=[_CONFIGURE_PIPELINE])
+@router.post("/presets/{key}")
 def apply_preset(key: str):
     """Apply a pipeline preset by key."""
     preset = PIPELINE_PRESETS.get(key)
@@ -527,7 +496,7 @@ def get_provider_presets():
     return {"presets": PROVIDER_PRESETS}
 
 
-@router.post("/profiles/detect", dependencies=[_MANAGE_API_KEYS])
+@router.post("/profiles/detect")
 def detect_provider(body: ProfileCreate):
     """Detect provider from API key prefix — returns provider info without saving."""
     detected = _detect_provider_from_key(body.api_key) if body.api_key else None
@@ -627,7 +596,7 @@ def _stored_key_for(base_url: str) -> str:
     return ""
 
 
-@router.post("/provider/models", dependencies=[_MANAGE_API_KEYS])
+@router.post("/provider/models")
 def get_provider_models(body: ModelsRequest):
     """Ask a provider which models it can actually run.
 
@@ -677,7 +646,7 @@ def get_provider_models(body: ModelsRequest):
     return {"provider": provider, "models": models}
 
 
-@router.post("/profiles", dependencies=[_MANAGE_API_KEYS])
+@router.post("/profiles")
 def add_profile(body: ProfileCreate):
     """Add an API provider profile. Auto-detects provider from key prefix if fields empty."""
     if _is_masked_echo(body.api_key):
@@ -721,7 +690,7 @@ def add_profile(body: ProfileCreate):
     }
 
 
-@router.put("/profiles/{index}", dependencies=[_MANAGE_API_KEYS])
+@router.put("/profiles/{index}")
 def update_profile(index: int, body: ProfileCreate):
     """Update an API provider profile."""
     if _is_masked_echo(body.api_key):
@@ -753,7 +722,7 @@ def update_profile(index: int, body: ProfileCreate):
     return {"status": "ok"}
 
 
-@router.delete("/profiles/{index}", dependencies=[_MANAGE_API_KEYS])
+@router.delete("/profiles/{index}")
 def delete_profile(index: int):
     """Remove an API provider profile."""
     cfg = ConfigManager()
@@ -772,7 +741,7 @@ def delete_profile(index: int):
     return {"status": "ok", "remaining": len(profiles)}
 
 
-@router.patch("/profiles/{index}/toggle", dependencies=[_MANAGE_API_KEYS])
+@router.patch("/profiles/{index}/toggle")
 def toggle_profile(index: int):
     """Toggle enabled state of a profile."""
     cfg = ConfigManager()
@@ -788,7 +757,7 @@ def toggle_profile(index: int):
     return {"status": "ok", "enabled": profiles[index]["enabled"]}
 
 
-@router.get("/cache-stats", dependencies=[_CONFIGURE_PIPELINE])
+@router.get("/cache-stats")
 def cache_stats():
     """Return LLM cache statistics."""
     from services.llm_cache import LLMCache
@@ -796,7 +765,7 @@ def cache_stats():
     return LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
 
 
-@router.delete("/api-keys/{index}", dependencies=[_MANAGE_API_KEYS])
+@router.delete("/api-keys/{index}")
 def remove_api_key(index: int):
     """Remove an additional API key by index."""
     cfg = ConfigManager()
@@ -812,7 +781,7 @@ def remove_api_key(index: int):
     return {"status": "ok", "remaining": len(keys)}
 
 
-@router.delete("/cache", dependencies=[_CONFIGURE_PIPELINE])
+@router.delete("/cache")
 def clear_cache():
     """Clear LLM cache."""
     from services.llm_cache import LLMCache

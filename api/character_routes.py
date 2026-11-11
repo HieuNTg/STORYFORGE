@@ -22,13 +22,18 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
 
 from config import ConfigManager
+from middleware.access import require_access
 from models.schemas import CharacterGenerateRequest, ForgeCharacter
 from pydantic import Field, BaseModel
 from services.character_service import generate_character
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/characters", tags=["characters"])
+router = APIRouter(
+    prefix="/characters",
+    tags=["characters"],
+    dependencies=[Depends(require_access)],
+)
 
 
 CHARACTER_LIMIT_PER_MIN = int(os.environ.get("STORYFORGE_CHARACTER_RATE_LIMIT", "10"))

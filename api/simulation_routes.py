@@ -23,6 +23,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from config import ConfigManager
+from middleware.access import require_access
 from models.schemas import (
     SimulationContinueRequest,
     SimulationTranscript,
@@ -33,7 +34,11 @@ from services.simulation_transcript_extractor import extract as extract_transcri
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/simulation", tags=["simulation"])
+router = APIRouter(
+    prefix="/simulation",
+    tags=["simulation"],
+    dependencies=[Depends(require_access)],
+)
 
 CONTINUE_LIMIT_PER_MIN = int(os.environ.get("STORYFORGE_SIMULATION_RATE_LIMIT", "10"))
 _CONTINUE_WINDOW = 60.0

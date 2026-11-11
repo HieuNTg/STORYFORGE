@@ -1,6 +1,7 @@
 """Route tests for api/feedback_routes.py (previously untested).
 
-Submission is open; listing requires auth. The module-level in-memory
+Open when no access token is configured; with STORYFORGE_ACCESS_TOKEN set,
+the router requires it. The module-level in-memory
 store is cleared around each test so tests stay independent.
 """
 
@@ -11,7 +12,6 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
 from api import feedback_routes
-from middleware.auth_middleware import get_current_user
 
 
 @pytest.fixture(autouse=True)
@@ -21,15 +21,9 @@ def _clean_store():
     feedback_routes._store.clear()
 
 
-def _client(authed: bool = True) -> TestClient:
+def _client() -> TestClient:
     app = FastAPI()
     app.include_router(feedback_routes.router, prefix="/api")
-    if authed:
-        app.dependency_overrides[get_current_user] = lambda: {
-            "user_id": "u1",
-            "username": "tester",
-            "role": "creator",
-        }
     return TestClient(app)
 
 
@@ -54,9 +48,14 @@ class TestSubmitFeedback:
 
 
 class TestGetFeedback:
-    def test_listing_requires_auth(self):
-        resp = _client(authed=False).get("/api/feedback/truyen-1")
-        assert resp.status_code == 401
+    def test_listing_requires_token_when_configured(self, monkeypatch):
+        monkeypatch.setenv("STORYFORGE_ACCESS_TOKEN", "s3cret")
+        client = _client()
+        assert client.get("/api/feedback/truyen-1").status_code == 401
+        authed = client.get(
+            "/api/feedback/truyen-1", headers={"Authorization": "Bearer s3cret"}
+        )
+        assert authed.status_code == 404  # past the gate; nothing stored
 
     def test_unknown_story_maps_to_404(self):
         resp = _client().get("/api/feedback/truyen-x")

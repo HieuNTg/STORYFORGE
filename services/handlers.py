@@ -12,7 +12,6 @@ from config import ConfigManager
 from pipeline.orchestrator import PipelineOrchestrator
 from services.pdf_exporter import PDFExporter
 from services.share_manager import ShareManager
-from services.user_manager import UserManager
 
 logger = logging.getLogger(__name__)
 
@@ -49,57 +48,6 @@ def _friendly_error(
         if needle in combined:
             return t(key)
     return t(fallback_key)
-
-
-# ── Login / Register ──────────────────────────────────────────────────────────
-
-
-def handle_login(username: str, password: str, t) -> tuple:
-    """Authenticate user and return (profile_dict, status_msg, library_table)."""
-    if not username or not password:
-        return None, t("msg.login_fail"), []
-    um = UserManager()
-    profile = um.login(username, password)
-    if profile:
-        stories = um.list_stories(profile.user_id)
-        table = [[s["story_id"], s["title"], s.get("saved_at", "")] for s in stories]
-        return (
-            profile.model_dump(),
-            f"{t('msg.login_success')} ({profile.username})",
-            table,
-        )
-    return None, t("msg.login_fail"), []
-
-
-def handle_register(username: str, password: str, t) -> tuple:
-    """Register new user and return (profile_dict, status_msg, library_table)."""
-    if not username or not password:
-        return None, t("msg.register_fail"), []
-    um = UserManager()
-    try:
-        profile = um.register(username, password)
-        return profile.model_dump(), t("msg.register_success"), []
-    except ValueError:
-        return None, t("msg.register_fail"), []
-
-
-def handle_save_story(user_state: Optional[dict], orch_state, title: str, t) -> tuple:
-    """Save story to user library and return (status_msg, updated_table)."""
-    if not user_state:
-        return t("msg.no_login"), []
-    if orch_state is None:
-        return t("msg.no_story"), []
-    um = UserManager()
-    try:
-        story_data = orch_state.output.model_dump() if orch_state.output else {}
-        story_id = um.save_story(user_state["user_id"], story_data, title or "Untitled")
-        um.track_usage(user_state["user_id"])
-        stories = um.list_stories(user_state["user_id"])
-        table = [[s["story_id"], s["title"], s.get("saved_at", "")] for s in stories]
-        return f"{t('msg.story_saved')} ID: {story_id}", table
-    except Exception as e:
-        logger.error(f"Save story error: {e}")
-        return _friendly_error(e, t, "error.save_fail"), []
 
 
 # ── Export handlers ────────────────────────────────────────────────────────────

@@ -45,7 +45,7 @@ def fresh_logger():
 class TestBuildEvent:
     def test_fills_anonymous_defaults(self):
         event = _build_event(
-            "login", "/api/auth/login", None, None, "failure", None, None
+            "login", "/api/session", None, None, "failure", None, None
         )
         assert event["user_id"] == "anonymous"
         assert event["ip_address"] == "unknown"
@@ -119,7 +119,7 @@ class TestAuditLogger:
         assert AuditLogger() is fresh_logger
 
     def test_log_event_enqueues_normalized_event(self, fresh_logger):
-        fresh_logger.log_event("login", "/api/auth/login", user_id="u-9", ip="5.6.7.8")
+        fresh_logger.log_event("login", "/api/session", user_id="u-9", ip="5.6.7.8")
         event = fresh_logger._queue.get_nowait()
         assert event["action"] == "login"
         assert event["user_id"] == "u-9"

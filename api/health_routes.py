@@ -21,12 +21,17 @@ import threading
 import time
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+
+from middleware.access import require_access
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["health"])
+router = APIRouter(
+    tags=["health"],
+    dependencies=[Depends(require_access)],
+)
 
 # ---------------------------------------------------------------------------
 # Helpers

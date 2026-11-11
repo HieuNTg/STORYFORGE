@@ -5,14 +5,13 @@ on the FastAPI application instance (called from app.py).
 """
 
 import logging
-from typing import Optional
+from typing import Any, Optional
 
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 
-from api.auth_routes import router as auth_router
 from api.config_routes import router as config_router
 from api.pipeline_routes import router as pipeline_router
 from api.export_routes import router as export_router
@@ -36,9 +35,10 @@ from api.diagnostics_routes import router as diagnostics_router
 from api.forge_routes import router as forge_router
 from api.character_routes import router as character_router
 from api.simulation_routes import router as simulation_router
+from api.session_routes import router as session_router
 
 api_router = APIRouter(prefix="/api")
-api_router.include_router(auth_router)
+api_router.include_router(session_router)
 api_router.include_router(config_router)
 api_router.include_router(pipeline_router)
 api_router.include_router(continuation_router)
@@ -75,6 +75,9 @@ class ErrorResponse(BaseModel):
     """Consistent error payload for all 4xx/5xx API responses."""
 
     error: str
+    # Structured detail (e.g. {"code": "access_token_required"}) is passed
+    # through as-is so clients can branch on a machine-readable code.
+    detail: Optional[Any] = None
     request_id: Optional[str] = None
 
 
@@ -100,10 +103,12 @@ def register_exception_handlers(app) -> None:
     async def http_exception_handler(request: Request, exc: HTTPException):
         """Preserve intentional HTTP errors with a structured JSON body."""
         request_id = getattr(request.state, "request_id", None)
+        structured = not isinstance(exc.detail, str)
         return JSONResponse(
             status_code=exc.status_code,
             content=ErrorResponse(
-                error=exc.detail if isinstance(exc.detail, str) else str(exc.detail),
+                error=str(exc.detail) if structured else exc.detail,
+                detail=exc.detail if structured else None,
                 request_id=request_id,
             ).model_dump(exclude_none=True),
         )

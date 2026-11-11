@@ -24,12 +24,17 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from config import ConfigManager
+from middleware.access import require_access
 from models.schemas import ForgeRequest, ForgeResponse
 from services.forge_service import forge_from_sentence
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/forge", tags=["forge"])
+router = APIRouter(
+    prefix="/forge",
+    tags=["forge"],
+    dependencies=[Depends(require_access)],
+)
 
 
 # ---------------------------------------------------------------------------

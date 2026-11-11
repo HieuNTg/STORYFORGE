@@ -27,7 +27,7 @@ from api.export_routes import (
     _LibraryStoryPayload,
     _payload_to_story_draft,
 )
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 
 # Reference-image upload constraints
 _REF_MAX_BYTES = 8 * 1024 * 1024  # 8 MB
@@ -38,9 +38,11 @@ _REF_ALLOWED_TYPES = {
 }
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/images", tags=["images"])
-_READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
-_CREATE_STORIES = Depends(require_permission_if_enabled(Permission.CREATE_STORIES))
+router = APIRouter(
+    prefix="/images",
+    tags=["images"],
+    dependencies=[Depends(require_access)],
+)
 
 _in_flight: set[str] = set()
 _in_flight_lock = asyncio.Lock()
@@ -563,7 +565,6 @@ async def _run_library_job(
     "/library/generate",
     response_model=LibraryJobAcceptedResponse,
     status_code=202,
-    dependencies=[_CREATE_STORIES],
 )
 async def generate_library_images(
     response: Response, body: LibraryGenerateImagesRequest = Body(...)
@@ -716,7 +717,6 @@ def _job_to_status(job: _LibraryJob) -> LibraryJobStatusResponse:
 @router.get(
     "/library/jobs/{job_id}",
     response_model=LibraryJobStatusResponse,
-    dependencies=[_READ_STORIES],
 )
 async def get_library_job(job_id: str):
     """Poll progress for an async Library comic job (Phase B, §2.2).
@@ -737,7 +737,6 @@ async def get_library_job(job_id: str):
 @router.delete(
     "/library/jobs/{job_id}",
     response_model=LibraryJobStatusResponse,
-    dependencies=[_CREATE_STORIES],
 )
 async def cancel_library_job(job_id: str):
     """Cooperatively cancel a running Library comic job (Phase B, §2.5).
@@ -760,7 +759,6 @@ async def cancel_library_job(job_id: str):
 @router.post(
     "/library/generate-cover",
     response_model=GenerateCoverResponse,
-    dependencies=[_CREATE_STORIES],
 )
 async def generate_library_cover(body: GenerateCoverRequest = Body(...)):
     """Generate ONE cover image for a Library story — awaited inline (~25–30s).
@@ -811,7 +809,6 @@ async def generate_library_cover(body: GenerateCoverRequest = Body(...)):
 @router.post(
     "/{session_id}/generate",
     response_model=GenerateImagesResponse,
-    dependencies=[_CREATE_STORIES],
 )
 async def generate_images(
     session_id: str, body: GenerateImagesRequest = GenerateImagesRequest()
@@ -945,7 +942,6 @@ async def generate_images(
 @router.get(
     "/{session_id}/status",
     response_model=ComicStatusResponse,
-    dependencies=[_READ_STORIES],
 )
 async def get_comic_status(session_id: str):
     """Per-chapter comic-panel status for a session or checkpoint.
@@ -1004,7 +1000,6 @@ async def get_comic_status(session_id: str):
 @router.get(
     "/{session_id}/profiles",
     response_model=CharacterProfilesResponse,
-    dependencies=[_READ_STORIES],
 )
 async def get_character_profiles(session_id: str):
     """Return per-character visual profiles for a session or checkpoint.
@@ -1049,7 +1044,6 @@ async def get_character_profiles(session_id: str):
 @router.post(
     "/{session_id}/profiles/{character_name}/rebuild",
     response_model=CharacterProfileRebuildResponse,
-    dependencies=[_CREATE_STORIES],
 )
 async def rebuild_character_profile(session_id: str, character_name: str):
     """Re-extract attributes + frozen prompt for a single character.
@@ -1126,7 +1120,6 @@ async def rebuild_character_profile(session_id: str, character_name: str):
 @router.post(
     "/{session_id}/profiles/{character_name}/reference",
     response_model=CharacterReferenceUploadResponse,
-    dependencies=[_CREATE_STORIES],
 )
 async def upload_character_reference(
     session_id: str,

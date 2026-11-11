@@ -10,7 +10,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse, FileResponse
 from pydantic import BaseModel, Field
 
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from services.branch_narrative import manager
 from services.llm_client import LLMClient
 from services.export.branch_epub_exporter import BranchEPUBExporter
@@ -18,7 +18,7 @@ from services.export.branch_epub_exporter import BranchEPUBExporter
 router = APIRouter(
     prefix="/branch",
     tags=["branch"],
-    dependencies=[Depends(require_permission_if_enabled(Permission.CREATE_STORIES))],
+    dependencies=[Depends(require_access)],
 )
 logger = logging.getLogger(__name__)
 llm = LLMClient()

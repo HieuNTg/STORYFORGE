@@ -16,7 +16,7 @@ Usage:
     from services.audit_logger import get_audit_logger
 
     log = get_audit_logger()
-    log.log_event("login", "/api/auth/login", user_id="uuid", ip="1.2.3.4", result="success")
+    log.log_event("login", "/api/session", user_id="uuid", ip="1.2.3.4", result="success")
     events = log.query_events({"user_id": "uuid", "date_from": "2026-04-01"})
 """
 

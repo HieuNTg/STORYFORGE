@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from api.pipeline_output_builder import build_output_summary
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from models.schemas import ArcDirective, ChapterOutline
 from api import pipeline_job_registry as _jobs
 from api.pipeline_routes import (
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/pipeline",
     tags=["continuation"],
-    dependencies=[Depends(require_permission_if_enabled(Permission.CREATE_STORIES))],
+    dependencies=[Depends(require_access)],
 )
 
 
