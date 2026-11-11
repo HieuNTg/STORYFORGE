@@ -44,6 +44,7 @@ from pydantic import BaseModel
 from typing import Optional
 
 from config import ConfigManager, PIPELINE_PRESETS, PROVIDER_PRESETS
+from config.persistence import REMOVED_IMAGE_PROVIDERS
 from middleware.rbac import Permission, require_permission_if_enabled
 from services.i18n import I18n, SUPPORTED_LANGUAGES
 from services.security.url_validator import validate_base_url
@@ -188,14 +189,6 @@ class ConfigUpdate(BaseModel):
     stream_first_chunk_timeout: Optional[int] = None
     stream_chunk_timeout: Optional[int] = None
     image_provider: Optional[str] = None
-    codex_model: Optional[str] = None
-    # Qwen local proxy (separate OpenAI-compatible server driving chat.qwen.ai)
-    qwen_local_base_url: Optional[str] = None
-    qwen_local_api_key: Optional[str] = None
-    qwen_local_model: Optional[str] = None
-    qwen_local_size: Optional[str] = None
-    qwen_local_use_edit_for_refs: Optional[bool] = None
-    qwen_local_timeout: Optional[float] = None
     hf_token: Optional[str] = None
     hf_image_model: Optional[str] = None
     image_prompt_style: Optional[str] = None
@@ -204,20 +197,6 @@ class ConfigUpdate(BaseModel):
     enable_pipeline_overlay: Optional[bool] = None
     enable_chapter_illustration: Optional[bool] = None
     enable_simulation_transcript: Optional[bool] = None
-    # FlowKit (Chrome Extension + Google Labs proxy)
-    flowkit_enabled: Optional[bool] = None
-    flowkit_port: Optional[int] = None
-    flowkit_style_reference_path: Optional[str] = None
-    flowkit_concurrent_workers_max: Optional[int] = None
-    flowkit_workers_ramp_threshold: Optional[int] = None
-    flowkit_account_warning_shown: Optional[bool] = None
-    flowkit_risk_acknowledged: Optional[bool] = None
-    flowkit_image_input_type_split: Optional[bool] = None
-    flowkit_callback_hmac_required: Optional[bool] = None
-    flowkit_use_refiner: Optional[bool] = None
-    flowkit_request_timeout: Optional[float] = None
-    flowkit_aspect_ratio: Optional[str] = None
-    flowkit_project_id: Optional[str] = None
 
 
 _CONFIGURE_PIPELINE = Depends(
@@ -237,6 +216,15 @@ def _is_masked_echo(value: Optional[str]) -> bool:
     if not value or not isinstance(value, str):
         return False
     return bool(_MASKED_KEY_RE.match(value))
+
+
+def _config_notices(pipeline) -> list[str]:
+    """One-off messages about this config for the Settings page to show."""
+    notices: list[str] = []
+    removed = getattr(pipeline, "image_provider_notice", "")
+    if removed:
+        notices.append(f"image_provider_removed:{removed}")
+    return notices
 
 
 @router.get("", dependencies=[_CONFIGURE_PIPELINE])
@@ -304,16 +292,6 @@ def get_config(response: Response):
             "stream_first_chunk_timeout": cfg.pipeline.stream_first_chunk_timeout,
             "stream_chunk_timeout": cfg.pipeline.stream_chunk_timeout,
             "image_provider": cfg.pipeline.image_provider,
-            "codex_model": cfg.pipeline.codex_model,
-            "qwen_local_base_url": cfg.pipeline.qwen_local_base_url,
-            # Masked like every other secret the GET surface returns.
-            "qwen_local_api_key_masked": _mask_key(
-                cfg.pipeline.qwen_local_api_key
-            ),
-            "qwen_local_model": cfg.pipeline.qwen_local_model,
-            "qwen_local_size": cfg.pipeline.qwen_local_size,
-            "qwen_local_use_edit_for_refs": cfg.pipeline.qwen_local_use_edit_for_refs,
-            "qwen_local_timeout": cfg.pipeline.qwen_local_timeout,
             "hf_token_masked": masked_hf_token,
             "hf_image_model": cfg.pipeline.hf_image_model,
             "image_prompt_style": cfg.pipeline.image_prompt_style,
@@ -321,50 +299,19 @@ def get_config(response: Response):
             "enable_drama_climax": cfg.pipeline.enable_drama_climax,
             "enable_pipeline_overlay": cfg.pipeline.enable_pipeline_overlay,
             "enable_chapter_illustration": cfg.pipeline.enable_chapter_illustration,
-            "flowkit_enabled": cfg.pipeline.flowkit_enabled,
-            "flowkit_port": cfg.pipeline.flowkit_port,
-            "flowkit_style_reference_path": cfg.pipeline.flowkit_style_reference_path,
-            "flowkit_concurrent_workers": cfg.pipeline.flowkit_concurrent_workers,
-            "flowkit_concurrent_workers_max": cfg.pipeline.flowkit_concurrent_workers_max,
-            "flowkit_workers_ramp_threshold": cfg.pipeline.flowkit_workers_ramp_threshold,
-            "flowkit_account_warning_shown": cfg.pipeline.flowkit_account_warning_shown,
-            "flowkit_risk_acknowledged": cfg.pipeline.flowkit_risk_acknowledged,
-            "flowkit_image_input_type_split": cfg.pipeline.flowkit_image_input_type_split,
-            "flowkit_callback_hmac_required": cfg.pipeline.flowkit_callback_hmac_required,
-            "flowkit_use_refiner": cfg.pipeline.flowkit_use_refiner,
-            "flowkit_request_timeout": cfg.pipeline.flowkit_request_timeout,
-            "flowkit_aspect_ratio": cfg.pipeline.flowkit_aspect_ratio,
-            "flowkit_project_id": cfg.pipeline.flowkit_project_id,
         },
+        "notices": _config_notices(cfg.pipeline),
     }
 
 
 @router.put("", dependencies=[_CONFIGURE_PIPELINE])
 def save_config(body: ConfigUpdate):
     """Save settings to config.json."""
-    # FlowKit hard gate: enabling the provider requires explicit risk
-    # acknowledgement. Evaluated against the post-PATCH effective state
-    # (delta + current) so a previously-acked user can toggle enabled alone.
     cfg = ConfigManager()
-    eff_provider = (
-        body.image_provider
-        if body.image_provider is not None
-        else cfg.pipeline.image_provider
-    )
-    eff_enabled = (
-        body.flowkit_enabled
-        if body.flowkit_enabled is not None
-        else cfg.pipeline.flowkit_enabled
-    )
-    eff_ack = (
-        body.flowkit_risk_acknowledged
-        if body.flowkit_risk_acknowledged is not None
-        else cfg.pipeline.flowkit_risk_acknowledged
-    )
-    if eff_provider == "flowkit" and eff_enabled and not eff_ack:
+    if body.image_provider in REMOVED_IMAGE_PROVIDERS:
         raise HTTPException(
             status_code=400,
-            detail="flowkit_risk_acknowledged required when enabling flowkit",
+            detail=f"image provider {body.image_provider!r} is no longer supported",
         )
 
     # F5 guard: reject mask-shaped values for any secret field. A correctly-
@@ -442,22 +389,9 @@ def save_config(body: ConfigUpdate):
         cfg.pipeline.stream_chunk_timeout = body.stream_chunk_timeout
     if body.image_provider is not None:
         cfg.pipeline.image_provider = body.image_provider
-    if body.codex_model is not None:
-        cfg.pipeline.codex_model = body.codex_model
-    if body.qwen_local_base_url is not None:
-        cfg.pipeline.qwen_local_base_url = body.qwen_local_base_url
-    # An empty string means "leave the stored key alone" — the UI never echoes
-    # the real value back, so a blank field must not wipe it.
-    if body.qwen_local_api_key:
-        cfg.pipeline.qwen_local_api_key = body.qwen_local_api_key
-    if body.qwen_local_model is not None:
-        cfg.pipeline.qwen_local_model = body.qwen_local_model
-    if body.qwen_local_size is not None:
-        cfg.pipeline.qwen_local_size = body.qwen_local_size
-    if body.qwen_local_use_edit_for_refs is not None:
-        cfg.pipeline.qwen_local_use_edit_for_refs = body.qwen_local_use_edit_for_refs
-    if body.qwen_local_timeout is not None:
-        cfg.pipeline.qwen_local_timeout = body.qwen_local_timeout
+        # The user has picked a provider, so the "your old one was removed"
+        # notice has been seen and acted on.
+        cfg.pipeline.image_provider_notice = ""
     if body.hf_token is not None:
         cfg.pipeline.hf_token = body.hf_token
     if body.hf_image_model is not None:
@@ -474,25 +408,6 @@ def save_config(body: ConfigUpdate):
         _val = getattr(body, _attr, None)
         if _val is not None:
             setattr(cfg.pipeline, _attr, _val)
-    # FlowKit persistence (gate already enforced above)
-    for _attr in (
-        "flowkit_enabled",
-        "flowkit_port",
-        "flowkit_style_reference_path",
-        "flowkit_concurrent_workers_max",
-        "flowkit_workers_ramp_threshold",
-        "flowkit_account_warning_shown",
-        "flowkit_risk_acknowledged",
-        "flowkit_image_input_type_split",
-        "flowkit_callback_hmac_required",
-        "flowkit_use_refiner",
-        "flowkit_request_timeout",
-        "flowkit_aspect_ratio",
-        "flowkit_project_id",
-    ):
-        _val = getattr(body, _attr, None)
-        if _val is not None:
-            setattr(cfg.pipeline, _attr, _val)
     try:
         cfg.save()
     except ValueError as exc:
@@ -502,25 +417,6 @@ def save_config(body: ConfigUpdate):
 
     LLMClient.reset()
     return {"status": "ok"}
-
-
-@router.get("/qwen-local/status", dependencies=[_CONFIGURE_PIPELINE])
-def qwen_local_status():
-    """Probe the local Qwen proxy: is it up, and did its Qwen provider start?
-
-    A sync handler on purpose — FastAPI runs these in a worker thread, so the
-    blocking HTTP probe never touches the event loop. Always answers 200; the
-    body carries the failure so the settings badge can render a reason.
-    """
-    from services.media.qwen_local_client import QwenLocalClient
-
-    cfg = ConfigManager().pipeline
-    client = QwenLocalClient(
-        base_url=cfg.qwen_local_base_url,
-        api_key=cfg.qwen_local_api_key,
-        model=cfg.qwen_local_model,
-    )
-    return client.status()
 
 
 @router.post("/test-connection", dependencies=[_CONFIGURE_PIPELINE])

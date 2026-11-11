@@ -1,6 +1,5 @@
 """AI image generation from story prompts — supports DALL-E and SD-compatible APIs."""
 
-import asyncio
 import os
 import logging
 import base64
@@ -60,19 +59,20 @@ def reset_image_request_semaphore() -> None:
         _REQUEST_SEMAPHORE_SIZE = -1
 
 
+class ImageProviderNotConfigured(Exception):
+    """An image was explicitly requested but ``image_provider`` is "none"."""
+
+
 class ImageGenerator:
     """Generate images from prompts using various AI providers."""
 
     PROVIDERS = [
+        "none",
         "dalle",
         "sd-api",
         "seedream",
-        "replicate",
         "huggingface",
-        "flowkit",
-        "codex",
-        "qwen-local",
-        "none",
+        "replicate",
     ]
 
     def __init__(
@@ -148,12 +148,6 @@ class ImageGenerator:
             return self._generate_seedream(prompt, filename)
         if self.provider == "huggingface":
             return self._generate_huggingface(prompt, filename)
-        if self.provider == "flowkit":
-            return self._generate_flowkit(prompt, filename, size)
-        if self.provider == "codex":
-            return self._generate_codex(prompt, filename, size)
-        if self.provider == "qwen-local":
-            return self._generate_qwen_local(prompt, filename, size)
 
         logger.warning("Unknown image provider: %s", self.provider)
         return None
@@ -173,12 +167,6 @@ class ImageGenerator:
         if not reference_paths:
             return self.generate(prompt, filename, size)
 
-        if self.provider == "flowkit":
-            return self._flowkit_with_ref(prompt, reference_paths, filename)
-        if self.provider == "codex":
-            return self._codex_with_ref(prompt, reference_paths, filename, size)
-        if self.provider == "qwen-local":
-            return self._qwen_local_with_ref(prompt, reference_paths, filename, size)
         if self.provider == "seedream":
             return self._seedream_with_ref(prompt, reference_paths, filename)
         if self.provider == "replicate":
@@ -215,8 +203,8 @@ class ImageGenerator:
         """
         refs = character_references or {}
         _pipeline_cfg = ConfigManager().pipeline
-        # A panel sometimes comes back empty (Codex occasionally drops one, a
-        # transient provider hiccup, etc.). Retry it a few times rather than
+        # A panel sometimes comes back empty (a transient provider hiccup,
+        # a dropped connection, etc.). Retry it a few times rather than
         # silently shipping a chapter with a hole in it.
         _retries = max(0, int(_pipeline_cfg.panel_retry_attempts))
         prompts = list(image_prompts)
@@ -333,7 +321,6 @@ class ImageGenerator:
     # snapped to the closest aspect the provider does support instead of being
     # dropped (dropping it would put us back to square panels in tier cells).
     _DALLE_SIZES = ("1024x1024", "1792x1024", "1024x1792")
-    _CODEX_SIZES = ("1024x1024", "1536x1024", "1024x1536")
 
     @staticmethod
     def _snap_size(size: str, allowed: tuple) -> str:
@@ -505,167 +492,3 @@ class ImageGenerator:
             logger.warning("Replicate not configured for reference generation")
             return self.generate(prompt, filename)
         return client.generate(prompt, reference_path, filename)
-
-    # ── Codex (ChatGPT Plus image-gen via the user's own Codex login) ─────────
-
-    def _codex_client(self):
-        from services.media.codex_image_client import CodexImageClient
-
-        cfg = ConfigManager().pipeline
-        return CodexImageClient(model=getattr(cfg, "codex_model", "") or "")
-
-    def _generate_codex(self, prompt: str, filename: str, size: str) -> Optional[str]:
-        """Text-only image generation via ChatGPT (Codex/gpt-image-2-codex)."""
-        client = self._codex_client()
-        if not client.is_configured():
-            logger.error("Codex generation skipped: no ~/.codex login found.")
-            return None
-        filepath = os.path.join(self.output_dir, filename)
-        return client.text_to_image(prompt, filepath, self._snap_size(size, self._CODEX_SIZES))
-
-    def _codex_with_ref(
-        self, prompt: str, reference_paths: list, filename: str, size: str
-    ) -> Optional[str]:
-        """Reference-conditioned generation (character consistency) via Codex."""
-        client = self._codex_client()
-        if not client.is_configured():
-            logger.warning("Codex not configured for reference generation")
-            return self.generate(prompt, filename, size)
-        filepath = os.path.join(self.output_dir, filename)
-        return client.image_with_refs(
-            prompt, reference_paths, filepath, self._snap_size(size, self._CODEX_SIZES)
-        )
-
-    # ── Qwen local proxy (OpenAI-compatible server driving chat.qwen.ai) ──────
-
-    def _qwen_local_client(self):
-        from services.media.qwen_local_client import QwenLocalClient
-
-        cfg = ConfigManager().pipeline
-        return QwenLocalClient(
-            base_url=getattr(cfg, "qwen_local_base_url", ""),
-            api_key=getattr(cfg, "qwen_local_api_key", ""),
-            model=getattr(cfg, "qwen_local_model", ""),
-            size=getattr(cfg, "qwen_local_size", ""),
-            timeout=getattr(cfg, "qwen_local_timeout", 300.0),
-        )
-
-    def _generate_qwen_local(
-        self, prompt: str, filename: str, size: str
-    ) -> Optional[str]:
-        """Text-to-image via the local Qwen proxy."""
-        client = self._qwen_local_client()
-        if not client.is_configured():
-            logger.error("Qwen local generation skipped: no base URL configured.")
-            return None
-        filepath = os.path.join(self.output_dir, filename)
-        return client.text_to_image(prompt, filepath, size)
-
-    def _qwen_local_with_ref(
-        self, prompt: str, reference_paths: list, filename: str, size: str
-    ) -> Optional[str]:
-        """Reference-conditioned generation via the proxy's edit endpoint.
-
-        Qwen's edit mode rewrites the reference image itself, which keeps a
-        character's likeness far better than re-describing them in text. Users
-        who would rather have a fresh composition can turn it off with
-        ``qwen_local_use_edit_for_refs``.
-        """
-        client = self._qwen_local_client()
-        if not client.is_configured():
-            logger.warning("Qwen local not configured for reference generation")
-            return None
-        filepath = os.path.join(self.output_dir, filename)
-        cfg = ConfigManager().pipeline
-        if not getattr(cfg, "qwen_local_use_edit_for_refs", True):
-            return client.text_to_image(prompt, filepath, size)
-        return client.image_with_refs(prompt, reference_paths, filepath, size)
-
-    # ── FlowKit (Google Labs proxy via Chrome extension WS) ───────────────────
-
-    def _flowkit_refine(self, prompt: str) -> str:
-        """Run cinematic refiner if flag enabled; on failure, fall back to raw prompt."""
-        cfg = ConfigManager().pipeline
-        if not cfg.flowkit_use_refiner:
-            return prompt
-        try:
-            from services.media.image_prompt_generator import ImagePromptGenerator
-
-            return ImagePromptGenerator().refine_to_cinematic_prompt(prompt) or prompt
-        except Exception as e:
-            logger.warning("FlowKit refiner failed, using raw prompt: %s", e)
-            return prompt
-
-    def _flowkit_call(self, coro_factory) -> Optional[str]:
-        """Bridge a sync executor worker to FlowService's asyncio loop.
-
-        Precondition: caller is on a worker thread (not the FlowService loop);
-        FlowService captured ``_main_loop`` when the WS connected.
-        """
-        from services.media.flow_service import FlowService
-
-        flow_service = FlowService()
-        cfg = ConfigManager().pipeline
-        if not cfg.flowkit_enabled or flow_service.active_ws is None:
-            logger.warning(
-                "FlowKit not ready (enabled=%s, ws_connected=%s)",
-                cfg.flowkit_enabled,
-                flow_service.active_ws is not None,
-            )
-            return None
-        loop = getattr(flow_service, "_main_loop", None)
-        if loop is None:
-            logger.error("FlowKit unavailable: FlowService has no captured main loop")
-            return None
-        try:
-            fut = asyncio.run_coroutine_threadsafe(coro_factory(), loop)
-            timeout = max(30.0, float(cfg.flowkit_request_timeout))
-            return fut.result(timeout=timeout)
-        except Exception as e:
-            logger.exception("FlowKit generation failed: %s (%s)", type(e).__name__, e)
-            return None
-
-    def _generate_flowkit(
-        self, prompt: str, filename: str, size: str = "1024x1024"
-    ) -> Optional[str]:
-        """Text-only image generation via Google Labs Flow (Imagen)."""
-        from services.media.flow_service import FlowService
-
-        flow_service = FlowService()
-        if flow_service.active_ws is None:
-            logger.warning(
-                "FlowKit not connected (no active WebSocket); skipping generation"
-            )
-            return None
-        refined = self._flowkit_refine(prompt)
-        return self._flowkit_call(
-            lambda: flow_service.request_image(
-                refined, [], None, self.output_dir, filename
-            )
-        )
-
-    def _flowkit_with_ref(
-        self, prompt: str, reference_paths: list, filename: str
-    ) -> Optional[str]:
-        """Reference-conditioned generation. Splits CHARACTER/STYLE refs when split flag set."""
-        from services.media.flow_service import FlowService
-
-        flow_service = FlowService()
-        if flow_service.active_ws is None:
-            logger.warning(
-                "FlowKit not connected (no active WebSocket); skipping generation"
-            )
-            return None
-        cfg = ConfigManager().pipeline
-        refined = self._flowkit_refine(prompt)
-        char_refs = list(reference_paths or [])
-        style_ref: Optional[str] = None
-        if cfg.flowkit_image_input_type_split:
-            style_path = cfg.flowkit_style_reference_path
-            if style_path and os.path.isfile(style_path):
-                style_ref = style_path
-        return self._flowkit_call(
-            lambda: flow_service.request_image(
-                refined, char_refs, style_ref, self.output_dir, filename
-            )
-        )

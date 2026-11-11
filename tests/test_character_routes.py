@@ -217,7 +217,8 @@ def _extract_req():
 def test_extract_story_returns_characters_and_backgrounds_avatars(client):
     # The fix: avatar generation is fire-and-forget. The response must come
     # back with the extracted characters and delegate avatars to the background
-    # helper rather than awaiting FlowKit inline (which caused the 500).
+    # helper rather than awaiting the image provider inline (which caused the
+    # 500).
     with (
         patch.object(
             character_routes, "_get_llm", return_value=_mock_llm(EXTRACT_LLM_PAYLOAD)
@@ -369,7 +370,7 @@ def test_regenerate_avatar_returns_fresh_url(client):
 
 
 def test_regenerate_avatar_502_when_generation_unavailable(client):
-    # FlowKit disabled / upstream failure -> generate returns None -> 502, not a
+    # Provider failure -> generate returns None -> 502, not a
     # 200-with-null that the client would mistake for success.
     with patch(
         "services.character_avatar.generate_character_avatar",

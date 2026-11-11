@@ -948,7 +948,7 @@ def test_generate_cover_in_flight_guard(client):
 
 
 def test_cover_service_skips_when_flag_disabled():
-    """generate_story_cover honours cover_image_enabled without touching FlowKit."""
+    """generate_story_cover honours cover_image_enabled without touching a provider."""
     import asyncio
 
     from config import ConfigManager

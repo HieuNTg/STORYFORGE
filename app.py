@@ -299,14 +299,6 @@ def main():
         except Exception as e:
             logger.warning("Secret migration skipped: %s", e)
 
-        # FlowKit needs no startup work any more. It used to open a SQLite jobs
-        # database and start a background task that woke every
-        # flowkit_veo_poll_interval seconds, for the lifetime of the process, to
-        # poll Veo video jobs — on every install with FlowKit enabled, which is
-        # the image path everyone uses. Video is out of the product; the loop and
-        # its database went with it. Image generation is synchronous over the
-        # extension WebSocket and never used either.
-
     # Graceful shutdown: cancel and await active pipeline tasks
     @main_app.on_event("shutdown")
     async def on_shutdown():
@@ -316,18 +308,6 @@ def main():
         from api.pipeline_job_registry import shutdown_job_reaper
 
         await shutdown_job_reaper()
-
-        try:
-            from services.media.flow_service import flow_service
-
-            if flow_service.active_ws is not None:
-                try:
-                    await flow_service.active_ws.close()
-                except Exception:
-                    pass
-                flow_service.clear_active_ws()
-        except Exception:
-            logger.exception("FlowKit shutdown failed")
 
     # Plugins. Eleven hook call sites sit on the hot path — every score, every
     # genre-rule lookup, every export — and load_all() was never called, so the

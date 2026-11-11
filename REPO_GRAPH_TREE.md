@@ -20,7 +20,6 @@ STORYFORGE/
 ├── data/                       # Project data & prompts
 ├── docs/                       # Documentation
 ├── errors/                     # Error definitions & handlers
-├── flowkit_extension/          # FlowKit extension
 ├── frontend/                   # Next.js 16 React 19 UI
 ├── locales/                    # i18n (Vietnamese/Chinese)
 ├── middleware/                 # Express/Next.js middleware stack
@@ -158,7 +157,6 @@ STORYFORGE/
 | `ab_routes.py` | A/B testing | Experiment variants |
 | `config_routes.py` | Configuration | Settings management |
 | `metrics_routes.py` | System metrics | Performance data |
-| `flowkit.py` | FlowKit integration | Media/flow processing |
 
 **Note:** `api/v1/router.py` reuses all these modules under `/api/v1/` prefix.
 
@@ -184,7 +182,7 @@ STORYFORGE/
 | `llm/` | `client.py` (73KB), `generation.py`, `provider_status.py`, `streaming.py` | LLM client singleton, multi-provider support, streaming, token tracking |
 | `auth/` | `user_manager.py`, `user_store.py` | User management, authentication state |
 | `pipeline/` | `branch_narrative.py`, `quality_gate.py`, `smart_revision.py` | Pipeline services, quality gates, smart revisions |
-| `media/` | `flow_service.py`, `output_paths.py` | Media processing, flowKit, output path management |
+| `media/` | `image_generator.py`, `comic_chapter.py` | Image generation, comic pages |
 | `assets/` | - | Asset handling and storage |
 | `export/` | - | Exporters (Wattpad, other formats) |
 | `prompts/` | - | Prompt templates for LLM calls |
@@ -269,7 +267,6 @@ STORYFORGE/
 
 **Key Config Options:**
 - `pipeline.enable_sentence_forge` - Feature flag for forge endpoint
-- `pipeline.flowkit_enabled` - FlowKit/media integration
 - `llm.cheap_model` / `llm.expensive_model` - Model configuration
 - `llm.api_key` - LLM authentication key
 - `REDIS_URL` - Redis connection for session state (24h TTL)

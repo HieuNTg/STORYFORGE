@@ -36,7 +36,8 @@ class TestCustomHostsAllowed:
         validate_base_url("https://203.0.113.12:8080/v1")
 
     def test_localhost_bridge_accepted(self):
-        # config/presets.py ships a localhost:8000 card — it must keep working.
+        # A local OpenAI-compatible server (Ollama, vLLM, LM Studio) must keep
+        # working.
         validate_base_url("http://localhost:8000/v1")
         validate_base_url("http://127.0.0.1:8000/v1")
 

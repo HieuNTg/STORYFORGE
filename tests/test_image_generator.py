@@ -4,6 +4,8 @@ from unittest.mock import MagicMock, patch
 import base64
 import os
 
+import pytest
+
 
 from services.image_generator import ImageGenerator
 from models.schemas import ImagePrompt
@@ -287,3 +289,103 @@ def test_generate_huggingface_returns_none_on_exception():
         result = gen.generate("test prompt", filename="test.png")
 
     assert result is None
+
+
+# ── Output layout ─────────────────────────────────────────────────────────────
+
+@pytest.fixture
+def isolated_image_gen_env(tmp_path, monkeypatch):
+    """Run image-gen tests in a tmp cwd so output/ writes don't pollute the repo."""
+    monkeypatch.chdir(tmp_path)
+    yield tmp_path
+
+
+def test_output_dir_per_session(isolated_image_gen_env):
+    from services.media.image_generator import ImageGenerator
+
+    gen = ImageGenerator(
+        provider="none", session_id="abc123", story_title="Tiên Hiệp Test!"
+    )
+    # Per-story layout: images live under output/<story-slug>/images, where the
+    # slug is slug_session_dir(title, session_id).
+    assert gen.output_dir.replace("\\", "/").endswith(
+        "output/tien_hiep_test__abc123/images"
+    )
+    assert os.path.isdir(gen.output_dir)
+
+
+def test_output_dir_fallback(isolated_image_gen_env):
+    from services.media.image_generator import ImageGenerator
+
+    gen = ImageGenerator(provider="none")
+    assert gen.output_dir.replace("\\", "/") == "output/images"
+
+
+def test_slug_session_dir_helper():
+    from services.media._util import slug_session_dir
+
+    assert slug_session_dir("Hello World!", "sid1") == "hello_world__sid1"
+    assert slug_session_dir("", "x") == "story_x"
+    assert slug_session_dir("a" * 100, "s") == "a" * 60 + "_s"
+
+
+def test_handlers_relpath_subdirs(isolated_image_gen_env, monkeypatch):
+    """services.handlers maps panel paths to OUTPUT_ROOT-relative /media names.
+
+    Under the per-story layout panels live at ``output/<story-slug>/images/...``;
+    handlers store the path relative to OUTPUT_ROOT so the ``/media`` mount
+    (which serves OUTPUT_ROOT) resolves it as ``/media/<rel>``.
+    """
+    import services.handlers as handlers_mod
+
+    # Build minimal fake objects to drive handle_generate_images.
+    class _Ch:
+        chapter_number = 1
+        title = "ch1"
+        content = "x"
+        summary = ""
+        images: list = []
+
+    class _Story:
+        chapters = [_Ch()]
+
+    class _Output:
+        enhanced_story = _Story()
+        story_draft = type("D", (), {"title": "T", "characters": []})()
+
+    class _Orch:
+        session_id = "sid1"
+        output = _Output()
+
+    # Patch the heavy dependencies.
+    monkeypatch.setattr(
+        "services.media.image_prompt_generator.ImagePromptGenerator.generate_from_chapter",
+        lambda self, *a, **kw: [MagicMock(panel_number=1)],
+    )
+    # Force the legacy scene-extraction path regardless of the local
+    # comic_shot_list_enabled flag — the shot-list path calls the real LLM.
+    from config import ConfigManager
+
+    monkeypatch.setattr(
+        ConfigManager().pipeline,
+        "comic_shot_list_enabled",
+        False,
+        raising=False,
+    )
+
+    sub = "output/t_sid1/images"
+    os.makedirs(sub, exist_ok=True)
+    fake_path = os.path.join(sub, "ch01_panel01.png")
+
+    monkeypatch.setattr(
+        "services.media.image_generator.ImageGenerator.generate_story_images",
+        lambda self, *a, **kw: [fake_path],
+    )
+
+    paths, msg = handlers_mod.handle_generate_images(_Orch(), provider="none")
+    assert paths == [fake_path]
+    # Chapter image entries keep the full OUTPUT_ROOT-relative path (story slug
+    # + images subdir), not just the basename, so /media resolves it.
+    assert _Orch.output.enhanced_story.chapters[0].images == [
+        "t_sid1/images/ch01_panel01.png"
+    ]

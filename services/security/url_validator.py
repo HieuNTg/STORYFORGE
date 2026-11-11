@@ -13,9 +13,9 @@ at 169.254.169.254 included) — resolution matters, otherwise `evil.example`
 pointing at 127.0.0.1 walks straight through a hostname-only check.
 
 Two deliberate exceptions:
-  * Loopback typed explicitly (localhost / 127.0.0.1 / ::1) is allowed — local
-    bridges are a supported provider (see config/presets.py, the Gemini Web
-    card at localhost:8000).
+  * Loopback typed explicitly (localhost / 127.0.0.1 / ::1) is allowed — a
+    local OpenAI-compatible server (Ollama, vLLM, LM Studio) is a supported
+    provider.
   * STORYFORGE_ALLOW_PRIVATE_BASE_URL=1 lifts the private-range block for the
     LAN case (an Ollama/vLLM box at 192.168.x.x). Opt-in, off by default.
 """

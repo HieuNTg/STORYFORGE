@@ -17,7 +17,6 @@ STORYFORGE/
 ├── data/                       # Project data & prompts
 ├── docs/                       # Documentation
 ├── errors/                     # Error definitions & handlers
-├── flowkit_extension/          # FlowKit extension
 ├── frontend/                   # Next.js 16 React 19 UI
 ├── locales/                    # i18n (Vietnamese/Chinese)
 ├── middleware/                 # Express/Next.js middleware stack
@@ -215,7 +214,6 @@ The API has 38 route modules under `api/`, plus a versioned `api/v1/` router:
 | `diagnostics_routes.py` | `/diagnostics` | Debug endpoints |
 | `ab_routes.py` | `/ab` | A/B testing |
 | `config_routes.py` | `/config` | Settings management |
-| `flowkit.py` | — | FlowKit media integration |
 
 ### Versioned API (`api/v1/`)
 

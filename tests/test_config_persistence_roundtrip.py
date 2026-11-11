@@ -39,8 +39,10 @@ class TestEveryFieldIsPersisted:
 
         expected = {f.name for f in dataclasses.fields(PipelineConfig)}
         missing = expected - saved.keys()
-        # `voice` is a derived nested view rebuilt by __post_init__.
-        assert missing == {"voice"}, f"unexpectedly missing: {missing - {'voice'}}"
+        # `voice` is a derived nested view rebuilt by __post_init__;
+        # `image_provider_notice` is runtime-only state about the last load.
+        derived = {"voice", "image_provider_notice"}
+        assert missing == derived, f"unexpectedly missing: {missing - derived}"
 
     @pytest.mark.parametrize(
         "field_name",
@@ -172,8 +174,6 @@ class TestDefaultsHaveOneSourceOfTruth:
             "comic_shot_list_enabled",
             "comic_compositor_enabled",
             "panels_max",
-            "flowkit_enabled",
-            "flowkit_aspect_ratio",
         ],
     )
     def test_api_reports_the_dataclass_default(self, field_name):

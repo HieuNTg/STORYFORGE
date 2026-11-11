@@ -334,7 +334,7 @@ class TestRefusalDetection:
     """
 
     def test_real_refusal_payload_detected(self):
-        # Verbatim shape observed from the Gemini web bridge in a tiên hiệp run.
+        # Verbatim shape observed from a local LLM bridge in a tiên hiệp run.
         assert DramaSimulator._looks_like_refusal(
             {
                 "message": "Tôi không thể thực hiện yêu cầu nhập vai...",

@@ -70,7 +70,7 @@ Sau đó mở **http://localhost:3001/forge/** → **Cài đặt → Khóa API**
 - **Tiếp tục truyện** — preview đa hướng, outline editor, viết cộng tác, kiểm tra nhất quán, chèn chương giữa truyện, sửa hồi tố
 - **Luồng dựa trên thư viện local** — Đọc truyện, Phân nhánh, Mô phỏng và Nhân vật đều bắt đầu bằng chọn truyện đã lưu trong thư viện; không dùng session giả `demo` hoặc text rời rạc.
 - **Branch reader** — CYOA do LLM sinh, cây SVG + minimap, undo/redo, bookmarks, WebSocket multi-user, xuất EPUB cây
-- **Hình ảnh nhân vật nhất quán** — cùng một gương mặt xuyên suốt mọi chương (consistency bằng ảnh tham chiếu / IP-Adapter) cùng phông cảnh điện ảnh. Sinh local miễn phí qua HuggingFace FLUX hoặc [FlowKit](docs/flowkit-integration.md) (Imagen 3, chỉ local — rủi ro cấm tài khoản, dùng tài khoản Google phụ); trả phí qua DALL·E / Seedream. Xem [Ảnh minh hoạ](#ảnh-minh-hoạ) và [bảng thiết lập bên dưới](#tạo-hình-ảnh).
+- **Hình ảnh nhân vật nhất quán** — cùng một gương mặt xuyên suốt mọi chương (consistency bằng ảnh tham chiếu / IP-Adapter) cùng phông cảnh điện ảnh. Sinh miễn phí qua HuggingFace FLUX; trả phí qua DALL·E / Seedream. Xem [Ảnh minh hoạ](#ảnh-minh-hoạ) và [bảng thiết lập bên dưới](#tạo-hình-ảnh).
 - **Provider profile + dropdown model** — Cài đặt có thẻ thêm nhanh cho Gemini, Anthropic, OpenAI, OpenRouter Free, Z.AI và Kyma. Model được chọn bằng dropdown (Gemini/Gemma, OpenRouter free text models, OpenAI/Anthropic, fallback GLM/Qwen/DeepSeek); cheap/L1/L2 cũng chọn từ provider đã cấu hình thay vì nhập tay.
 - **Mọi LLM tương thích OpenAI** — OpenAI, Gemini, Anthropic, OpenRouter, Z.AI, Kyma, Ollama, custom; rate-limit switch chủ động, routing theo latency, định tuyến cheap/premium, cache SQLite
 - **Bảo mật** — CSRF double-submit, body cap 10 MB, middleware chặn prompt injection, mã hoá secrets at-rest
@@ -105,7 +105,6 @@ Override model theo lớp, drama ceiling, batch size, voice-revert anchoring, �
 | `huggingface` | Đặt `hf_token` | **Free tier** | `FLUX.1-schnell` qua HF Inference API — đường miễn phí dễ nhất. |
 | `dalle` | Đặt `image_api_key` (+ `image_api_url` tuỳ chọn) | Trả phí | Endpoint ảnh tương thích OpenAI / Azure. |
 | `seedream` | Đặt `seedream_api_key` + `seedream_api_url` | Trả phí | Seedream (ByteDance); cũng là engine consistency mặc định. |
-| `flowkit` | Chrome extension + đăng nhập Google Labs | **Free\*** | Proxy local tới Imagen 3. **\*Rủi ro cấm tài khoản — dùng tài khoản Google phụ.** Hướng dẫn đầy đủ: [FlowKit](docs/flowkit-integration.md). |
 
 **Nhất quán nhân vật** — đặt `enable_character_consistency = true` để dùng chân dung đầu tiên của nhân vật làm ảnh tham chiếu, giữ cùng gương mặt qua mọi chương (`character_consistency_provider`: `seedream` hoặc `replicate`). Phong cách hình do `image_prompt_style` quyết định (mặc định `cinematic`), tỉ lệ chân dung mặc định `9:16`. [Các chân dung mẫu phía trên](#ảnh-minh-hoạ) được tạo theo cách này.
 

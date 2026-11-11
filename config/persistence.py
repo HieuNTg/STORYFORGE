@@ -15,6 +15,13 @@ logger = logging.getLogger(__name__)
 CONFIG_FILE = "data/config.json"
 _SECRETS_FILE = "data/secrets.json"  # legacy — read-only fallback for migration
 
+#: Image providers that automated a consumer web session and were removed.
+#: An older config.json may still select one; load_config resets it to "none"
+#: and records the name in ``image_provider_notice`` so the UI can say why.
+REMOVED_IMAGE_PROVIDERS: frozenset[str] = frozenset({"flowkit", "codex", "qwen-local"})
+#: Config keys those providers owned. save_config drops them from the file.
+_REMOVED_KEY_PREFIXES = ("flowkit_", "qwen_local_", "codex_")
+
 # Maps env var name -> (section, field_name)
 # Note: ZAI_API_KEY is handled directly in client._build_fallback_chain for auto-fallback
 _ENV_MAP: dict[str, tuple[str, str]] = {
@@ -28,9 +35,6 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_AGENTIC_REPAIR": ("pipeline", "enable_agentic_repair"),
     "STORYFORGE_LENGTH_GATE_RATIO": ("pipeline", "length_gate_min_ratio"),
     "IMAGE_API_KEY": ("pipeline", "image_api_key"),
-    "QWEN_LOCAL_BASE_URL": ("pipeline", "qwen_local_base_url"),
-    "QWEN_LOCAL_API_KEY": ("pipeline", "qwen_local_api_key"),
-    "QWEN_LOCAL_MODEL": ("pipeline", "qwen_local_model"),
     "IMAGE_API_URL": ("pipeline", "image_api_url"),
     "SEEDREAM_API_KEY": ("pipeline", "seedream_api_key"),
     "SEEDREAM_API_URL": ("pipeline", "seedream_api_url"),
@@ -89,6 +93,24 @@ def load_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
 
     _migrate_legacy_secrets(llm, pipeline)
     _apply_env_overrides(llm, pipeline)
+    _retire_removed_providers(pipeline)
+
+
+def _retire_removed_providers(pipeline: "PipelineConfig") -> None:
+    """Reset a removed image provider to "none" and remember which one it was.
+
+    Runs after the file, the legacy secrets and the environment have all been
+    applied, so a removed provider is caught whichever of them selected it.
+    """
+    for field in ("image_provider", "character_consistency_provider"):
+        value = getattr(pipeline, field, "")
+        if value in REMOVED_IMAGE_PROVIDERS:
+            logger.warning(
+                "%s %r is no longer supported; reset to 'none'", field, value
+            )
+            setattr(pipeline, field, "none")
+            if not pipeline.image_provider_notice:
+                pipeline.image_provider_notice = value
 
 
 def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
@@ -176,7 +198,8 @@ def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
 #   voice — a derived nested view of the flat voice_*/l2_voice_* fields, rebuilt
 #   by PipelineConfig.__post_init__. Persisting it would let a stale copy fight
 #   the flat fields that stay authoritative.
-_NON_PERSISTED_PIPELINE_FIELDS = frozenset({"voice"})
+#   image_provider_notice — runtime only; it describes this load, not a setting.
+_NON_PERSISTED_PIPELINE_FIELDS = frozenset({"voice", "image_provider_notice"})
 _NON_PERSISTED_LLM_FIELDS: frozenset[str] = frozenset()
 
 
@@ -214,16 +237,24 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Could not read existing config for merge: {e}")
 
+    def _kept(section: str) -> dict:
+        # Keys of removed providers are dropped rather than carried forward.
+        return {
+            k: v
+            for k, v in (existing.get(section) or {}).items()
+            if not k.startswith(_REMOVED_KEY_PREFIXES)
+        }
+
     data = {
         **{k: v for k, v in existing.items() if k not in ("llm", "pipeline")},
         "llm": {
-            **(existing.get("llm") or {}),
+            **_kept("llm"),
             **_section_dict(
                 llm, _NON_PERSISTED_LLM_FIELDS | _env_overridden_fields("llm")
             ),
         },
         "pipeline": {
-            **(existing.get("pipeline") or {}),
+            **_kept("pipeline"),
             **_section_dict(
                 pipeline,
                 _NON_PERSISTED_PIPELINE_FIELDS | _env_overridden_fields("pipeline"),

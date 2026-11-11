@@ -131,7 +131,6 @@ User Input
 | `diagnostics_routes.py` | Diagnostics | Debug/ diagnostics |
 | `ab_routes.py` | A/B testing | Experiment variants |
 | `config_routes.py` | Configuration | Settings management |
-| `flowkit.py` | FlowKit integration | Media/flow processing |
 
 **Note:** `api/v1/router.py` reuses all the above modules under `/api/v1/` prefix with `X-API-Version: v1` header. See `ARCHITECTURE.md` for freeze details.
 
