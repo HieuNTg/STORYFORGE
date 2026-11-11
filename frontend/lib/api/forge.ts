@@ -70,6 +70,7 @@ export function forgeFromSentenceStream(
             handlers.onError?.(err);
             reject(err);
           }
+          throw err; // stop fetchEventSource from retrying
         }
       },
       onmessage: (msg) => {
@@ -96,14 +97,26 @@ export function forgeFromSentenceStream(
           reject(err);
         }
       },
+      onclose: () => {
+        const e = new Error("forge stream closed before completion");
+        if (!settled) {
+          settled = true;
+          handlers.onError?.(e);
+          reject(e);
+        }
+        throw e; // never reconnect (would re-POST)
+      },
       onerror: (err) => {
-        if (settled) return;
-        settled = true;
         const e = err instanceof Error ? err : new Error(String(err));
-        handlers.onError?.(e);
-        reject(e);
+        if (!settled) {
+          settled = true;
+          handlers.onError?.(e);
+          reject(e);
+        }
         throw e; // stop retries
       },
+    }).catch(() => {
+      // Settlement is handled via the callbacks above.
     });
   });
 }
