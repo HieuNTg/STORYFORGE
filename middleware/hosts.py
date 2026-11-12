@@ -10,16 +10,34 @@ of the names StoryForge is really reached by is enough:
 - ``api`` — the compose service name the Next.js proxy uses,
 - ``host.docker.internal`` — a container on the same machine.
 
-``STORYFORGE_ALLOWED_HOSTS`` (comma-separated) adds more, e.g. a LAN name.
+``STORYFORGE_ALLOWED_HOSTS`` (comma-separated) adds more, e.g. a LAN name, and
+the host of every ``STORYFORGE_ALLOWED_ORIGINS`` entry is trusted too, so the
+LAN recipe needs only the origin.
+
+Behind the Next.js proxy the API never sees the browser's Host: the rewrite
+proxy runs with ``changeOrigin`` and sends ``Host: api:7860`` (Docker) or
+``localhost:7860`` (dev). The browser's Host arrives in ``X-Forwarded-Host``,
+which Next sets from the incoming Host header and overwrites any value the
+client sent (``next/dist/server/lib/router-utils/proxy-request.js`` passes it
+in the proxy's ``headers`` option, applied after the incoming headers are
+copied). So when ``X-Forwarded-Host`` is present, its first value must pass
+the same allow list; otherwise a rebound page on ``evil.example:3001`` would
+reach the API through the web port.
 
 Starlette's ``TrustedHostMiddleware`` is not used: it splits the Host header
 on the first ``:``, which turns ``[::1]:7860`` into ``[`` and rejects IPv6
 loopback. ``TrustedHostsMiddleware`` below parses bracketed IPv6 properly and
 also covers WebSocket handshakes.
 
-The Origin side (``origin_allowed``) is for WebSocket upgrades, which CORS
-does not cover: any page may open a WebSocket to any host, so the handler has
-to check ``Origin`` itself before accepting (cross-site WebSocket hijacking).
+The Origin side (``origin_allowed``) covers what CORS does not:
+
+- WebSocket upgrades: any page may open a WebSocket to any host, so the
+  handler checks ``Origin`` itself before accepting (cross-site WebSocket
+  hijacking);
+- unsafe methods (POST/PUT/PATCH/DELETE): ``TrustedHostsMiddleware`` answers
+  403 when a browser-sent ``Origin`` is not on the list. CORS only hides the
+  response from a foreign page; the write would already have happened.
+  Requests without ``Origin`` (curl, scripts) are left to the CSRF check.
 """
 
 from __future__ import annotations
@@ -28,7 +46,7 @@ import logging
 import os
 
 from starlette.datastructures import Headers
-from starlette.responses import PlainTextResponse
+from starlette.responses import JSONResponse, PlainTextResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
 logger = logging.getLogger(__name__)
@@ -51,32 +69,58 @@ _DEFAULT_ORIGINS = [
 ]
 
 
+_UNSAFE_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
 def allowed_hosts() -> list[str]:
-    """Default hosts plus any listed in ``STORYFORGE_ALLOWED_HOSTS``."""
+    """Default hosts, plus ``STORYFORGE_ALLOWED_HOSTS``, plus the host of each
+    allowed origin (``STORYFORGE_ALLOWED_ORIGINS``)."""
     raw = os.environ.get("STORYFORGE_ALLOWED_HOSTS", "")
     extra = [h.strip() for h in raw.split(",") if h.strip()]
-    return DEFAULT_ALLOWED_HOSTS + [h for h in extra if h not in DEFAULT_ALLOWED_HOSTS]
+    extra += [h for h in (_origin_host(o) for o in _get_allowed_origins()) if h]
+    hosts = list(DEFAULT_ALLOWED_HOSTS)
+    for h in extra:
+        if h not in hosts:
+            hosts.append(h)
+    return hosts
+
+
+def _origin_host(origin: str) -> str | None:
+    """Host part of an origin, lower-cased, port stripped; IPv6 stays bracketed.
+
+    ``http://storyforge.lan:3001`` -> ``storyforge.lan``;
+    ``https://[fd00::5]:3001`` -> ``[fd00::5]``. None when unparseable.
+    """
+    _, sep, rest = origin.strip().partition("://")
+    if not sep:
+        return None
+    names = _host_candidates(rest.split("/", 1)[0])
+    if not names:
+        return None
+    bracketed = [n for n in names if n.startswith("[")]
+    return bracketed[0] if bracketed else next(iter(names))
 
 
 def _get_allowed_origins() -> list[str]:
-    """Read allowed CORS origins from STORYFORGE_ALLOWED_ORIGINS env var.
+    """Allowed CORS origins: the local frontend/API defaults plus any listed in
+    ``STORYFORGE_ALLOWED_ORIGINS`` (comma-separated, additive).
 
-    Falls back to the local frontend/API defaults. Rejects wildcard '*' with a
-    warning — credentials are allowed, which the CORS spec forbids with '*'.
+    A wildcard ``*`` entry is dropped with a warning — credentials are allowed,
+    which the CORS spec forbids with ``*``.
 
         export STORYFORGE_ALLOWED_ORIGINS="http://storyforge.lan:3001"
     """
     raw = os.environ.get("STORYFORGE_ALLOWED_ORIGINS", "")
-    if raw.strip():
-        origins = [o.strip() for o in raw.split(",") if o.strip()]
-        if "*" in origins:
-            logger.warning(
-                "STORYFORGE_ALLOWED_ORIGINS contains '*' — ignoring and using "
-                "safe defaults instead. Set explicit origins."
-            )
-            return _DEFAULT_ORIGINS
-        return origins
-    return _DEFAULT_ORIGINS
+    configured = [o.strip() for o in raw.split(",") if o.strip()]
+    if "*" in configured:
+        logger.warning(
+            "STORYFORGE_ALLOWED_ORIGINS contains '*' — ignoring it. Set explicit origins."
+        )
+    origins = list(_DEFAULT_ORIGINS)
+    for o in configured:
+        if o != "*" and o not in origins:
+            origins.append(o)
+    return origins
 
 
 def _normalize_origin(origin: str) -> str:
@@ -123,11 +167,23 @@ def _host_candidates(header: str) -> set[str]:
     return {value}
 
 
-class TrustedHostsMiddleware:
-    """Reject HTTP requests and WebSocket handshakes with an unknown Host.
+def _first_forwarded(value: str) -> str:
+    """First entry of a comma-separated ``X-Forwarded-Host`` value."""
+    return value.split(",", 1)[0].strip()
 
-    The allow list is read once, at construction (``allowed_hosts()``).
-    HTTP gets ``400 Invalid host header``; a WebSocket is closed before
+
+class TrustedHostsMiddleware:
+    """Reject requests with an unknown Host / X-Forwarded-Host or, on unsafe
+    methods, a foreign Origin.
+
+    - ``Host`` must be on the allow list (read once, at construction, from
+      ``allowed_hosts()``).
+    - ``X-Forwarded-Host``, when present and non-empty, is the browser's Host
+      as seen by the Next proxy; its first value must pass the same check.
+    - POST/PUT/PATCH/DELETE carrying an ``Origin`` that ``origin_allowed()``
+      rejects get ``403`` with ``{"detail": {"code": "origin_not_allowed"}}``.
+
+    A bad host gets ``400 Invalid host header``; a WebSocket is closed before
     accept, which the server answers with 403.
     """
 
@@ -142,13 +198,29 @@ class TrustedHostsMiddleware:
         if scope["type"] not in ("http", "websocket"):
             await self.app(scope, receive, send)
             return
-        host = Headers(scope=scope).get("host", "")
-        if self.is_trusted(host):
-            await self.app(scope, receive, send)
+        headers = Headers(scope=scope)
+        host = headers.get("host", "")
+        forwarded = _first_forwarded(headers.get("x-forwarded-host", ""))
+        bad = None
+        if not self.is_trusted(host):
+            bad = ("Host", host)
+        elif forwarded and not self.is_trusted(forwarded):
+            bad = ("X-Forwarded-Host", forwarded)
+        if bad is not None:
+            logger.warning("Rejected request with untrusted %s header %r", *bad)
+            if scope["type"] == "websocket":
+                await send({"type": "websocket.close", "code": 1008})
+                return
+            response = PlainTextResponse("Invalid host header", status_code=400)
+            await response(scope, receive, send)
             return
-        logger.warning("Rejected request with untrusted Host header %r", host)
-        if scope["type"] == "websocket":
-            await send({"type": "websocket.close", "code": 1008})
-            return
-        response = PlainTextResponse("Invalid host header", status_code=400)
-        await response(scope, receive, send)
+        if scope["type"] == "http" and scope.get("method") in _UNSAFE_METHODS:
+            origin = headers.get("origin")
+            if not origin_allowed(origin):
+                logger.warning("Rejected %s with foreign Origin %r", scope["method"], origin)
+                response = JSONResponse(
+                    status_code=403, content={"detail": {"code": "origin_not_allowed"}}
+                )
+                await response(scope, receive, send)
+                return
+        await self.app(scope, receive, send)

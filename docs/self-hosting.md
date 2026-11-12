@@ -94,7 +94,7 @@ By default only the machine itself can reach StoryForge. To let other devices on
    ```
 
 2. `STORYFORGE_ACCESS_TOKEN` makes every API call require the token. The UI shows an unlock screen and keeps you signed in with an httponly session cookie.
-3. `STORYFORGE_ALLOWED_ORIGINS` takes full origins, comma-separated: put the address you type in the browser, e.g. `http://192.168.1.20:3001` or `http://storyforge.lan:3001`.
+3. `STORYFORGE_ALLOWED_ORIGINS` takes full origins, comma-separated: put the address you type in the browser, e.g. `http://192.168.1.20:3001` or `http://storyforge.lan:3001`. It adds to the built-in `localhost` origins. It is required: the API refuses requests whose browser host (`X-Forwarded-Host`, set by the web server) is not trusted, and writes whose `Origin` is not allowed. The host name of each origin listed here is trusted automatically.
 4. Only if you also publish the API port 7860 and call it directly, add the name or IP to `STORYFORGE_ALLOWED_HOSTS` (host names or IPs only, comma-separated, no ports or wildcards).
 5. Apply with `docker compose up -d`. Compose loads `compose.override.yaml` automatically only when you do not pass `-f`; with the prebuilt images pass both files: `STORYFORGE_VERSION=x.y.z docker compose -f compose.release.yaml -f compose.override.yaml up -d`.
 
@@ -114,11 +114,11 @@ Use any non-empty API key (Ollama ignores it) and the model name you pulled, for
 
 ## Troubleshooting
 
-- **Port already in use.** Another program holds 3001 or 7860. Stop it, or change the left-hand number in a `compose.override.yaml` with `ports: !override ["127.0.0.1:3002:3000"]`.
+- **Port already in use.** Another program holds 3001 or 7860. Stop it, or change the left-hand number in a `compose.override.yaml` with `ports: !override ["127.0.0.1:3002:3000"]`. A web port other than 3001 is a new origin: also set `STORYFORGE_ALLOWED_ORIGINS: http://localhost:3002` on the `api` service, or saving and generating fail with 403.
 - **The web build is killed or fails with out-of-memory.** Raise the memory available to Docker (Docker Desktop, Settings, Resources) to at least 6 GB, then rebuild.
 - **The web build fails to download fonts.** The build needs internet access to Google Fonts. Check your proxy or VPN.
 - **Windows: the build fails with path errors.** Run `docker compose` from a shell whose current directory uses an uppercase drive letter, for example `C:\Users\you\STORYFORGE`. A lowercase `c:\...` path breaks the builder.
 - **Progress stops updating (SSE stalls) when another reverse proxy sits in front.** Turn off response buffering for StoryForge in that proxy. For nginx: `proxy_buffering off;` and a long `proxy_read_timeout`.
-- **400 or 403 errors from a LAN address.** Add the exact origin you browse to (scheme, host and port) to `STORYFORGE_ALLOWED_ORIGINS`. If you call the API port 7860 directly, add that host name to `STORYFORGE_ALLOWED_HOSTS` too.
+- **400 `Invalid host header` or 403 `origin_not_allowed`.** The address in your browser's bar is not trusted. Add that exact origin (scheme, host and port, e.g. `http://192.168.1.20:3001`) to `STORYFORGE_ALLOWED_ORIGINS` on the `api` service; its host name is then trusted too. This also applies behind your own reverse proxy (use the public origin, e.g. `https://storyforge.example`) and to a changed web port. If you call the API port 7860 directly, add that host name to `STORYFORGE_ALLOWED_HOSTS` too.
 - **Saved API keys stopped working after a restore.** `.secret_key` was not restored with `config.json`. Re-enter the keys in Settings.
 - **Logs.** `docker compose logs -f api` and `docker compose logs -f web`.

@@ -4,8 +4,8 @@ Starts FastAPI, mounts API routes and static files.
 The UI is served by Next.js from frontend/ (run separately on :3000).
 
 CORS policy:
-  Allowed origins are read from the STORYFORGE_ALLOWED_ORIGINS env var
-  (comma-separated list). Defaults to the local frontend (:3001) and API (:7860).
+  Allowed origins are the local frontend (:3001) and API (:7860) plus any
+  listed in the STORYFORGE_ALLOWED_ORIGINS env var (comma-separated).
   Wildcard "*" is intentionally NOT used — set explicit origins for production.
 """
 
@@ -50,8 +50,9 @@ _START_TIME = time.time()
 # The allow list lives in middleware/hosts.py (the branch WebSocket checks
 # Origin against the same list); re-exported here for callers of app.py.
 #   - No wildcard '*': wildcard entries in STORYFORGE_ALLOWED_ORIGINS are
-#     rejected with a warning (credentials are allowed, which '*' forbids).
-#   - Defaults: the frontend on :3001 and the API on :7860, by name and IP.
+#     dropped with a warning (credentials are allowed, which '*' forbids).
+#   - Defaults: the frontend on :3001 and the API on :7860, by name and IP;
+#     STORYFORGE_ALLOWED_ORIGINS adds to them.
 #   - Allowed methods: GET, POST, PUT, DELETE, OPTIONS (no TRACE/CONNECT).
 #
 from middleware.hosts import _DEFAULT_ORIGINS, _get_allowed_origins  # noqa: F401
@@ -179,8 +180,9 @@ def create_app() -> FastAPI:
     #   TrustedHosts → TraceID → CORS → BodySize → SecurityHeaders → CSRF
     #   → Access → RateLimit → Sanitization → Audit → Metrics → GZip
     #
-    # - TrustedHosts first: DNS-rebinding requests are rejected before any
-    #   other layer runs (allow list: middleware/hosts.py).
+    # - TrustedHosts first: DNS-rebinding requests (bad Host or, behind the
+    #   Next proxy, bad X-Forwarded-Host) and writes with a foreign Origin
+    #   are rejected before any other layer runs (middleware/hosts.py).
     # - TraceID next: every response past the Host check carries
     #   X-Request-ID (413/403/401/429 rejections included), and every inner
     #   log line can read it.

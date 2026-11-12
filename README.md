@@ -95,7 +95,7 @@ Settings are stored in `data/config.json` (inside the `storyforge-data` volume) 
 |----------|---------|
 | `STORYFORGE_ACCESS_TOKEN` | Optional shared token. When set, the UI shows an unlock screen. |
 | `STORYFORGE_ALLOWED_HOSTS` | Extra accepted Host names, comma-separated (names only, no ports or wildcards). |
-| `STORYFORGE_ALLOWED_ORIGINS` | Extra CORS origins, comma-separated. |
+| `STORYFORGE_ALLOWED_ORIGINS` | Extra browser origins (e.g. `http://192.168.1.20:3001`), comma-separated, added to the `localhost` defaults. Their host names are trusted too. |
 | `STORYFORGE_SECRET_KEY` | Optional Fernet key for encrypting stored keys. If unset, one is generated in `data/.secret_key`. |
 | `STORYFORGE_DEBUG` | Enables the API docs at `/docs`. |
 | `STORYFORGE_DB_PATH` | SQLite database path. |
@@ -111,7 +111,7 @@ StoryForge is free software, but **you pay your LLM (and image) provider** for e
 
 - Everything stays on your machine. The only outbound traffic is to the LLM and image providers you configure.
 - By default the stack listens on localhost only and has no login.
-- To reach it from another device on your LAN, change the port bindings **and** set `STORYFORGE_ACCESS_TOKEN` (and `STORYFORGE_ALLOWED_HOSTS` for the name you use). See [docs/self-hosting.md](docs/self-hosting.md). Do not expose it to the internet.
+- To reach it from another device on your LAN, change the port bindings **and** set `STORYFORGE_ACCESS_TOKEN` (and `STORYFORGE_ALLOWED_ORIGINS` for the address you browse to). See [docs/self-hosting.md](docs/self-hosting.md). Do not expose it to the internet.
 - API keys are encrypted at rest. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
 ## UI routes

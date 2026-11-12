@@ -46,7 +46,7 @@ Conventions for StoryForge contributors. Setup, checks and the PR checklist are 
 
 1. Validate inputs with Pydantic schemas.
 2. Keep secrets in `.env` or `data/` (never committed); the UI only ever receives masked keys (see `docs/frontend-security.md`).
-3. CORS uses an explicit allow list (`STORYFORGE_ALLOWED_ORIGINS`); unknown Host headers are rejected (`STORYFORGE_ALLOWED_HOSTS`).
+3. CORS uses an explicit allow list (local defaults plus `STORYFORGE_ALLOWED_ORIGINS`); unknown `Host` / `X-Forwarded-Host` headers are rejected (`STORYFORGE_ALLOWED_HOSTS`), and so are writes with a foreign `Origin`.
 4. State-changing requests need the CSRF double-submit token; `/docs`, `/redoc` and `/openapi.json` exist only with `STORYFORGE_DEBUG=1`.
 5. Do not reorder middleware without updating `tests/test_middleware_order.py`.
 

@@ -23,9 +23,16 @@ StoryForge is built to run on your own machine. What it protects, and how:
 - **Loopback only by default.** The Docker compose files publish the API (7860)
   and the web UI (3001) on `127.0.0.1` only. Outside Docker, the API binds to
   `127.0.0.1` and refuses to start on any other address unless an access token
-  is set. Requests are checked against an allow-list of `Host` headers and of
-  browser `Origin` values (extend them with `STORYFORGE_ALLOWED_HOSTS` and
-  `STORYFORGE_ALLOWED_ORIGINS`).
+  is set.
+- **Host and Origin checks (DNS rebinding, CSRF).** Every request's `Host`
+  header must be on an allow-list. Behind the web UI's proxy the API sees the
+  browser's host in `X-Forwarded-Host`, which must pass the same list, so a page
+  that re-points its own domain at your machine is refused. A browser `Origin`
+  on a POST, PUT, PATCH or DELETE must be an allowed origin (403 otherwise), and
+  WebSocket upgrades check `Origin` too. The defaults cover `localhost` and
+  `127.0.0.1` on ports 3001 and 7860; `STORYFORGE_ALLOWED_ORIGINS` adds origins
+  (their host names are trusted as hosts as well) and `STORYFORGE_ALLOWED_HOSTS`
+  adds host names. State-changing requests also need the double-submit CSRF token.
 - **Optional shared access token.** Set `STORYFORGE_ACCESS_TOKEN` to require it
   on every API call. The browser UI trades the token for an httponly session
   cookie. Sessions are not individually revocable; rotating the token revokes

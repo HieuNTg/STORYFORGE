@@ -95,7 +95,7 @@ Cài đặt được lưu trong `data/config.json` (trong volume `storyforge-dat
 |------|----------|
 | `STORYFORGE_ACCESS_TOKEN` | Token dùng chung, tùy chọn. Khi đặt, giao diện hiện màn hình mở khóa. |
 | `STORYFORGE_ALLOWED_HOSTS` | Tên Host được chấp nhận thêm, phân tách bằng dấu phẩy (chỉ tên, không có cổng hay ký tự đại diện). |
-| `STORYFORGE_ALLOWED_ORIGINS` | Origin CORS bổ sung, phân tách bằng dấu phẩy. |
+| `STORYFORGE_ALLOWED_ORIGINS` | Origin trình duyệt bổ sung (ví dụ `http://192.168.1.20:3001`), phân tách bằng dấu phẩy, cộng thêm vào các origin `localhost` mặc định. Tên host của chúng cũng được tin cậy. |
 | `STORYFORGE_SECRET_KEY` | Khóa Fernet tùy chọn để mã hóa key đã lưu. Nếu không đặt, khóa tự sinh trong `data/.secret_key`. |
 | `STORYFORGE_DEBUG` | Bật tài liệu API tại `/docs`. |
 | `STORYFORGE_DB_PATH` | Đường dẫn cơ sở dữ liệu SQLite. |
@@ -111,7 +111,7 @@ StoryForge là phần mềm miễn phí, nhưng **bạn trả tiền cho nhà cu
 
 - Mọi thứ nằm trên máy bạn. Lưu lượng ra ngoài chỉ gồm các nhà cung cấp LLM và ảnh mà bạn cấu hình.
 - Mặc định hệ thống chỉ lắng nghe trên localhost và không có đăng nhập.
-- Muốn truy cập từ thiết bị khác trong mạng LAN, hãy đổi cổng bind **và** đặt `STORYFORGE_ACCESS_TOKEN` (cùng `STORYFORGE_ALLOWED_HOSTS` cho tên bạn dùng). Xem [docs/self-hosting.md](docs/self-hosting.md). Không mở ra internet.
+- Muốn truy cập từ thiết bị khác trong mạng LAN, hãy đổi cổng bind **và** đặt `STORYFORGE_ACCESS_TOKEN` (cùng `STORYFORGE_ALLOWED_ORIGINS` cho địa chỉ bạn mở trong trình duyệt). Xem [docs/self-hosting.md](docs/self-hosting.md). Không mở ra internet.
 - API key được mã hóa khi lưu. Báo lỗ hổng bảo mật theo [SECURITY.md](SECURITY.md).
 
 ## Các route giao diện

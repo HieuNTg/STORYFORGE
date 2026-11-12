@@ -65,9 +65,9 @@ All LLM calls go through services/llm/client.py (providers, retry, fallback, cac
 
 Outermost first (built in `app.py` `create_app`; pinned by `tests/test_middleware_order.py`):
 
-1. `TrustedHostsMiddleware` (`middleware/hosts.py`): rejects unknown Host headers (DNS rebinding). Defaults: `localhost`, `127.0.0.1`, `[::1]`, `api`, `host.docker.internal`; add more with `STORYFORGE_ALLOWED_HOSTS`.
+1. `TrustedHostsMiddleware` (`middleware/hosts.py`): rejects unknown `Host` headers and, behind the Next proxy, an unknown `X-Forwarded-Host` (DNS rebinding through the web port); rejects POST/PUT/PATCH/DELETE whose browser `Origin` is not allowed (403 `origin_not_allowed`). Default hosts: `localhost`, `127.0.0.1`, `[::1]`, `api`, `host.docker.internal`; add more with `STORYFORGE_ALLOWED_HOSTS`. Hosts of `STORYFORGE_ALLOWED_ORIGINS` entries are trusted too.
 2. `TraceIDMiddleware`: `X-Request-ID` on every response past the Host check.
-3. CORS: explicit origins only (`STORYFORGE_ALLOWED_ORIGINS`), no wildcard.
+3. CORS: explicit origins only (local defaults plus `STORYFORGE_ALLOWED_ORIGINS`), no wildcard.
 4. `BodySizeLimitMiddleware` (`middleware/body_limit.py`): 10 MB, chunked bodies included.
 5. `SecurityHeadersMiddleware`: CSP, X-Frame-Options, etc.
 6. `CSRFMiddleware`: double-submit cookie; `/docs`, `/redoc`, `/openapi.json` are exempt only when `STORYFORGE_DEBUG=1`.
