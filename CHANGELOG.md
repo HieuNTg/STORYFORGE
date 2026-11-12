@@ -7,6 +7,17 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
+## [Unreleased]
+
+### Security
+
+- **Python dependencies patched** -- anyio 4.14, certifi 2026.10, cryptography 50, filelock 4.2, fpdf2 2.8.9, fsspec 2026.9, idna 3.20, lxml 6.1, oauthlib 4.0, OpenTelemetry 1.45, Pillow 13, sentence-transformers 5.7, setuptools 84, starlette 1.10, transformers 5.22, urllib3 2.8. torch moves to 2.15 (CPU) because 2.11 capped setuptools below the fixed release
+- **chromadb is still flagged by `pip-audit`** (CVE-2026-45830, CVE-2026-45833) and no release fixes it. Both concern the Chroma HTTP server and its authorization; StoryForge uses the embedded client and runs no Chroma server. The latest chromadb (1.5.9) has the same two plus two more server CVEs, so chromadb stays on 0.4
+
+### Changed
+
+- **sentence-transformers 2 → 5 and transformers 4 → 5** (major upgrades). Embeddings, the embedding cache and the RAG index keep their format; no data migration is needed
+
 ## [2.0.0] - Unreleased
 
 First Docker-first, local self-hosted release. This is a breaking release: authentication, several providers and non-SQLite storage are gone. The owner confirms the version number at tagging time.
