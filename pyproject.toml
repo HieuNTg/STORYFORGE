@@ -25,7 +25,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
     "--cov-report=xml:coverage.xml",
-    "--cov-fail-under=60",
+    "--cov-fail-under=76",
 ]
 # asyncio mode for async tests
 asyncio_mode = "auto"
@@ -37,6 +37,7 @@ markers = [
     "calibration: real-model calibration tests (slow; loads sentence-transformers)",
     "perf: performance benchmarks (10-chapter pipeline timing)",
     "bench: async-nesting perf bench (Sprint 3 P8; excluded from default suite)",
+    "unit: fast, isolated unit test (informational; not used to select tests)",
 ]
 
 [tool.coverage.run]
@@ -62,8 +63,9 @@ omit = [
 branch = true
 
 [tool.coverage.report]
-# Coverage floor — raised to 60% as of P1 sprint
-fail_under = 60
+# Coverage floor — the measured total after removing coverage filler, rounded
+# down. Keep in step with --cov-fail-under above and .coveragerc.
+fail_under = 76
 # Show lines that are not covered
 show_missing = true
 # Skip files with 100% coverage in the detailed report (reduces noise)

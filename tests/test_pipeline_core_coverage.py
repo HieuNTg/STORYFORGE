@@ -434,13 +434,6 @@ class TestCheckpointManager:
         enhancer = MagicMock()
         return CheckpointManager(output, analyzer, simulator, enhancer)
 
-    def test_init_stores_components(self):
-        mgr = self._make_manager()
-        assert mgr.output is not None
-        assert mgr.analyzer is not None
-        assert mgr.simulator is not None
-        assert mgr.enhancer is not None
-
     def test_save_returns_path_string(self):
         mgr = self._make_manager()
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -766,10 +759,6 @@ class TestMediaProducer:
         )
         return MediaProducer(cfg)
 
-    def test_init_stores_config(self):
-        producer = self._make_producer()
-        assert producer.config is not None
-
     def test_run_no_provider_returns_empty(self):
         producer = self._make_producer(image_provider="none")
         draft = create_test_story()
@@ -797,21 +786,6 @@ class TestMediaProducer:
             MockProvider.return_value = mock_prov
             result = producer.run(draft, enhanced, progress_callback=lambda m: None)
         assert len(result["character_refs"]) > 0
-
-    def test_run_progress_callback_called(self):
-        producer = self._make_producer()
-        draft = create_test_story()
-        enhanced = create_enhanced_story(draft)
-        messages = []
-        with patch("pipeline.orchestrator_media.ImageProvider") as MockProvider:
-            mock_prov = MagicMock()
-            mock_prov.is_configured.return_value = False
-            mock_prov.seedream.api_key = ""
-            mock_prov.seedream.base_url = ""
-            MockProvider.return_value = mock_prov
-            producer.run(draft, enhanced, progress_callback=messages.append)
-        # callback should not raise even if nothing to do
-        assert isinstance(messages, list)
 
 
 # ===========================================================================
@@ -857,37 +831,11 @@ class TestImageGenerator:
         result = gen.generate("A beautiful scene")
         assert result is None
 
-    def test_generate_dalle_calls_api(self):
-        gen = self._make_generator(provider="dalle", api_key="sk-test")
-        import base64
-
-        fake_b64 = base64.b64encode(b"fake image bytes").decode()
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"data": [{"b64_json": fake_b64}]}
-        mock_resp.raise_for_status = MagicMock()
-        with patch("requests.post", return_value=mock_resp):
-            with patch("builtins.open", MagicMock()):
-                result = gen._generate_dalle("A scene", "test.png", "1024x1024")
-        assert result is not None
-
     def test_generate_dalle_exception_returns_none(self):
         gen = self._make_generator(provider="dalle", api_key="sk-test")
         with patch("requests.post", side_effect=Exception("network error")):
             result = gen._generate_dalle("A scene", "test.png", "1024x1024")
         assert result is None
-
-    def test_generate_sd_success(self):
-        gen = self._make_generator(provider="sd-api")
-        import base64
-
-        fake_b64 = base64.b64encode(b"fake image").decode()
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"images": [fake_b64]}
-        mock_resp.raise_for_status = MagicMock()
-        with patch("requests.post", return_value=mock_resp):
-            with patch("builtins.open", MagicMock()):
-                result = gen._generate_sd("A scene", "test.png")
-        assert result is not None
 
     def test_generate_sd_exception_returns_none(self):
         gen = self._make_generator(provider="sd-api")
@@ -900,36 +848,6 @@ class TestImageGenerator:
         gen.hf_token = ""
         result = gen._generate_huggingface("A scene", "test.png")
         assert result is None
-
-    def test_generate_huggingface_success(self):
-        gen = self._make_generator(provider="huggingface")
-        gen.hf_token = "hf_test_token"
-        gen.hf_model = "black-forest-labs/FLUX.1-schnell"
-        mock_resp = MagicMock()
-        mock_resp.status_code = 200
-        mock_resp.content = b"fake image bytes"
-        mock_resp.raise_for_status = MagicMock()
-        with patch("requests.post", return_value=mock_resp):
-            with patch("builtins.open", MagicMock()):
-                result = gen._generate_huggingface("A scene", "test.png")
-        assert result is not None
-
-    def test_generate_huggingface_503_retries(self):
-        gen = self._make_generator(provider="huggingface")
-        gen.hf_token = "hf_test_token"
-        gen.hf_model = "black-forest-labs/FLUX.1-schnell"
-        # First call 503, second call success
-        success_resp = MagicMock()
-        success_resp.status_code = 200
-        success_resp.content = b"fake image bytes"
-        success_resp.raise_for_status = MagicMock()
-        fail_resp = MagicMock()
-        fail_resp.status_code = 503
-        with patch("requests.post", side_effect=[fail_resp, success_resp]):
-            with patch("time.sleep"):
-                with patch("builtins.open", MagicMock()):
-                    result = gen._generate_huggingface("A scene", "test.png")
-        assert result is not None
 
     def test_generate_huggingface_exception_returns_none(self):
         gen = self._make_generator(provider="huggingface")

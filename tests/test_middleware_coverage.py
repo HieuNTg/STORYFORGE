@@ -92,13 +92,6 @@ class TestRateLimiterMiddleware:
         ip = _get_ip(mock_request)
         assert ip == "unknown"
 
-    def test_in_memory_rate_limit_state_tracking(self):
-        """In-memory state tracks request counts."""
-        from middleware.rate_limiter import _state
-
-        # Just verify state is a dict
-        assert isinstance(_state, dict)
-
     def test_rate_limit_429_after_burst(self):
         """After enough requests, rate limit kicks in."""
         from middleware.rate_limiter import _check_rate_limit_memory, _LIMITS
@@ -151,13 +144,6 @@ class TestTraceIDMiddleware:
         resp = client.get("/test", headers={"X-Request-ID": "my-trace-123"})
         assert resp.headers["X-Request-ID"] == "my-trace-123"
 
-    def test_get_trace_id_returns_string(self):
-        """get_trace_id returns empty string outside request context."""
-        from middleware.trace_id import get_trace_id
-
-        result = get_trace_id()
-        assert isinstance(result, str)
-
     def test_trace_id_generates_uuid_when_absent(self):
         from middleware.trace_id import TraceIDMiddleware
         import uuid as _uuid
@@ -206,15 +192,6 @@ class TestAuditMiddleware:
         # Verify static paths are in skip list
         assert "/static/" in _SKIP_PREFIXES
         assert "/favicon" in _SKIP_PREFIXES
-
-    def test_audit_get_ip(self):
-        from middleware.audit_middleware import _get_ip
-
-        mock_request = MagicMock()
-        mock_request.client.host = "9.9.9.9"
-        mock_request.headers.get.return_value = None
-        ip = _get_ip(mock_request)
-        assert isinstance(ip, str)
 
 
 @pytest.mark.skipif(not _HAS_FASTAPI, reason="FastAPI not installed")

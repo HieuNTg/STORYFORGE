@@ -2,9 +2,10 @@
 
 import os
 import threading
-import time
 import pytest
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeoutError
+
+from tests.concurrency_probe import InFlightProbe
 
 
 # ---------------------------------------------------------------------------
@@ -16,25 +17,18 @@ class TestThreadPoolMaxWorkersCap:
     def test_max_workers_respected_cap_at_config_value(self):
         """Workers must not exceed configured maximum."""
         MAX_CAP = 3
-        active_workers = []
-        lock = threading.Lock()
-        peak = [0]
+        probe = InFlightProbe(rendezvous=MAX_CAP)
 
         def task():
-            with lock:
-                active_workers.append(1)
-                if len(active_workers) > peak[0]:
-                    peak[0] = len(active_workers)
-            time.sleep(0.05)
-            with lock:
-                active_workers.pop()
+            with probe:
+                pass
 
         with ThreadPoolExecutor(max_workers=MAX_CAP) as executor:
             futures = [executor.submit(task) for _ in range(10)]
             for f in futures:
                 f.result()
 
-        assert peak[0] <= MAX_CAP
+        assert probe.peak == MAX_CAP
 
     def test_max_workers_one_serializes_tasks(self):
         """max_workers=1 guarantees tasks run serially."""
@@ -86,23 +80,24 @@ class TestThreadPoolMaxWorkersCap:
 class TestFutureTimeoutHandling:
     def test_slow_task_raises_timeout_error_when_waited_too_short(self):
         """result(timeout=...) raises TimeoutError for slow tasks."""
+        release = threading.Event()
 
         def slow_task():
-            time.sleep(5)
+            release.wait(10)
             return "done"
 
         with ThreadPoolExecutor(max_workers=1) as executor:
             future = executor.submit(slow_task)
             with pytest.raises((FuturesTimeoutError, TimeoutError)):
                 future.result(timeout=0.01)
-            # Cancel to clean up
-            future.cancel()
+            release.set()
 
     def test_timeout_does_not_crash_the_executor(self):
         """TimeoutError from one future leaves executor healthy for other tasks."""
+        release = threading.Event()
 
         def slow():
-            time.sleep(5)
+            release.wait(10)
             return "slow"
 
         def fast():
@@ -118,13 +113,14 @@ class TestFutureTimeoutHandling:
                 pass
 
             assert fast_future.result(timeout=5) == "fast"
-            slow_future.cancel()
+            release.set()
 
     def test_timeout_error_can_be_caught_gracefully(self):
         """Pattern: catch TimeoutError, continue with default value."""
+        release = threading.Event()
 
         def slow():
-            time.sleep(5)
+            release.wait(10)
             return "real result"
 
         result = "default"
@@ -135,7 +131,7 @@ class TestFutureTimeoutHandling:
             except (FuturesTimeoutError, TimeoutError):
                 result = "timed out"
             finally:
-                future.cancel()
+                release.set()
 
         assert result == "timed out"
 

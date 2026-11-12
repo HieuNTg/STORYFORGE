@@ -22,7 +22,6 @@ import pytest
 from models.schemas import (
     AgentReview,
     DebateEntry,
-    DebateResult,
     DebateStance,
     Chapter,
     StoryDraft,
@@ -350,19 +349,6 @@ class TestDebateOrchestrator:
         with pytest.raises(BudgetExceededError):
             orch.run_debate([agent], {}, 2, reviews)
 
-    def test_total_token_budget_exceeded_stops_round2(self):
-        orch = self._make_orchestrator(
-            debate_mode="full",
-            max_total_tokens=0,  # already exhausted at start
-        )
-        orch._session_tokens = 1  # exceed immediately
-        agent = self._make_agent("agent_a")
-        reviews = [_make_review("agent_a")]
-        agent.debate_response.return_value = []
-        # Should proceed but skip when total budget hit mid-loop
-        result = orch.run_debate([agent], {}, 2, reviews)
-        assert result is not None
-
     def test_run_debate_with_budget_skip_before_round2(self):
         orch = self._make_orchestrator(budget_action="skip", max_total_tokens=0)
         orch._session_tokens = 100
@@ -558,73 +544,38 @@ class TestAgentRegistry:
 
         assert len(msgs) > 0
 
-    def test_run_review_cycle_dag_cycle_fallback(self):
+    def _run_with_broken_dag(self, dag_patch_kwargs, configure_dag=None):
         reg = self._make_registry()
         agent = self._make_agent("agent_a", layers=[1])
-        review = _make_review("agent_a", approved=True)
-        agent.review.return_value = review
+        agent.review.return_value = _make_review("agent_a", approved=True)
         reg.register(agent)
-        output = PipelineOutput()
 
         with (
-            patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG,
+            patch("pipeline.agents.agent_registry.AgentDAG", **dag_patch_kwargs) as MockDAG,
             patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
         ):
             MockCfg.return_value.pipeline.enable_agent_debate = False
+            if configure_dag:
+                configure_dag(MockDAG)
+            result = reg.run_review_cycle(PipelineOutput(), layer=1, max_iterations=1)
+        return agent, result
+
+    def test_run_review_cycle_dag_cycle_falls_back_to_flat_review(self):
+        def _cycle(MockDAG):
             MockDAG.return_value.validate.side_effect = ValueError("cycle!")
-            result = reg.run_review_cycle(output, layer=1, max_iterations=1)
 
-        assert isinstance(result, list)
+        agent, result = self._run_with_broken_dag({}, _cycle)
 
-    def test_run_review_cycle_dag_build_exception_fallback(self):
-        reg = self._make_registry()
-        agent = self._make_agent("agent_a", layers=[1])
-        review = _make_review("agent_a", approved=True)
-        agent.review.return_value = review
-        reg.register(agent)
-        output = PipelineOutput()
+        assert [r.agent_name for r in result] == ["agent_a"]
+        agent.review.assert_called_once()
 
-        with (
-            patch(
-                "pipeline.agents.agent_registry.AgentDAG",
-                side_effect=Exception("build fail"),
-            ),
-            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
-        ):
-            MockCfg.return_value.pipeline.enable_agent_debate = False
-            result = reg.run_review_cycle(output, layer=1, max_iterations=1)
-
-        assert isinstance(result, list)
-
-    def test_run_review_cycle_debate_triggered_on_layer2(self):
-        reg = self._make_registry()
-        agent = self._make_agent("agent_a", layers=[2])
-        review = _make_review("agent_a", approved=True)
-        agent.review.return_value = review
-        reg.register(agent)
-        output = PipelineOutput()
-
-        mock_debate_result = DebateResult(
-            rounds=[[], []],
-            final_reviews=[review],
-            debate_skipped=False,
-            total_challenges=0,
+    def test_run_review_cycle_dag_build_failure_falls_back_to_flat_review(self):
+        agent, result = self._run_with_broken_dag(
+            {"side_effect": Exception("build fail")}
         )
 
-        with (
-            patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG,
-            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
-            patch("pipeline.agents.debate_orchestrator.DebateOrchestrator") as MockOrch,
-        ):
-            MockCfg.return_value.pipeline.enable_agent_debate = True
-            MockCfg.return_value.pipeline.max_debate_rounds = 3
-            MockCfg.return_value.pipeline.debate_mode = "full"
-            dag_instance = MockDAG.return_value
-            dag_instance.get_agents_by_tier.return_value = [[agent]]
-            MockOrch.return_value.run_debate.return_value = mock_debate_result
-            result = reg.run_review_cycle(output, layer=2, max_iterations=1)
-
-        assert isinstance(result, list)
+        assert [r.agent_name for r in result] == ["agent_a"]
+        agent.review.assert_called_once()
 
     def test_run_review_cycle_not_all_approved_continues(self):
         reg = self._make_registry()
@@ -1250,53 +1201,6 @@ class TestReplicateIPAdapter:
         result = self.adapter.generate("prompt", "/nonexistent/ref.png")
         assert result is None
 
-    def test_generate_success_list_output(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            ref = os.path.join(tmpdir, "ref.png")
-            with open(ref, "wb") as f:
-                f.write(b"PNG")
-
-            # Mock: create prediction, poll → succeeded, download image
-            create_resp = MagicMock()
-            create_resp.raise_for_status.return_value = None
-            create_resp.json.return_value = {
-                "urls": {"get": "https://api.replicate.com/v1/predictions/abc"},
-                "status": "starting",
-            }
-            poll_resp = MagicMock()
-            poll_resp.raise_for_status.return_value = None
-            poll_resp.json.return_value = {
-                "status": "succeeded",
-                "output": ["https://delivery.replicate.com/img.png"],
-            }
-            img_resp = MagicMock()
-            img_resp.raise_for_status.return_value = None
-            img_resp.content = b"IMAGE_BYTES"
-
-            output_dir = os.path.join(tmpdir, "output", "images")
-            os.makedirs(output_dir, exist_ok=True)
-            self.adapter.output_dir = output_dir
-
-            with (
-                patch(
-                    "services.replicate_ip_adapter.requests.post",
-                    return_value=create_resp,
-                ),
-                patch(
-                    "services.replicate_ip_adapter.requests.get",
-                    side_effect=[poll_resp, img_resp],
-                ),
-                patch("services.replicate_ip_adapter.time.sleep"),
-                patch(
-                    "services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]
-                ),
-            ):
-                result = self.adapter.generate(
-                    "A portrait", ref, "output.png", timeout=120
-                )
-
-        assert result is not None
-
     def test_generate_prediction_failed(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             ref = os.path.join(tmpdir, "ref.png")
@@ -1391,49 +1295,6 @@ class TestReplicateIPAdapter:
             ):
                 result = self.adapter.generate("prompt", ref)
         assert result is None
-
-    def test_generate_string_output(self):
-        """Test handling of string (not list) output format."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            ref = os.path.join(tmpdir, "ref.png")
-            with open(ref, "wb") as f:
-                f.write(b"PNG")
-
-            create_resp = MagicMock()
-            create_resp.raise_for_status.return_value = None
-            create_resp.json.return_value = {
-                "urls": {"get": "https://api.replicate.com/v1/predictions/abc"},
-            }
-            poll_resp = MagicMock()
-            poll_resp.raise_for_status.return_value = None
-            poll_resp.json.return_value = {
-                "status": "succeeded",
-                "output": "https://delivery.replicate.com/img.png",  # string, not list
-            }
-            img_resp = MagicMock()
-            img_resp.raise_for_status.return_value = None
-            img_resp.content = b"IMG"
-
-            output_dir = os.path.join(tmpdir, "out")
-            os.makedirs(output_dir)
-            self.adapter.output_dir = output_dir
-
-            with (
-                patch(
-                    "services.replicate_ip_adapter.requests.post",
-                    return_value=create_resp,
-                ),
-                patch(
-                    "services.replicate_ip_adapter.requests.get",
-                    side_effect=[poll_resp, img_resp],
-                ),
-                patch("services.replicate_ip_adapter.time.sleep"),
-                patch(
-                    "services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]
-                ),
-            ):
-                result = self.adapter.generate("prompt", ref, timeout=120)
-        assert result is not None
 
     def test_generate_unexpected_output_format(self):
         with tempfile.TemporaryDirectory() as tmpdir:

@@ -716,21 +716,17 @@ def test_cache_debug_stats_exception(monkeypatch):
 
 
 # ---------------------------------------------------------------------------
-# Microbenchmark: latency budget (informational, not assertion)
+# Microbenchmark: embedding round-trip budget
 # ---------------------------------------------------------------------------
 
 
 def test_microbenchmark_10_chapters(monkeypatch, capsys):
     """
-    Benchmark: 10 chapters x 5 seeds each = 50 verify_payoffs calls.
-    All embeddings are mocked (no model load). Measures pure Python overhead.
-    Target: << 2s for 10-chapter run on CPU with cached embeddings.
+    10 chapters x 5 seeds each = 50 seed verifications with mocked embeddings.
 
-    This measures overhead without actual model inference — real latency
-    would be dominated by the first embed_batch call per cold-cache run.
+    Real latency is dominated by embedding round-trips, so the budget is
+    checked as a call count: one batched embed_batch per seed.
     """
-    import time
-
     anchor = _unit_vec([1.0, 0.0, 0.0])
     span = _unit_vec([0.90, 0.1, 0.0])
 
@@ -752,9 +748,11 @@ def test_microbenchmark_10_chapters(monkeypatch, capsys):
 
     svc.embed_batch.side_effect = fast_embed_batch
 
-    content = "Câu truyện tiếp tục với nhiều sự kiện diễn ra. " * 30  # ~50 sentences
+    content = " ".join(
+        f"Câu thứ {i} kể tiếp một sự kiện diễn ra trong chương." for i in range(30)
+    )
 
-    start = time.perf_counter()
+    results = []
     with patch(
         "pipeline.semantic.foreshadowing_verifier.get_embedding_service",
         return_value=svc,
@@ -762,14 +760,16 @@ def test_microbenchmark_10_chapters(monkeypatch, capsys):
         for ch_num in range(1, CHAPTERS + 1):
             entries = [_make_entry(f"hint {i}", 1, ch_num) for i in range(SEEDS_PER_CH)]
             chapter = _make_chapter(ch_num, content)
-            verify_payoffs(entries, [chapter], threshold=0.62)
-    elapsed = time.perf_counter() - start
+            results.extend(verify_payoffs(entries, [chapter], threshold=0.62))
 
-    print(
-        f"\nMicrobenchmark (mocked): 10 chapters x {SEEDS_PER_CH} seeds = {elapsed * 1000:.1f}ms"
-    )
-    # With mocked embedder this should be well under 1s
-    assert elapsed < 2.0, f"Overhead too high: {elapsed:.2f}s (target <2s)"
+    # The run's cost is its embedding round-trips, not the Python around them
+    # (a wall-clock bound here measured the machine): one batched embed_batch
+    # call per seed, carrying the anchor plus every candidate span.
+    assert len(results) == CHAPTERS * SEEDS_PER_CH
+    assert all(m.method == "embedding" for m in results)
+    assert svc.embed_batch.call_count == CHAPTERS * SEEDS_PER_CH
+    for call in svc.embed_batch.call_args_list:
+        assert len(call.args[0]) > 2, "spans were not batched into one call"
 
 
 # ---------------------------------------------------------------------------

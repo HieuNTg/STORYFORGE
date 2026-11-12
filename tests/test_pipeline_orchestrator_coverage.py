@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import os
 import sys
-import threading
 from typing import TYPE_CHECKING
 
 from unittest.mock import MagicMock, patch
@@ -53,16 +52,6 @@ class TestPipelineOrchestratorInit:
         assert not hasattr(a, "_redis")
         assert isinstance(a._memory_store, dict)
         assert a._memory_store is not b._memory_store
-
-    def test_output_is_pipeline_output(self):
-        from models.schemas import PipelineOutput
-
-        orch = _make_orchestrator()
-        assert isinstance(orch.output, PipelineOutput)
-
-    def test_lock_is_reentrant(self):
-        orch = _make_orchestrator()
-        assert isinstance(orch._lock, type(threading.RLock()))
 
     def test_checkpoint_dir_class_attribute(self):
         from pipeline.orchestrator import PipelineOrchestrator, CHECKPOINT_DIR

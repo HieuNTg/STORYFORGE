@@ -159,12 +159,6 @@ class TestConfigRoutesHelpers:
         assert result is not None
         assert "OpenAI" in result["name"]
 
-    def test_detect_from_key_openai_sk(self):
-        from api.config_routes import _detect_provider_from_key
-
-        result = _detect_provider_from_key("sk-abcdefg")
-        assert result is not None
-
     def test_detect_from_key_gemini(self):
         from api.config_routes import _detect_provider_from_key
 
@@ -319,7 +313,7 @@ class TestConfigRoutesEndpoints:
             mock_cm = _mock_config_manager()
             MockCM.return_value = mock_cm
             resp = self._client.post("/config/presets/beginner")
-        assert resp.status_code in (200, 422, 500)
+        assert resp.status_code == 200, resp.text
 
     def test_apply_preset_invalid_key(self):
         resp = self._client.post("/config/presets/nonexistent-preset")
@@ -809,35 +803,30 @@ class TestHandlersModule:
             mock_orch.output = None
         return mock_orch
 
-    # _friendly_error
+    # _friendly_error (self._make_t returns the i18n key it is given)
     def test_friendly_error_connection(self):
         from services.handlers import _friendly_error
 
         exc = ConnectionError("Connection refused")
-        result = _friendly_error(exc, self._make_t)
-        assert isinstance(result, str)
-        assert len(result) > 0
+        assert _friendly_error(exc, self._make_t) == "error.api_connection"
 
     def test_friendly_error_timeout(self):
         from services.handlers import _friendly_error
 
         exc = TimeoutError("timeout")
-        result = _friendly_error(exc, self._make_t)
-        assert "timeout" in result.lower() or "error" in result.lower() or result
+        assert _friendly_error(exc, self._make_t) == "error.timeout"
 
     def test_friendly_error_json_validation(self):
         from services.handlers import _friendly_error
 
         exc = ValueError("JSON validation failed")
-        result = _friendly_error(exc, self._make_t)
-        assert isinstance(result, str)
+        assert _friendly_error(exc, self._make_t) == "error.json_validation"
 
-    def test_friendly_error_fallback(self):
+    def test_friendly_error_unknown_uses_the_fallback_key(self):
         from services.handlers import _friendly_error
 
-        exc = RuntimeError("something random")
-        result = _friendly_error(exc, self._make_t)
-        assert isinstance(result, str)
+        exc = RuntimeError("disk quota exceeded")
+        assert _friendly_error(exc, self._make_t, "error.export_fail") == "error.export_fail"
 
     # handle_export_pdf
     def test_handle_export_pdf_no_orch(self):
@@ -901,8 +890,9 @@ class TestHandlersModule:
             stats_mock.model_dump.return_value = {"word_count": 500}
             MockPDF.compute_reading_stats.return_value = stats_mock
             files, stats = handle_export_epub(orch_state, self._make_t)
-        # epub may succeed or fail depending on mock setup
-        assert files is not None or stats is not None
+
+        assert files == ["output/story.epub"]
+        assert stats == {"word_count": 500}
 
     # handle_share_story
     def test_handle_share_story_no_orch(self):
@@ -1048,22 +1038,6 @@ class TestHandlersModule:
         msg, orch = handle_load_checkpoint("", None, self._make_t)
         assert "continue.no_checkpoint" in msg
 
-    def test_handle_load_checkpoint_with_story(self):
-        from services.handlers import handle_load_checkpoint
-
-        mock_orch = MagicMock()
-        mock_orch.output.story_draft.title = "Test Story"
-        mock_orch.output.story_draft.chapters = [MagicMock()]
-        mock_orch.output.story_draft.synopsis = "A synopsis"
-        mock_orch.output.story_draft.characters = []
-        with patch("services.handlers.PipelineOrchestrator") as MockOrch:
-            MockOrch.CHECKPOINT_DIR = "/tmp/checkpoints"
-            MockOrch.return_value = mock_orch
-            msg, returned_orch = handle_load_checkpoint(
-                "story_1.json (2026, 5KB)", None, self._make_t
-            )
-        assert returned_orch is not None
-
     # handle_genre_autofill
     def test_handle_genre_autofill_known_genre(self):
         from services.handlers import handle_genre_autofill
@@ -1131,14 +1105,6 @@ class TestHandlersModule:
             mock_orch, "", "brave", "revenge", self._make_t
         )
         assert "continue.char_name" in msg
-
-    def test_handle_update_character_no_updates(self):
-        from services.handlers import handle_update_character
-
-        mock_orch = MagicMock()
-        mock_orch.output.story_draft = MagicMock()
-        msg, orch = handle_update_character(mock_orch, "Hero", "", "", self._make_t)
-        assert isinstance(msg, str)
 
     def test_handle_generate_images_no_orch(self):
         from services.handlers import handle_generate_images
@@ -1747,8 +1713,3 @@ class TestLLMClient:
             chain = client._build_fallback_chain(mock_cm, "default")
         assert not any("disabled-model" in entry["label"] for entry in chain)
 
-    def test_repair_json_static_method(self):
-        from services.llm.client import LLMClient
-
-        result = LLMClient._repair_json('{"key": "value"}')
-        assert isinstance(result, str)

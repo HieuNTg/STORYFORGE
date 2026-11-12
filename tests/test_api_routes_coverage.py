@@ -144,7 +144,7 @@ class TestConfigRoutes:
         resp = self._client.get("/config")
         assert resp.status_code == 200
         data = resp.json()
-        assert "llm" in data or "pipeline" in data or isinstance(data, dict)
+        assert "llm" in data and "pipeline" in data
 
     def test_get_config_masks_api_key(self):
         """GET /config masks the API key."""
@@ -157,7 +157,8 @@ class TestConfigRoutes:
         data = resp.json()
         # The key should be masked (contains ***)
         masked = data.get("llm", {}).get("api_key_masked", "")
-        assert "***" in masked or data  # either masked or empty
+        assert "***" in masked
+        assert "sk-testapikey1234" not in resp.text
 
     def test_put_config_updates_model(self):
         """PUT /config updates the model field."""
@@ -185,7 +186,7 @@ class TestConfigRoutes:
             mock_cm.save.return_value = []
             MockCM.return_value = mock_cm
             resp = self._client.put("/config", json=payload)
-        assert resp.status_code in (200, 422, 500)
+        assert resp.status_code == 200, resp.text
 
     def test_get_presets_returns_list(self):
         """GET /config/presets returns pipeline presets."""
@@ -219,7 +220,7 @@ class TestPipelineRoutes:
         resp = self._client.get("/pipeline/genres")
         assert resp.status_code == 200
         data = resp.json()
-        assert "genres" in data or isinstance(data, dict)
+        assert "genres" in data
 
     def test_get_templates_returns_200(self):
         """GET /pipeline/templates returns story templates."""
@@ -239,19 +240,6 @@ class TestPipelineRoutes:
         """GET /pipeline/status/{session_id} returns 404 for unknown session."""
         resp = self._client.get("/pipeline/status/nonexistent-session")
         assert resp.status_code in (200, 404)
-
-    def test_pipeline_sanitize_summary(self):
-        """_sanitize_summary handles chapters with HTML content."""
-        from api.pipeline_routes import _sanitize_summary
-        from services.text_utils import _HAS_NH3
-
-        if not _HAS_NH3:
-            pytest.skip("nh3 not installed")
-        summary = {
-            "draft": {"chapters": [{"content": "<script>alert(1)</script>Hello"}]}
-        }
-        result = _sanitize_summary(summary)
-        assert isinstance(result, dict)
 
     def test_pipeline_sanitize_summary_empty(self):
         """_sanitize_summary handles empty input."""

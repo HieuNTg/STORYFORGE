@@ -28,6 +28,7 @@ from types import SimpleNamespace
 import pytest
 
 from pipeline.layer1_story.generator import StoryGenerator
+from tests.concurrency_probe import InFlightProbe
 
 
 def _gen(max_parallel_workers: int = 4) -> StoryGenerator:
@@ -40,21 +41,21 @@ def _gen(max_parallel_workers: int = 4) -> StoryGenerator:
 
 class TestTheWaveRunsConcurrently:
     def test_three_slow_tasks_do_not_serialise(self):
+        probe = InFlightProbe(rendezvous=3)
+
         def slow(value):
             def _run():
-                time.sleep(0.15)
-                return value
+                with probe:
+                    return value
 
             return _run
 
-        started = time.monotonic()
         results = _gen()._run_preamble_wave(
             [("a", slow(1)), ("b", slow(2)), ("c", slow(3))]
         )
-        elapsed = time.monotonic() - started
 
         assert dict(results) == {"a": 1, "b": 2, "c": 3}
-        assert elapsed < 0.35, f"serial would take ~0.45s, took {elapsed:.2f}s"
+        assert probe.peak == 3, f"only {probe.peak} task(s) of the wave overlapped"
 
     def test_every_task_is_reported_by_name(self):
         results = _gen()._run_preamble_wave(

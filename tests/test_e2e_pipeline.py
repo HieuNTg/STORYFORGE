@@ -197,67 +197,6 @@ MOCK_ESCALATION_EVENT = {
     "suggested_insertion": "chương 2",
 }
 
-MOCK_STORYBOARD = {
-    "panels": [
-        {
-            "panel_number": 1,
-            "shot_type": "toàn_cảnh",
-            "description": "Minh đứng trước cổng tông phái trong ánh bình minh",
-            "camera_movement": "pan trái",
-            "dialogue": "Đây là nơi ta sẽ trở thành cao thủ!",
-            "narration": "Hành trình bắt đầu từ đây.",
-            "mood": "hào hùng",
-            "characters_in_frame": ["Minh"],
-            "duration_seconds": 6.0,
-            "image_prompt": "young cultivator standing at sect gate, sunrise, cinematic",
-            "sound_effect": "tiếng gió núi",
-        },
-        {
-            "panel_number": 2,
-            "shot_type": "trung_cảnh",
-            "description": "Minh và Lan nhìn nhau trong sân luyện tập",
-            "camera_movement": "tĩnh",
-            "dialogue": "Chào mừng đến đây.",
-            "narration": "",
-            "mood": "ấm áp",
-            "characters_in_frame": ["Minh", "Lan"],
-            "duration_seconds": 5.0,
-            "image_prompt": "two cultivators meeting in training yard",
-            "sound_effect": "tiếng kiếm luyện tập",
-        },
-    ]
-}
-
-MOCK_VOICE_SCRIPT = {
-    "voice_lines": [
-        {
-            "character": "người_kể_chuyện",
-            "text": "Trong thế giới tu tiên, sức mạnh quyết định tất cả.",
-            "emotion": "trung tính",
-            "panel_number": 1,
-        },
-        {
-            "character": "Minh",
-            "text": "Ta sẽ trở thành người mạnh nhất!",
-            "emotion": "quyết tâm",
-            "panel_number": 2,
-        },
-    ],
-    "character_voice_descriptions": {
-        "Minh": "Giọng nam trẻ, mạnh mẽ, đầy nhiệt huyết",
-        "Lan": "Giọng nữ nhẹ nhàng, trầm lắng",
-    },
-}
-
-MOCK_CHARACTER_IMAGE = {
-    "image_prompt": "young male cultivator with bright eyes, cultivation world style",
-    "style": "anime",
-}
-
-MOCK_LOCATION_PROMPTS = {
-    "Thanh Vân Tông": "ancient mountain sect, misty peaks, traditional chinese architecture",
-}
-
 MOCK_QUICK_DRAMA_CHECK = {
     "drama_score": 0.8,
     "weak_points": [],
@@ -265,7 +204,326 @@ MOCK_QUICK_DRAMA_CHECK = {
 }
 
 
+MOCK_VOICE_PROFILES = [
+    {
+        "name": name,
+        "register": "casual",
+        "vocabulary_level": "casual",
+        "sentence_style": "short_punchy",
+        "verbal_tics": [tic],
+        "emotional_baseline": baseline,
+        "emotional_expression": {
+            "anger": "nói cộc lốc",
+            "joy": "cười lớn",
+            "sadness": "im lặng",
+        },
+        "avoid_phrases": ["xin lỗi rối rít"],
+        "dialogue_examples": [line],
+    }
+    for name, tic, baseline, line in (
+        ("Minh", "hay nói 'được thôi'", "kiên định", "Ta sẽ không lùi bước."),
+        ("Lan", "hay hỏi lại 'thật sao?'", "trầm tĩnh", "Chào mừng đến Thanh Vân Tông."),
+        ("Hùng", "cười khẩy trước khi nói", "kiêu ngạo", "Ngươi chưa đủ tư cách."),
+    )
+]
+
+# (system-prompt substring, response). Matched against the lower-cased system
+# prompt, in order, after the role routes in _route_mock_response. A str
+# response is returned as-is; anything else is JSON-encoded.
+_SYSTEM_PROMPT_ROUTES: list[tuple[str, object]] = [
+    # ── Layer 1 planning ──────────────────────────────────────────────────────
+    (
+        "nhà văn triết học",  # theme_premise_generator
+        {
+            "premise_statement": "Câu chuyện về tu tiên, nhưng thực chất nói về lòng kiên định",
+            "thematic_core": "Sức mạnh thật sự đến từ ý chí.",
+            "thematic_keywords": ["kiên định", "tu luyện", "tình bạn"],
+            "moral_dilemma": "Minh phải chọn giữa sức mạnh và bạn bè.",
+        },
+    ),
+    (
+        "tạo cấu trúc arc nhân vật",  # arc_waypoint_generator
+        {
+            "characters": [
+                {
+                    "name": "Minh",
+                    "waypoints": [
+                        {
+                            "stage_name": "khởi đầu",
+                            "chapter_start": 1,
+                            "chapter_end": 2,
+                            "description": "Minh gia nhập tông phái",
+                            "emotional_state": "hứng khởi",
+                            "progress_pct": 0.5,
+                        }
+                    ],
+                }
+            ]
+        },
+    ),
+    ("xây dựng giọng văn nhân vật", MOCK_VOICE_PROFILES),  # character_voice_profiler
+    (
+        "biên tập viên phân tích cấu trúc truyện",  # outline_arc_validator
+        {"warnings": [], "score": 0.9},
+    ),
+    (
+        "biên tập viên kịch bản chuyên nghiệp",  # outline_critic
+        {
+            "plot_holes": [],
+            "pacing_issues": [],
+            "character_underuse": [],
+            "arc_coherence": [],
+            "foreshadowing_gaps": [],
+            "overall_score": 4,
+        },
+    ),
+    (
+        "chuyên gia xây dựng xung đột truyện",  # conflict_web_builder
+        {
+            "conflicts": [
+                {
+                    "conflict_id": "c1",
+                    "conflict_type": "external",
+                    "characters": ["Minh", "Hùng"],
+                    "description": "Hùng muốn trả thù tông phái",
+                    "arc_range": "1-2",
+                    "intensity": 4,
+                }
+            ]
+        },
+    ),
+    (
+        "bậc thầy foreshadowing",  # foreshadowing_manager
+        {
+            "foreshadowing": [
+                {
+                    "hint": "Vết sẹo của Hùng",
+                    "plant_chapter": 1,
+                    "payoff_chapter": 2,
+                    "characters_involved": ["Hùng"],
+                }
+            ]
+        },
+    ),
+    (
+        "chuyên gia cấu trúc cảnh truyện",  # scene_beat_generator
+        {
+            "scenes": [
+                {
+                    "scene_num": 1,
+                    "characters": ["Minh", "Lan"],
+                    "setting": "Thanh Vân Tông, buổi chiều",
+                    "action": "Minh gia nhập tông phái",
+                    "tension_level": 0.4,
+                    "pov": "Minh",
+                    "emotional_goal": "hứng khởi",
+                }
+            ]
+        },
+    ),
+    # ── Layer 1 per-chapter validation / extraction ───────────────────────────
+    (
+        "editor kiểm tra chất lượng truyện",  # chapter_contract_builder
+        {"compliance_score": 0.9, "met": ["nhân vật chính xuất hiện"], "failures": []},
+    ),
+    (
+        "bạn là nhà phê bình văn học. trả về json",  # self_review critic
+        {
+            "coherence": 4,
+            "character_consistency": 4,
+            "pacing": 4,
+            "writing_quality": 4,
+            "overall": 4,
+            "weaknesses": [],
+            "strengths": ["Nhân vật rõ nét"],
+        },
+    ),
+    (
+        "editor phân tích nhịp độ",  # pacing_enforcer.verify_pacing
+        {"detected": "rising", "confidence": 0.8, "reason": "xung đột tăng dần"},
+    ),
+    ("trích xuất thay đổi thế giới", {"world_changes": []}),  # post_processing
+    (
+        "trích xuất thời gian và vị trí",  # consistency_validators
+        {"timeline_positions": {}, "character_locations": {"Minh": "Thanh Vân Tông"}},
+    ),
+    (
+        "trích xuất tóm tắt có cấu trúc",  # structured_summary_extractor
+        {
+            "plot_critical_events": ["Minh gia nhập tông phái"],
+            "character_developments": [],
+            "open_questions": [],
+            "emotional_shift": "hứng khởi",
+            "threads_advanced": [],
+            "threads_opened": [],
+            "threads_resolved": [],
+            "chapter_ending_hook": "",
+            "actual_emotional_arc": "hứng khởi",
+        },
+    ),
+    (
+        "trích xuất tuyến truyện",  # plot_thread_tracker
+        {
+            "new_threads": [
+                {
+                    "thread_id": "t1",
+                    "description": "Hùng muốn trả thù",
+                    "involved_characters": ["Hùng"],
+                    "urgency": 3,
+                }
+            ],
+            "progressed_threads": [],
+            "resolved_threads": [],
+        },
+    ),
+    (
+        "chuyên gia tâm lý nhân vật",  # character_memory_bank
+        {
+            "characters": [
+                {
+                    "character_name": "Minh",
+                    "emotional_memories": [
+                        {
+                            "chapter": 1,
+                            "trigger_event": "gặp Lan",
+                            "emotion": "ấm áp",
+                            "intensity": 0.5,
+                        }
+                    ],
+                }
+            ]
+        },
+    ),
+    (
+        "chuyên gia phân tích cốt truyện",  # l1_causal_graph
+        {
+            "events": [
+                {
+                    "description": "Minh gia nhập tông phái",
+                    "characters": ["Minh"],
+                    "event_type": "setup",
+                }
+            ]
+        },
+    ),
+    ("kiểm tra vi phạm quy tắc thế giới", {"violations": []}),  # quality_validators
+    (
+        "kiểm tra giọng nói nhân vật trong đối thoại",  # quality_validators voice
+        {"warnings": []},
+    ),
+    (
+        "phân tích chủ đề. trả json",  # thematic_resonance_tracker
+        {
+            "themes": [
+                {
+                    "theme": "lòng kiên định",
+                    "strength": 0.7,
+                    "manifestation": "Minh không chùn bước",
+                    "symbols": ["thanh kiếm"],
+                }
+            ]
+        },
+    ),
+    # ── Layer 2 analysis ──────────────────────────────────────────────────────
+    (
+        "phân tích chủ đề văn học",  # thematic_tracker
+        {
+            "central_theme": "lòng kiên định",
+            "recurring_motifs": ["thanh kiếm"],
+            "symbolic_items": [],
+            "thematic_questions": [],
+        },
+    ),
+    (
+        "đánh giá độ nhất quán chủ đề",  # thematic_tracker per-chapter check
+        {
+            "theme_alignment": 0.8,
+            "motifs_present": ["thanh kiếm"],
+            "motifs_missing": [],
+            "drift_warning": "",
+        },
+    ),
+    (
+        "phân tích tiến triển tuyến truyện",  # thread_watchdog
+        {"thread_updates": [{"thread_id": "t1", "mentioned": True}]},
+    ),
+    (
+        "editor chuyên giải quyết tuyến truyện",  # thread_watchdog resolution
+        {"resolutions_added": []},
+    ),
+    (
+        "biên tập viên giọng văn khắt khe",  # layer2 chapter_contract voice check
+        {
+            "per_character": {
+                "Minh": {"compliance_score": 0.9, "missing_tics": [], "tone_mismatch": ""}
+            }
+        },
+    ),
+    (
+        "chuyên gia tâm lý học nhân vật",  # psychology_engine
+        {
+            "primary_goal": "trở nên mạnh mẽ",
+            "hidden_motive": "chứng tỏ bản thân",
+            "fear": "thất bại",
+            "shame_trigger": "bị coi thường",
+            "vulnerabilities": [],
+        },
+    ),
+    (
+        "trích xuất thông tin bối cảnh truyện",  # setting_continuity locations
+        {
+            "locations": [
+                {
+                    "name": "Thanh Vân Tông",
+                    "description": "Tông phái trên núi",
+                    "accessible_from": [],
+                }
+            ],
+            "objects": [],
+        },
+    ),
+    ("phân tích di chuyển và vật phẩm", {"movements": []}),  # setting_continuity
+    (
+        "phân tích phong cách nói",  # voice_fingerprint
+        {
+            "vocabulary_level": "moderate",
+            "formality": "neutral",
+            "emotional_expression": "moderate",
+            "speech_quirks": [],
+            "accent_markers": [],
+            "typical_topics": ["tu luyện"],
+        },
+    ),
+    ("phân tách văn bản thành các cảnh", {"scenes": []}),  # scene_enhancer split
+    (
+        "đánh giá kịch tính. trả về json",  # scene_enhancer.score_scenes
+        {"drama_score": 0.7, "weak_points": [], "strong_points": ["xung đột rõ"]},
+    ),
+    ("đánh giá kịch tính nhanh", {"drama_score": 0.7}),  # enhancer drama re-check
+    ("biên tập viên kiểm tra nhất quán", {"issues": []}),  # enhancer consistency
+    ("biên tập viên kiểm tra tính nhất quán", {"issues": []}),  # coherence_validator
+    (
+        "biên tập viên khắt khe",  # layer2 chapter_contract
+        {
+            "drama_actual": 0.7,
+            "missing_escalations": [],
+            "missing_subtext": [],
+            "missing_causal_refs": [],
+            "violated_patterns": [],
+        },
+    ),
+    ("trích xuất các lời khẳng định", {"fact_mentions": []}),  # causal_chain
+    ("thêm chi tiết giác quan", MOCK_CHAPTER_TEXT),  # sensory_polish (plain text)
+]
+
+
 # ── Routing helper ────────────────────────────────────────────────────────────
+
+
+# Prompts that hit no route. The pipeline catches most LLM-call exceptions and
+# falls back, so the AssertionError alone could be swallowed; the mock_llm
+# fixture fails the test at teardown if anything landed here.
+_UNROUTED: list[str] = []
 
 
 def _route_mock_response(
@@ -275,6 +533,8 @@ def _route_mock_response(
 
     Routing order matters — more specific checks come first.
     We check both system_prompt and user_prompt (many prompts embed the role in user_prompt).
+    A prompt that matches no route fails the test: a new LLM call must get an
+    explicit route instead of silently receiving chapter text.
     """
     sys_p = system_prompt.lower()
     usr_p = user_prompt.lower()
@@ -373,31 +633,15 @@ def _route_mock_response(
     if "đánh giá kịch tính chi tiết" in combined:
         return json.dumps(MOCK_QUICK_DRAMA_CHECK, ensure_ascii=False)
 
-    # ── Layer 3: storyboard ────────────────────────────────────────────────────
-    # system_prompt = "Bạn là đạo diễn phim chuyên chuyển thể truyện thành phim ngắn..."
-    if "đạo diễn phim" in combined:
-        return json.dumps(MOCK_STORYBOARD, ensure_ascii=False)
+    # ── Per-step analysis/validation calls, matched on their system prompt ────
+    for needle, payload in _SYSTEM_PROMPT_ROUTES:
+        if needle in sys_p:
+            return payload if isinstance(payload, str) else json.dumps(
+                payload, ensure_ascii=False
+            )
 
-    # ── Layer 3: voice script ──────────────────────────────────────────────────
-    # system_prompt = "Bạn là đạo diễn lồng tiếng. Trả về JSON."
-    if "đạo diễn lồng tiếng" in combined:
-        return json.dumps(MOCK_VOICE_SCRIPT, ensure_ascii=False)
-
-    # ── Layer 3: character image prompts ──────────────────────────────────────
-    # system_prompt = "Bạn là artist director. Trả về JSON."
-    if "artist director" in combined:
-        return json.dumps(MOCK_CHARACTER_IMAGE, ensure_ascii=False)
-
-    # ── Layer 3: location prompts ──────────────────────────────────────────────
-    if "location" in combined or "địa điểm" in combined:
-        return json.dumps(MOCK_LOCATION_PROMPTS, ensure_ascii=False)
-
-    # ── JSON fix (fallback repair call in generate_json) ──────────────────────
-    if "fix this malformed json" in combined:
-        return json.dumps({"content": "fixed"}, ensure_ascii=False)
-
-    # Default: return generic Vietnamese chapter text
-    return MOCK_CHAPTER_TEXT
+    _UNROUTED.append(user_prompt[:120])
+    raise AssertionError(f"unrouted prompt: {user_prompt[:120]}")
 
 
 def _route_mock_json(system_prompt: str = "", user_prompt: str = "", **kwargs) -> dict:
@@ -429,6 +673,7 @@ def reset_llm_singleton():
 @pytest.fixture
 def mock_llm():
     """Patch LLMClient methods at class level for all pipeline tests."""
+    _UNROUTED.clear()
     with (
         patch(
             "services.llm_client.LLMClient.generate", side_effect=_route_mock_response
@@ -445,6 +690,7 @@ def mock_llm():
             "generate_json": mock_json,
             "check_connection": mock_check,
         }
+    assert not _UNROUTED, f"unrouted prompts: {_UNROUTED}"
 
 
 @pytest.fixture
@@ -481,11 +727,9 @@ class TestFullPipelineFlow:
     """E2E tests for the full 2-layer pipeline."""
 
     async def test_full_pipeline_completes(self, pipeline):
-        """Pipeline should complete with status 'completed' or 'partial'."""
+        """Pipeline should complete with status 'completed'."""
         output = await _run_minimal_pipeline(pipeline)
-        assert output.status in ("completed", "partial"), (
-            f"Expected completed/partial, got: {output.status}"
-        )
+        assert output.status == "completed", f"Expected completed, got: {output.status}"
 
     async def test_pipeline_output_has_story_draft(self, pipeline):
         """story_draft must be populated with chapters."""
@@ -527,10 +771,8 @@ class TestFullPipelineFlow:
     async def test_pipeline_progress_reaches_1(self, pipeline):
         """progress should reach 1.0 on successful pipeline."""
         output = await _run_minimal_pipeline(pipeline)
-        if output.status == "completed":
-            assert output.progress == 1.0, (
-                f"Expected progress=1.0, got {output.progress}"
-            )
+        assert output.status == "completed"
+        assert output.progress == 1.0, f"Expected progress=1.0, got {output.progress}"
 
 
 class TestPipelineWithScoring:
@@ -556,10 +798,9 @@ class TestPipelineWithScoringDisabled:
     async def test_pipeline_with_scoring_disabled(self, pipeline):
         """Pipeline should complete without quality scores when disabled."""
         output = await _run_minimal_pipeline(pipeline, enable_scoring=False)
-        assert output.status in ("completed", "partial")
+        assert output.status == "completed"
         assert output.story_draft is not None
-        # quality_scores may be empty
-        assert isinstance(output.quality_scores, list)
+        assert output.quality_scores == []
 
 
 class TestPipelineWithAgentsDisabled:
@@ -568,7 +809,7 @@ class TestPipelineWithAgentsDisabled:
     async def test_pipeline_with_agents_disabled(self, pipeline):
         """Pipeline should complete without agent reviews."""
         output = await _run_minimal_pipeline(pipeline, enable_agents=False)
-        assert output.status in ("completed", "partial")
+        assert output.status == "completed"
         assert output.story_draft is not None
         assert output.enhanced_story is not None
 
@@ -577,7 +818,7 @@ class TestPipelineGracefulFallbacks:
     """Tests for graceful handling of layer failures."""
 
     async def test_pipeline_handles_layer2_failure(self, mock_llm):
-        """Layer 2 failure should result in partial output using original draft."""
+        """A Layer 2 failure is caught; the draft stands in for the enhanced story."""
         from pipeline.orchestrator import PipelineOrchestrator
 
         with patch(
@@ -591,8 +832,10 @@ class TestPipelineGracefulFallbacks:
         assert output.enhanced_story is not None, (
             "enhanced_story should fall back to draft chapters"
         )
-        # Status may be 'partial' or 'completed' (Layer 3 can still run)
-        assert output.status in ("completed", "partial")
+        assert [c.content for c in output.enhanced_story.chapters] == [
+            c.content for c in output.story_draft.chapters
+        ]
+        assert output.status == "completed"
 
     async def test_pipeline_connection_failure_returns_error(self, mock_llm):
         """Connection check failure should abort pipeline with error status."""

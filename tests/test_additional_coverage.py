@@ -102,21 +102,6 @@ class TestSecretManager:
             assert decrypted["api_key"] == "sk-test-123"
             assert decrypted["model"] == "gpt-4o"
 
-    def test_get_fernet_never_none_without_env_key(self):
-        from services.secret_manager import _get_fernet
-
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("STORYFORGE_SECRET_KEY", None)
-            result = _get_fernet()
-        assert result is not None
-
-    def test_get_fernet_returns_fernet_with_key(self):
-        from services.secret_manager import _get_fernet
-
-        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": _FK}):
-            result = _get_fernet()
-        assert result is not None
-
 
 # ============================================================
 # services/token_counter.py — 38 statements, 46%
@@ -229,18 +214,6 @@ class TestStoryAnalyticsExtended:
         result = StoryAnalytics.analyze_story(story)
         assert "total_words" in result
 
-    def test_emotion_arc_detection(self):
-        from services.story_analytics import StoryAnalytics
-
-        chapter_content = (
-            "Hắn cảm thấy vui mừng và hạnh phúc. Nhưng sau đó buồn bã đau khổ."
-        )
-        from models.schemas import Chapter
-
-        chapter = Chapter(chapter_number=1, title="Ch1", content=chapter_content)
-        stats = StoryAnalytics.analyze_chapter(chapter)
-        assert isinstance(stats, dict)
-
     def test_paragraph_count(self):
         from services.story_analytics import StoryAnalytics
         from models.schemas import Chapter
@@ -300,159 +273,12 @@ class TestVoiceManager:
 
 
 # ============================================================
-# pipeline/agents — additional agents
-# ============================================================
-
-
-class TestPipelineAgents:
-    """Tests for various pipeline agents."""
-
-    def test_editor_in_chief_import(self):
-        from pipeline.agents.editor_in_chief import EditorInChiefAgent
-
-        assert EditorInChiefAgent is not None
-
-    def test_dialogue_expert_import(self):
-        from pipeline.agents.dialogue_expert import DialogueExpertAgent
-
-        assert DialogueExpertAgent is not None
-
-    def test_continuity_checker_import(self):
-        from pipeline.agents.continuity_checker import ContinuityCheckerAgent
-
-        assert ContinuityCheckerAgent is not None
-
-    def test_pacing_analyzer_import(self):
-        from pipeline.agents.pacing_analyzer import PacingAnalyzerAgent
-
-        assert PacingAnalyzerAgent is not None
-
-    def test_drama_critic_name(self):
-        from pipeline.agents.drama_critic import DramaCriticAgent
-
-        assert isinstance(DramaCriticAgent.name, str)
-
-    def test_all_agents_have_layers(self):
-        """Each agent should define which layers it operates on."""
-        agent_classes = []
-        try:
-            from pipeline.agents.drama_critic import DramaCriticAgent
-
-            agent_classes.append(DramaCriticAgent)
-            from pipeline.agents.editor_in_chief import EditorInChiefAgent
-
-            agent_classes.append(EditorInChiefAgent)
-            from pipeline.agents.dialogue_expert import DialogueExpertAgent
-
-            agent_classes.append(DialogueExpertAgent)
-        except ImportError:
-            pass
-
-        for cls in agent_classes:
-            assert hasattr(cls, "layers"), f"{cls.__name__} missing layers attribute"
-            assert isinstance(cls.layers, list)
-
-
-# ============================================================
-# api/analytics_routes.py — additional routes
-# ============================================================
-
-
-class TestAnalyticsRoutes:
-    """Tests for analytics API routes."""
-
-    def test_analytics_router_exists(self):
-        from api.analytics_routes import router
-
-        assert router is not None
-
-    def test_analytics_routes_registered(self):
-        from api.analytics_routes import router
-
-        routes = [r.path for r in router.routes]
-        assert len(routes) >= 0  # just verify import works
-
-
-# ============================================================
-# api/dashboard_routes.py — dashboard routes
-# ============================================================
-
-
-class TestDashboardRoutes:
-    """Tests for dashboard API routes."""
-
-    def test_dashboard_router_exists(self):
-        from api.dashboard_routes import router
-
-        assert router is not None
-
-
-# ============================================================
-# services/pipeline/eval_pipeline.py — 130 statements, 14%
-# ============================================================
-
-
-class TestEvalPipeline:
-    """Tests for eval pipeline."""
-
-    def test_import(self):
-        try:
-            import services.pipeline.eval_pipeline as ep
-
-            assert ep is not None
-        except ImportError:
-            pytest.skip("eval_pipeline not available")
-
-    def test_classes_exist(self):
-        try:
-            import services.pipeline.eval_pipeline as ep
-            import inspect
-
-            classes = [name for name, obj in inspect.getmembers(ep, inspect.isclass)]
-            assert len(classes) >= 0
-        except ImportError:
-            pytest.skip("eval_pipeline not available")
-
-
-# ============================================================
-# services/pipeline/scoring_calibration_service.py — 89 statements, 6%
-# ============================================================
-
-
-class TestScoringCalibration:
-    """Tests for scoring calibration."""
-
-    def test_import(self):
-        try:
-            import services.pipeline.scoring_calibration_service as scs
-
-            assert scs is not None
-        except ImportError:
-            pytest.skip("scoring_calibration_service not available")
-
-    def test_classes_exist(self):
-        try:
-            import services.pipeline.scoring_calibration_service as scs
-            import inspect
-
-            classes = [name for name, obj in inspect.getmembers(scs, inspect.isclass)]
-            assert len(classes) >= 0
-        except ImportError:
-            pytest.skip("scoring_calibration_service not available")
-
-
-# ============================================================
 # services/pipeline/branch_narrative.py — 80 statements, 27%
 # ============================================================
 
 
 class TestBranchNarrative:
     """Tests for branch narrative service."""
-
-    def test_import(self):
-        from services.pipeline.branch_narrative import BranchManager
-
-        assert BranchManager is not None
 
     def test_public_node_helper(self):
         from services.pipeline.branch_narrative import _public_node

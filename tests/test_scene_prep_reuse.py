@@ -27,6 +27,7 @@ from pipeline.layer2_enhance.scene_enhancer import (
     SceneEnhancer,
     reset_scene_prep_cache,
 )
+from tests.concurrency_probe import InFlightProbe
 
 
 SCENES = [
@@ -43,7 +44,7 @@ def _clean_cache():
     reset_scene_prep_cache()
 
 
-def _enhancer(score_delay: float = 0.0):
+def _enhancer(score_delay: float = 0.0, probe: InFlightProbe | None = None):
     with patch("pipeline.layer2_enhance.scene_enhancer.LLMClient"):
         se = SceneEnhancer()
     se.parallel_enabled = False
@@ -52,6 +53,9 @@ def _enhancer(score_delay: float = 0.0):
     def _json(*a, **k):
         if score_delay:
             time.sleep(score_delay)
+        if probe:
+            with probe:
+                pass
         return {"drama_score": 0.9, "weak_points": [], "strong_points": []}
 
     llm.generate_json.side_effect = _json
@@ -142,23 +146,26 @@ class TestConcurrentCallersCollapse:
 
 class TestScoringRunsConcurrently:
     def test_scenes_are_not_scored_one_after_another(self):
-        se = _enhancer(score_delay=0.12)
+        probe = InFlightProbe(rendezvous=3)
+        se = _enhancer(probe=probe)
         se._scene_score_workers = staticmethod(lambda: 3)
 
-        started = time.monotonic()
         se.score_scenes(SCENES, "trinh thám")
-        elapsed = time.monotonic() - started
 
-        assert elapsed < 0.28, f"serial would take ~0.36s, took {elapsed:.2f}s"
+        assert probe.peak == 3, f"only {probe.peak} scene score(s) overlapped"
 
     def test_scores_stay_in_scene_order(self):
         se = _enhancer()
+        se._scene_score_workers = staticmethod(lambda: 3)
+        others_done = threading.Semaphore(0)
 
         def _staggered(*a, **k):
-            # Scene 1 is slowest, yet must still come back first.
+            # Scene 1 finishes last, yet must still come back first.
             if "Cảnh một" in k.get("user_prompt", ""):
-                time.sleep(0.12)
+                for _ in SCENES[1:]:
+                    others_done.acquire(timeout=10)
                 return {"drama_score": 0.1}
+            others_done.release()
             return {"drama_score": 0.9}
 
         se.llm.generate_json.side_effect = _staggered

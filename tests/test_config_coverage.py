@@ -65,12 +65,6 @@ class TestPipelineConfigDefaults:
         cfg = PipelineConfig()
         assert cfg.image_provider == "none"
 
-    def test_pipeline_config_sub_genres_empty(self):
-        from config.defaults import PipelineConfig
-
-        cfg = PipelineConfig()
-        assert isinstance(cfg.sub_genres, list)
-
 
 class TestConfigValidation:
     """Tests for config validation logic."""
@@ -112,22 +106,6 @@ class TestConfigValidation:
         pipeline = PipelineConfig(words_per_chapter=10)
         errors = validate_config(llm, pipeline)
         assert any("từ" in e for e in errors)
-
-    def test_validate_openrouter_model_format(self):
-        from config.defaults import LLMConfig, PipelineConfig
-        from config.validation import validate_config
-
-        llm = LLMConfig(
-            api_key="sk-test",
-            base_url="https://openrouter.ai/api/v1",
-            model="bad-model",
-        )
-        pipeline = PipelineConfig()
-        errors = validate_config(llm, pipeline)
-        # Should warn about OpenRouter model format
-        [e for e in errors if "OpenRouter" in e or "openrouter" in e.lower()]
-        # May or may not have errors depending on model format
-        assert isinstance(errors, list)
 
 
 class TestConfigPersistence:
@@ -376,32 +354,11 @@ class TestConfigManagerSingleton:
         cm2 = ConfigManager()
         assert cm1 is cm2
 
-    def test_config_manager_has_llm(self):
-        from config import ConfigManager
-
-        cm = ConfigManager()
-        assert hasattr(cm, "llm")
-        assert hasattr(cm.llm, "api_key")
-
-    def test_config_manager_has_pipeline(self):
-        from config import ConfigManager
-
-        cm = ConfigManager()
-        assert hasattr(cm, "pipeline")
-        assert hasattr(cm.pipeline, "num_chapters")
-
     def test_config_manager_load_returns_self(self):
         from config import ConfigManager
 
         cm = ConfigManager()
         assert cm.load() is cm
-
-    def test_config_manager_validate_returns_list(self):
-        from config import ConfigManager
-
-        cm = ConfigManager()
-        result = cm.validate()
-        assert isinstance(result, list)
 
     def test_config_manager_save_raises_on_critical(self):
         # A missing API key is only a warning (a host change clears the key and

@@ -591,21 +591,6 @@ class TestCharacterVisualExtractor(unittest.TestCase):
         self.assertIn("f2", prompt)
         self.assertIn("f3", prompt)
 
-    def test_init_imports_llm_client(self):
-        """Test __init__ calls LLMClient constructor."""
-        mock_llm = MagicMock()
-        with (
-            patch(
-                "services.character_visual_extractor.LLMClient", return_value=mock_llm
-            )
-            if False
-            else patch("services.llm_client.LLMClient", return_value=mock_llm)
-        ):
-            # Just ensure import works
-            from services.character_visual_extractor import CharacterVisualExtractor
-
-            self.assertTrue(hasattr(CharacterVisualExtractor, "extract_attributes"))
-
 
 # ===========================================================================
 # 4. CharacterVisualProfileStore — save_enhanced_profile, get_frozen_prompt
@@ -1103,15 +1088,6 @@ class TestOpenrouterGetModelInfo(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["id"], "target-model")
 
-    def test_get_model_info_from_api(self):
-        import services.openrouter_model_discovery as mod
-
-        raw = [{"id": "api-model", "context_length": 32768}]
-        with patch.object(mod, "_load_cache", return_value=None):
-            with patch.object(mod, "_fetch_from_api", return_value=raw):
-                result = mod.get_model_info("api-model")
-        self.assertIsNotNone(result)
-
     def test_get_model_info_not_found(self):
         import services.openrouter_model_discovery as mod
 
@@ -1119,6 +1095,18 @@ class TestOpenrouterGetModelInfo(unittest.TestCase):
             with patch.object(mod, "_fetch_from_api", return_value=[]):
                 result = mod.get_model_info("unknown-model")
         self.assertIsNone(result)
+
+    def test_get_model_info_falls_back_to_the_api_when_uncached(self):
+        import services.openrouter_model_discovery as mod
+
+        raw = [
+            {"id": "other-model", "context_length": 8192},
+            {"id": "api-model", "context_length": 32768},
+        ]
+        with patch.object(mod, "_load_cache", return_value=None):
+            with patch.object(mod, "_fetch_from_api", return_value=raw):
+                result = mod.get_model_info("api-model")
+        self.assertEqual(result, {"id": "api-model", "context_length": 32768})
 
 
 class TestOpenrouterValidateAndRefresh(unittest.TestCase):
@@ -1184,25 +1172,6 @@ class TestFetchFromApi(unittest.TestCase):
 
 class TestDBModelsImportAndStructure(unittest.TestCase):
     """Verify ORM models import and have correct table/column structure."""
-
-    def test_import_all_models(self):
-        from models.db_models import (
-            Base,
-            Story,
-            Chapter,
-            PipelineRun,
-            AuditLog,
-            Feedback,
-            Config,
-        )
-
-        self.assertIsNotNone(Base)
-        self.assertIsNotNone(Story)
-        self.assertIsNotNone(Chapter)
-        self.assertIsNotNone(PipelineRun)
-        self.assertIsNotNone(AuditLog)
-        self.assertIsNotNone(Feedback)
-        self.assertIsNotNone(Config)
 
     def test_uuid_function(self):
         from models.db_models import _uuid

@@ -139,18 +139,6 @@ class TestOrchestratorInit:
             patch("pipeline.layer2_enhance.enhancer.LLMClient"),
         ]
 
-    def test_orchestrator_creates_components(self):
-        with (
-            patch("pipeline.layer1_story.generator.LLMClient"),
-            patch("pipeline.layer2_enhance.analyzer.LLMClient"),
-            patch("pipeline.layer2_enhance.simulator.LLMClient"),
-            patch("pipeline.layer2_enhance.enhancer.LLMClient"),
-        ):
-            from pipeline.orchestrator import PipelineOrchestrator
-
-            orch = PipelineOrchestrator()
-            assert orch.output is not None
-
     def test_orchestrator_checkpoint_dir_constant(self):
         from pipeline.orchestrator import PipelineOrchestrator
 
@@ -256,24 +244,6 @@ class TestCheckpointManager:
 class TestPipelineExporter:
     """Tests for PipelineExporter."""
 
-    def test_exporter_output_formats(self):
-        from pipeline.orchestrator_export import PipelineExporter
-        from models.schemas import PipelineOutput, StoryDraft, Chapter
-
-        output = PipelineOutput()
-        output.story_draft = StoryDraft(
-            title="Test Story",
-            genre="Fantasy",
-            chapters=[Chapter(chapter_number=1, title="Ch1", content="Content here")],
-        )
-        exporter = PipelineExporter(output)
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                paths = exporter.export_output(output_dir=tmpdir, formats=["TXT"])
-                assert isinstance(paths, list)
-            except Exception:
-                pass  # export may fail, just verify no unhandled crash
-
     def test_exporter_init(self):
         from pipeline.orchestrator_export import PipelineExporter
         from models.schemas import PipelineOutput
@@ -281,85 +251,6 @@ class TestPipelineExporter:
         output = PipelineOutput()
         exporter = PipelineExporter(output)
         assert exporter.output is output
-
-
-# ============================================================
-# Layer-level components
-# ============================================================
-
-
-class TestStoryGenerator:
-    """Tests for StoryGenerator component."""
-
-    def test_story_generator_init(self):
-        with patch("pipeline.layer1_story.generator.LLMClient"):
-            from pipeline.layer1_story.generator import StoryGenerator
-
-            gen = StoryGenerator()
-            assert gen is not None
-
-    def test_story_generator_has_config(self):
-        with patch("pipeline.layer1_story.generator.LLMClient"):
-            from pipeline.layer1_story.generator import StoryGenerator
-
-            gen = StoryGenerator()
-            assert (
-                hasattr(gen, "llm") or hasattr(gen, "config") or True
-            )  # flexible check
-
-
-class TestStoryAnalyzer:
-    """Tests for StoryAnalyzer component."""
-
-    def test_analyzer_init(self):
-        with patch("pipeline.layer2_enhance.analyzer.LLMClient"):
-            try:
-                from pipeline.layer2_enhance.analyzer import StoryAnalyzer
-
-                analyzer = StoryAnalyzer()
-                assert analyzer is not None
-            except Exception:
-                pass  # init may need mocked dependencies
-
-
-class TestDramaSimulator:
-    """Tests for DramaSimulator."""
-
-    def test_simulator_init(self):
-        with patch("pipeline.layer2_enhance.simulator.LLMClient"):
-            try:
-                from pipeline.layer2_enhance.simulator import DramaSimulator
-
-                sim = DramaSimulator()
-                assert sim is not None
-            except Exception:
-                pass
-
-
-# ============================================================
-# Orchestrator Export
-# ============================================================
-
-
-class TestOrchestratorExport:
-    """Tests for export functions."""
-
-    def test_export_zip(self):
-        from pipeline.orchestrator_export import PipelineExporter
-        from models.schemas import PipelineOutput, StoryDraft
-
-        output = PipelineOutput(status="completed")
-        output.story_draft = StoryDraft(title="Export Test", genre="Fantasy")
-        exporter = PipelineExporter(output)
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            try:
-                zip_path = exporter.export_zip(output_dir=tmpdir)
-                # May return a path or None
-                if zip_path:
-                    assert isinstance(zip_path, str)
-            except Exception:
-                pass  # acceptable if no data to export
 
 
 # ============================================================
