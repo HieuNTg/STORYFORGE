@@ -52,7 +52,7 @@
     "chrome-launcher": "^1.2.1",
     "eslint": "^9",
     "eslint-config-next": "^16.4.6",
-    "jsdom": "^29.1.1",
+    "jsdom": "^31.0.0",
     "lighthouse": "^13.3.0",
     "msw": "^2.14.6",
     "postcss": "^8.5.15",
