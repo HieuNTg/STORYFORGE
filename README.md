@@ -67,8 +67,8 @@ Any non-empty API key works for Ollama.
 - **Branching reader**: LLM-generated choose-your-own-adventure sessions with a tree view and EPUB export of the tree.
 - **Comics**: generate comic panels for library stories and chapters (needs an image provider).
 - **Character portraits**: character-consistent images (see below).
-- **Exports**: PDF, EPUB, DOCX, HTML, a ZIP bundle (TXT / Markdown / JSON / HTML), and a Wattpad-ready package.
-- **Any OpenAI-compatible LLM**: OpenAI, Gemini, Anthropic, OpenRouter, Z.AI, Ollama or a custom endpoint, with fallback and a response cache.
+- **Exports**: PDF, EPUB, DOCX, HTML, a ZIP bundle (TXT / Markdown / JSON / HTML).
+- **Any OpenAI-compatible LLM**: OpenAI, Gemini, Anthropic, OpenRouter (which also reaches Z.AI and many others), Ollama or any custom OpenAI-compatible endpoint, with fallback and a response cache.
 
 ## Image providers
 
@@ -114,25 +114,6 @@ StoryForge is free software, but **you pay your LLM (and image) provider** for e
 - To reach it from another device on your LAN, change the port bindings **and** set `STORYFORGE_ACCESS_TOKEN` (and `STORYFORGE_ALLOWED_HOSTS` for the name you use). See [docs/self-hosting.md](docs/self-hosting.md). Do not expose it to the internet.
 - API keys are encrypted at rest. See [SECURITY.md](SECURITY.md) to report a vulnerability.
 
-## Development
-
-Python 3.11+ and Node 24.
-
-```bash
-python scripts/dev.py        # starts the API and the Next.js dev server
-```
-
-Tests:
-
-```bash
-pip install -r requirements.lock.txt -r requirements-test.txt --extra-index-url https://download.pytorch.org/whl/cpu
-python -m pytest -q -m "not calibration and not bench and not perf"
-
-cd frontend && npm ci && npx vitest run
-```
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) and [ARCHITECTURE.md](ARCHITECTURE.md). Licensed under [MIT](LICENSE).
-
 ## UI routes
 
 | Route | What it does |
@@ -152,3 +133,26 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) and [ARCHITECTURE.md](ARCHITECTURE.md). L
 | `/usage` | Token and cost usage. |
 | `/account` | Local summary: stories created and tokens used. |
 | `/guide` | In-app user guide. |
+
+## Development
+
+Python 3.11+ and Node 24.
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows Git Bash: source .venv/Scripts/activate
+pip install -r requirements.lock.txt --extra-index-url https://download.pytorch.org/whl/cpu
+(cd frontend && npm ci)
+
+python scripts/dev.py        # starts the API and the Next.js dev server
+```
+
+Tests:
+
+```bash
+pip install -r requirements.lock.txt -r requirements-test.txt --extra-index-url https://download.pytorch.org/whl/cpu
+python -m pytest -q -m "not calibration and not bench and not perf"
+
+cd frontend && npm ci && npx vitest run
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) and [ARCHITECTURE.md](ARCHITECTURE.md). Licensed under [MIT](LICENSE).

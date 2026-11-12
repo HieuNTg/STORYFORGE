@@ -67,8 +67,8 @@ Ollama chấp nhận bất kỳ API key không rỗng nào.
 - **Trình đọc rẽ nhánh**: truyện tương tác do LLM sinh ra, có cây rẽ nhánh và xuất EPUB của cây.
 - **Truyện tranh**: tạo các khung truyện tranh cho truyện/chương trong thư viện (cần provider ảnh).
 - **Chân dung nhân vật**: ảnh nhân vật nhất quán (xem bên dưới).
-- **Xuất file**: PDF, EPUB, DOCX, HTML, gói ZIP (TXT / Markdown / JSON / HTML) và gói sẵn cho Wattpad.
-- **Mọi LLM tương thích OpenAI**: OpenAI, Gemini, Anthropic, OpenRouter, Z.AI, Ollama hoặc endpoint tùy chỉnh, có dự phòng và cache phản hồi.
+- **Xuất file**: PDF, EPUB, DOCX, HTML, gói ZIP (TXT / Markdown / JSON / HTML).
+- **Mọi LLM tương thích OpenAI**: OpenAI, Gemini, Anthropic, OpenRouter (qua đó dùng được Z.AI và nhiều nhà cung cấp khác), Ollama hoặc bất kỳ endpoint tùy chỉnh tương thích OpenAI, có dự phòng và cache phản hồi.
 
 ## Provider ảnh
 
@@ -114,25 +114,6 @@ StoryForge là phần mềm miễn phí, nhưng **bạn trả tiền cho nhà cu
 - Muốn truy cập từ thiết bị khác trong mạng LAN, hãy đổi cổng bind **và** đặt `STORYFORGE_ACCESS_TOKEN` (cùng `STORYFORGE_ALLOWED_HOSTS` cho tên bạn dùng). Xem [docs/self-hosting.md](docs/self-hosting.md). Không mở ra internet.
 - API key được mã hóa khi lưu. Báo lỗ hổng bảo mật theo [SECURITY.md](SECURITY.md).
 
-## Phát triển
-
-Python 3.11+ và Node 24.
-
-```bash
-python scripts/dev.py        # chạy API và dev server Next.js
-```
-
-Chạy test:
-
-```bash
-pip install -r requirements.lock.txt -r requirements-test.txt --extra-index-url https://download.pytorch.org/whl/cpu
-python -m pytest -q -m "not calibration and not bench and not perf"
-
-cd frontend && npm ci && npx vitest run
-```
-
-Xem [CONTRIBUTING.md](CONTRIBUTING.md) và [ARCHITECTURE.md](ARCHITECTURE.md). Giấy phép [MIT](LICENSE).
-
 ## Các route giao diện
 
 | Route | Chức năng |
@@ -152,3 +133,26 @@ Xem [CONTRIBUTING.md](CONTRIBUTING.md) và [ARCHITECTURE.md](ARCHITECTURE.md). G
 | `/usage` | Mức dùng token và chi phí. |
 | `/account` | Tóm tắt cục bộ: số truyện đã tạo và token đã dùng. |
 | `/guide` | Hướng dẫn sử dụng trong ứng dụng. |
+
+## Phát triển
+
+Python 3.11+ và Node 24.
+
+```bash
+python -m venv .venv && source .venv/bin/activate   # Windows Git Bash: source .venv/Scripts/activate
+pip install -r requirements.lock.txt --extra-index-url https://download.pytorch.org/whl/cpu
+(cd frontend && npm ci)
+
+python scripts/dev.py        # chạy API và dev server Next.js
+```
+
+Chạy test:
+
+```bash
+pip install -r requirements.lock.txt -r requirements-test.txt --extra-index-url https://download.pytorch.org/whl/cpu
+python -m pytest -q -m "not calibration and not bench and not perf"
+
+cd frontend && npm ci && npx vitest run
+```
+
+Xem [CONTRIBUTING.md](CONTRIBUTING.md) và [ARCHITECTURE.md](ARCHITECTURE.md). Giấy phép [MIT](LICENSE).
