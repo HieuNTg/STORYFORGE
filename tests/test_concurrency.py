@@ -265,37 +265,3 @@ class TestConcurrentExportIntegrity:
         assert len(share_ids) == len(set(share_ids)), (
             "Duplicate share IDs found in concurrent creation"
         )
-
-    def test_concurrent_web_reader_generation_is_thread_safe(self):
-        """WebReaderGenerator.generate() is safe to call from multiple threads."""
-        from services.web_reader_generator import WebReaderGenerator
-
-        results = []
-        errors = []
-        lock = threading.Lock()
-
-        def generate(i):
-            from models.schemas import StoryDraft, Chapter
-
-            story = StoryDraft(
-                title=f"Story {i}",
-                genre="test",
-                chapters=[
-                    Chapter(chapter_number=1, title="Ch1", content=f"Content {i} " * 50)
-                ],
-            )
-            try:
-                html = WebReaderGenerator.generate(story)
-                with lock:
-                    results.append(html)
-            except Exception as e:
-                with lock:
-                    errors.append(str(e))
-
-        with ThreadPoolExecutor(max_workers=6) as executor:
-            futures = [executor.submit(generate, i) for i in range(12)]
-            for f in futures:
-                f.result()
-
-        assert errors == [], f"Thread safety errors: {errors}"
-        assert len(results) == 12

@@ -10,11 +10,7 @@ from .self_review import SelfReviewer, get_genre_threshold
 from .smart_revision import SmartRevisionService
 from .branch_narrative import BranchManager, manager
 from .eval_pipeline import EvalPipeline
-
-try:
-    from .scoring_calibration_service import ScoringCalibrationService
-except Exception:
-    pass  # requires tests.benchmarks on sys.path; site-packages/tests shadow can raise AttributeError via cv2
+from .scoring_calibration_service import ScoringCalibrationService
 
 __all__ = [
     "QualityScorer",

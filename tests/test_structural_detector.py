@@ -535,22 +535,6 @@ class TestStrictMode:
 class TestLegacyAdapterRemoved:
     """Sprint 3 P7: StructuralIssue dataclass + to_legacy_issue() are gone."""
 
-    def test_structural_issue_not_importable(self):
-        """StructuralIssue must no longer be importable from legacy module (P7)."""
-        import pipeline.layer2_enhance.structural_detector as legacy_mod
-
-        assert not hasattr(legacy_mod, "StructuralIssue"), (
-            "StructuralIssue dataclass should have been removed in Sprint 3 P7"
-        )
-
-    def test_structural_issue_type_not_importable(self):
-        """StructuralIssueType enum must no longer be importable from legacy module (P7)."""
-        import pipeline.layer2_enhance.structural_detector as legacy_mod
-
-        assert not hasattr(legacy_mod, "StructuralIssueType"), (
-            "StructuralIssueType enum should have been removed in Sprint 3 P7"
-        )
-
     def test_to_legacy_issue_removed_from_structural_finding(self):
         """StructuralFinding must not have to_legacy_issue() method (P7)."""
         assert not hasattr(StructuralFinding, "to_legacy_issue"), (

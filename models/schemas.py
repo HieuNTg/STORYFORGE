@@ -1082,20 +1082,6 @@ class ImagePrompt(BaseModel):
     )
 
 
-class UserProfile(BaseModel):
-    """Simple user profile for story library."""
-
-    user_id: str
-    username: str
-    password_hash: str = ""
-    created_at: str = ""
-    story_ids: list[str] = Field(default_factory=list)
-    usage_count: int = 0
-    credits: int = 20  # Free tier: 20 credits
-    tier: str = "free"  # free/pro/studio
-    total_stories_created: int = 0
-
-
 class ReadingStats(BaseModel):
     """Reading statistics for a story."""
 

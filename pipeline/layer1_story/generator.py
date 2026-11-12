@@ -1027,15 +1027,6 @@ class StoryGenerator:
             logger.warning("L1 handoff envelope build failed (non-fatal): %s", e)
 
         _log("Layer 1 hoàn tất - Bản thảo truyện đã sẵn sàng!")
-        logger.info("[PROBE-G1] generator: about to return draft from worker thread")
-        import threading as _t_probe
-
-        logger.info(
-            "[PROBE-G2] generator: worker tid=%s daemon=%s draft_id=%s",
-            _t_probe.get_ident(),
-            _t_probe.current_thread().daemon,
-            id(draft),
-        )
         return draft
 
     def rebuild_context(self, draft: StoryDraft) -> StoryContext:

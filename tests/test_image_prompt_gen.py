@@ -1,7 +1,6 @@
 """Test ImagePromptGenerator service."""
 
 import types
-from unittest.mock import MagicMock
 
 from models.schemas import Chapter
 from services.image_prompt_generator import ImagePromptGenerator
@@ -91,27 +90,6 @@ def test_scene_extract_template_asks_for_comic_panel():
     assert "comic panel" in low
     assert "no text" in low  # "Render NO text inside the image" / "NO TEXT in image"
     assert "shot type" in low or "shot_type" in low
-
-
-def test_refiner_emits_comic_panel_no_text(monkeypatch):
-    """The refiner's system prompt must steer toward a comic panel with no text,
-    not a cinematic hero shot. We capture the system prompt passed to the LLM."""
-    gen = ImagePromptGenerator()
-    captured = {}
-
-    def fake_generate(system_prompt, user_prompt, **kw):
-        captured["system"] = system_prompt
-        return "medium shot, hero reacting, cel shading, no text in image"
-
-    _stub_llm(monkeypatch, gen, generate=fake_generate)
-    out = gen.refine_to_cinematic_prompt("hero stands on cliff")
-
-    sys_low = captured["system"].lower()
-    assert "comic" in sys_low
-    assert "cinematic" not in sys_low
-    assert "no text" in sys_low
-    # And the refined output itself is a comic-panel prompt, not a cinematic one.
-    assert "cel shading" in out.lower()
 
 
 # ---------------------------------------------------------------------------
@@ -327,71 +305,3 @@ def test_avatar_and_cover_prompts_are_colour():
     for prompt in (avatar, cover):
         assert COLOR_CLAUSE in prompt
         assert "NOT monochrome" in prompt
-
-
-# ── refine_to_cinematic_prompt fallbacks ─────────────────────────────────────
-
-def test_refine_to_cinematic_prompt_returns_refined(monkeypatch):
-    from services.media.image_prompt_generator import ImagePromptGenerator
-
-    gen = ImagePromptGenerator()
-    monkeypatch.setattr(
-        gen.llm,
-        "generate",
-        MagicMock(return_value="wide shot, golden hour, hero, oil painting"),
-        raising=False,
-    )
-    out = gen.refine_to_cinematic_prompt("hero stands on cliff")
-    assert "golden hour" in out
-
-
-def test_refine_to_cinematic_prompt_fallback_on_error(monkeypatch):
-    from services.media.image_prompt_generator import ImagePromptGenerator
-
-    gen = ImagePromptGenerator()
-    monkeypatch.setattr(
-        gen.llm,
-        "generate",
-        MagicMock(side_effect=RuntimeError("llm down")),
-        raising=False,
-    )
-    out = gen.refine_to_cinematic_prompt("hero stands on cliff")
-    assert out == "hero stands on cliff"
-
-
-def test_refine_to_cinematic_prompt_rejects_refusal(monkeypatch):
-    """A model refusal must be discarded so the base prompt is used (the real-world bug)."""
-    from services.media.image_prompt_generator import ImagePromptGenerator
-
-    gen = ImagePromptGenerator()
-    monkeypatch.setattr(
-        gen.llm,
-        "generate",
-        MagicMock(
-            return_value=(
-                "Bạn đã đăng nhập chưa? Tôi không thể tạo bất kỳ hình ảnh nào cho bạn."
-            )
-        ),
-        raising=False,
-    )
-    out = gen.refine_to_cinematic_prompt("hero stands on cliff")
-    assert out == "hero stands on cliff"
-
-
-def test_refine_to_cinematic_prompt_unwraps_json(monkeypatch):
-    """A reply fenced as ```json {"prompt": ...}``` is unwrapped, not discarded."""
-    from services.media.image_prompt_generator import ImagePromptGenerator
-
-    gen = ImagePromptGenerator()
-    monkeypatch.setattr(
-        gen.llm,
-        "generate",
-        MagicMock(
-            return_value=(
-                '```json\n{"prompt": "low angle, neon rim light, lone hero, cyberpunk"}\n```'
-            )
-        ),
-        raising=False,
-    )
-    out = gen.refine_to_cinematic_prompt("hero stands on cliff")
-    assert "neon rim light" in out

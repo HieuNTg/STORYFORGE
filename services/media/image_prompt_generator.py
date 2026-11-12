@@ -1,6 +1,5 @@
 """Generate AI image prompts from story content."""
 
-import json
 import logging
 from models.schemas import ImagePrompt, Chapter
 from services.llm_client import LLMClient
@@ -83,104 +82,6 @@ class ImagePromptGenerator:
             chapter.summary or chapter.title or f"Chapter {chapter.chapter_number}"
         )
         return f"{self.style} style, {summary}"
-
-    def refine_to_cinematic_prompt(self, text: str) -> str:
-        """Rewrite a scene description into ONE comic-panel Imagen prompt.
-
-        Structure: [shot type] + [character action/expression] + [comic art style],
-        explicitly carrying a 'no text in image' instruction. (Method name kept as
-        ``refine_to_cinematic_prompt`` for callsite/test back-compat — it now emits
-        comic-panel prompts, not cinematic hero shots.)
-        Returns the refined prompt; on refusal, empty, or error, returns the input
-        verbatim — refinement is best-effort and must never block image generation.
-
-        Uses plain-text output (not JSON) on the primary model. The cheap model
-        tended to refuse ("can't generate images / are you logged in?") or wrap
-        replies in markdown, yielding 0 usable prompts. Framing the task as pure
-        text-rewriting and parsing leniently defeats both failure modes.
-        """
-        system = (
-            "You are an image-prompt rewriter. Rewrite the user's scene description "
-            "into ONE comic-panel image-generation prompt. You only rewrite text — you "
-            "do NOT generate images, log in, or check availability, so never refuse "
-            "and never ask questions. "
-            "Structure: [shot type: establishing/wide/medium/close-up/"
-            "over-the-shoulder/reaction] + [character action/expression] + "
-            "[comic art style: cel shading, bold ink lines] + [colour palette]. "
-            "The image MUST be in colour — always end with 'full color, rich "
-            "vibrant color palette' and never ask for monochrome, grayscale or "
-            "black-and-white. "
-            "The image MUST contain NO text — explicitly add 'no text in image, "
-            "no speech bubbles, no captions, no watermark'. Under 60 words. "
-            "Output ONLY the rewritten prompt as plain text: no JSON, no quotes, no "
-            "labels, no commentary."
-        )
-        try:
-            raw = self.llm.generate(
-                system_prompt=system,
-                user_prompt=text,
-                temperature=0.7,
-                max_tokens=200,
-                model_tier="default",
-            )
-            return self._clean_refined(raw) or text
-        except Exception as e:
-            logger.warning("Cinematic refiner failed: %s", e)
-            return text
-
-    @staticmethod
-    def _clean_refined(raw: str) -> str:
-        """Normalize a refiner reply into a usable prompt, or '' if unusable.
-
-        Strips markdown fences / surrounding quotes, unwraps an accidental JSON
-        object, and rejects refusals or prompt-echoes so the caller can fall back
-        to the original description instead of feeding garbage to the renderer.
-        """
-        s = (raw or "").strip()
-        if not s:
-            return ""
-        # Strip a ```...``` code fence (with optional language tag)
-        if s.startswith("```"):
-            s = s.strip("`").strip()
-            if s[:4].lower() == "json":
-                s = s[4:].strip()
-        # Unwrap an accidental JSON object: prefer "prompt", else the longest string
-        if s.startswith("{") and s.endswith("}"):
-            try:
-                obj = json.loads(s)
-            except Exception:
-                return ""
-            if not isinstance(obj, dict):
-                return ""
-            cand = obj.get("prompt")
-            if not isinstance(cand, str) or not cand.strip():
-                strings = [v for v in obj.values() if isinstance(v, str)]
-                cand = max(strings, key=len) if strings else ""
-            s = (cand or "").strip()
-        s = s.strip().strip('"').strip("'").strip()
-        if not s:
-            return ""
-        low = s.lower()
-        # Reject model refusals (e.g. Gemini "can't generate images / are you logged in?")
-        refusal_markers = (
-            "đăng nhập",
-            "không thể tạo",
-            "chưa khả dụng",
-            "khả dụng ở vị trí",
-            "i can't",
-            "i cannot",
-            "i'm unable",
-            "unable to",
-            "as an ai",
-            "logged in",
-            "not available in your",
-        )
-        if any(m in low for m in refusal_markers):
-            return ""
-        # Reject echoes of our own enforcement instruction
-        if "bắt buộc" in low and "tiếng việt" in low:
-            return ""
-        return s
 
     def generate_from_chapter(
         self,

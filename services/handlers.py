@@ -439,7 +439,7 @@ def handle_generate_images(
                 logger.warning("Character forms skipped: %s", _forms_e)
 
         all_paths: list[str] = []
-        _comic_settings = _ComicSettings(_pipeline_cfg, provider)
+        _comic_settings = _ComicSettings(_pipeline_cfg)
         _shot_extractor = _make_shot_extractor(_comic_settings)
 
         def _comic_for_chapter(ch):

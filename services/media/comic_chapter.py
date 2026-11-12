@@ -39,7 +39,7 @@ REF_CAPABLE = {"seedream", "replicate"}
 class ComicSettings:
     """The comic-related config, resolved once per run."""
 
-    def __init__(self, cfg: Any, provider: str = ""):
+    def __init__(self, cfg: Any):
         self.shot_list_enabled = bool(
             getattr(cfg, "comic_shot_list_enabled", False)
         )

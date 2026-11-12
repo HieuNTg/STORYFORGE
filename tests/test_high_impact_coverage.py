@@ -197,38 +197,6 @@ class TestSecurityHeaders:
 
 
 # ============================================================
-# services/genre_library.py — 10 statements at 0%
-# ============================================================
-
-
-class TestGenreLibrary:
-    """Tests for genre library functions."""
-
-    def test_list_genres(self):
-        from services.genre_library import list_genres
-
-        genres = list_genres()
-        assert isinstance(genres, list)
-
-    def test_get_genre_by_key(self):
-        from services.genre_library import get_genre, list_genres
-
-        genres = list_genres()
-        if genres:
-            # Use first genre's key
-            first_key = genres[0].get("key", "")
-            if first_key:
-                result = get_genre(first_key)
-                assert isinstance(result, dict)
-
-    def test_get_genre_missing_key(self):
-        from services.genre_library import get_genre
-
-        result = get_genre("nonexistent_genre_xyz")
-        assert result == {} or result is None or isinstance(result, dict)
-
-
-# ============================================================
 # services/progress_tracker.py — 54 statements at 0%
 # ============================================================
 
@@ -380,29 +348,6 @@ class TestFeedbackCollector:
             or hasattr(FeedbackCollector, "collect")
             or True
         )
-
-
-# ============================================================
-# services/onboarding.py — 44 statements at 0%
-# ============================================================
-
-
-class TestOnboarding:
-    """Tests for onboarding service."""
-
-    def test_import(self):
-        from services.onboarding import OnboardingManager
-
-        assert OnboardingManager is not None
-
-    def test_init(self):
-        from services.onboarding import OnboardingManager
-
-        try:
-            svc = OnboardingManager()
-            assert svc is not None
-        except Exception:
-            pass
 
 
 # ============================================================

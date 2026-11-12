@@ -17,12 +17,6 @@ from models.schemas import (  # noqa: E402
     Character,
 )
 from pipeline.layer1_story.story_bible_manager import StoryBibleManager  # noqa: E402
-from services.genre_library import (
-    get_genre,
-    get_genre_by_name,
-    list_genres,
-    GENRE_LIBRARY,
-)  # noqa: E402
 
 
 def _make_draft(num_outlines: int = 60) -> StoryDraft:
@@ -214,55 +208,6 @@ class TestStoryBibleContextBuilding(unittest.TestCase):
         self.manager.update_after_chapter(self.bible, ch, [], [])
         ctx = self.manager.get_context_for_chapter(self.bible, 31)
         self.assertIn("Tóm tắt các arc trước", ctx)
-
-
-class TestGenreLibrary(unittest.TestCase):
-    """Test thư viện thể loại truyện."""
-
-    def test_list_genres_returns_all(self):
-        genres = list_genres()
-        self.assertEqual(len(genres), len(GENRE_LIBRARY))
-
-    def test_list_genres_has_required_keys(self):
-        for g in list_genres():
-            self.assertIn("key", g)
-            self.assertIn("name", g)
-            self.assertIn("description", g)
-
-    def test_get_genre_by_key(self):
-        tien_hiep = get_genre("tien_hiep")
-        self.assertEqual(tien_hiep["name"], "Tiên Hiệp")
-        self.assertIn("vocab", tien_hiep)
-        self.assertIn("arc_template", tien_hiep)
-
-    def test_get_genre_fallback_on_unknown(self):
-        result = get_genre("unknown_genre_xyz")
-        # Falls back to tien_hiep
-        self.assertEqual(result["name"], "Tiên Hiệp")
-
-    def test_get_genre_by_name_found(self):
-        result = get_genre_by_name("Ngôn Tình")
-        self.assertIsNotNone(result)
-        self.assertIn("contract marriage", result["tropes"])
-
-    def test_get_genre_by_name_case_insensitive(self):
-        result = get_genre_by_name("ngôn tình")
-        self.assertIsNotNone(result)
-
-    def test_get_genre_by_name_not_found(self):
-        result = get_genre_by_name("Thể Loại Không Tồn Tại")
-        self.assertIsNone(result)
-
-    def test_all_genres_have_typical_chapters(self):
-        for key, genre in GENRE_LIBRARY.items():
-            self.assertIn("typical_chapters", genre, f"{key} missing typical_chapters")
-            self.assertGreater(genre["typical_chapters"], 0)
-
-    def test_tien_hiep_has_correct_data(self):
-        g = get_genre("tien_hiep")
-        self.assertIn("tu luyện", g["vocab"])
-        self.assertEqual(g["typical_chapters"], 300)
-        self.assertEqual(g["words_per_chapter"], 3000)
 
 
 class TestStoryDraftBibleField(unittest.TestCase):

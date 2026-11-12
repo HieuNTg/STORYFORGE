@@ -1389,7 +1389,6 @@ class TestLLMClient:
             MockCM.return_value = mock_cm
             MockCache.return_value = MagicMock()
             client = LLMClient()
-            client._current_model = "gpt-4o-mini"
             result = client.model_for_layer(1)
         assert result == "gpt-4o-layer1"
 
@@ -1406,7 +1405,6 @@ class TestLLMClient:
             MockCM.return_value = mock_cm
             MockCache.return_value = MagicMock()
             client = LLMClient()
-            client._current_model = ""
             result = client.model_for_layer(1)
         assert result == "gpt-4o-mini"
 
@@ -1422,7 +1420,6 @@ class TestLLMClient:
             MockCM.return_value = mock_cm
             MockCache.return_value = MagicMock()
             client = LLMClient()
-            client._current_model = "fallback-model"
             result = client.model_for_layer(99)
         assert result == "fallback-model"
 
@@ -1461,7 +1458,6 @@ class TestLLMClient:
             MockCM.return_value = mock_cm
             MockCache.return_value = MagicMock()
             client = LLMClient()
-            client._current_model = "gpt-4o-mini"
             cfg = client.get_layer_config(1)
         assert isinstance(cfg, LayerConfig)
         assert cfg.model == "gpt-4o-mini"

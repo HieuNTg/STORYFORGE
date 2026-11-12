@@ -208,53 +208,6 @@ def _persist_chapter_contract_to_db(
         )
 
 
-def persist_chapter_semantic_findings(
-    story_id: str,
-    chapter_number: int,
-    findings_dict: dict,
-) -> None:
-    """Write semantic_findings JSON to chapters row (Sprint 2 P3).
-
-    Uses ORM — not raw SQL — so SQLAlchemy's type adapters handle SQLite correctly.
-    Non-fatal on missing column (pre-migration DB).
-    """
-    from sqlalchemy.orm import Session
-    from models.db_models import Chapter
-
-    try:
-        engine = _get_sync_engine()
-        with Session(engine) as session:
-            chapter = (
-                session.query(Chapter)
-                .filter(
-                    Chapter.story_id == story_id,
-                    Chapter.chapter_number == chapter_number,
-                )
-                .first()
-            )
-            if chapter is None:
-                logger.warning(
-                    "Semantic findings persist: no chapter found story_id=%s chapter_number=%d",
-                    story_id,
-                    chapter_number,
-                )
-                return
-            chapter.semantic_findings = findings_dict
-            session.commit()
-            logger.debug(
-                "Semantic findings persisted story_id=%s chapter_number=%d",
-                story_id,
-                chapter_number,
-            )
-    except Exception as exc:
-        logger.warning(
-            "Semantic findings persist failed (non-fatal) story_id=%s ch=%d: %s",
-            story_id,
-            chapter_number,
-            exc,
-        )
-
-
 def persist_outline_metrics(
     story_id: str,
     metrics_dict: dict,
@@ -644,34 +597,6 @@ async def _run_full_pipeline_body(
                 except Exception as e:
                     logger.warning(f"Chapter checkpoint save failed (non-fatal): {e}")
 
-        # Live per-chapter agent review hook — when the user enables the
-        # "Hội thoại tác giả" debate, fire a single-iteration review on the
-        # partial draft right after each chapter is written so [AGENTS] log
-        # lines stream into the SSE while L1 is still in progress (the post-L1
-        # cycle below still runs the full review).
-        _l1_chapter_review_cb = None
-        if (
-            enable_agents
-            and AgentRegistry is not None
-            and getattr(self.config.pipeline, "enable_agent_debate", False)
-        ):
-            _registry = AgentRegistry()
-
-            def _l1_chapter_review_cb(_chapter, partial_draft, _total):
-                try:
-                    self.output.story_draft = partial_draft
-                    _registry.run_review_cycle(
-                        self.output,
-                        layer=1,
-                        max_iterations=1,
-                        progress_callback=lambda m: _log(f"[L1] {m}"),
-                    )
-                except Exception as e:
-                    logger.warning(f"Per-chapter agent review failed (non-fatal): {e}")
-
-        logger.info(
-            "[PROBE-O1] orchestrator: about to await to_thread(generate_full_story)"
-        )
         draft = await asyncio.to_thread(
             self.story_gen.generate_full_story,
             title=title,
@@ -684,18 +609,8 @@ async def _run_full_pipeline_body(
             progress_callback=lambda m: _log(f"[L1] {m}"),
             stream_callback=stream_callback,
             batch_checkpoint_callback=_l1_chkpt_cb,
-            chapter_complete_callback=_l1_chapter_review_cb,
         )
-        logger.info(
-            "[PROBE-O2] orchestrator: to_thread returned, draft type=%s chapters=%d",
-            type(draft).__name__,
-            len(getattr(draft, "chapters", []) or []),
-        )
-        logger.info("[PROBE-O3] orchestrator: about to acquire self._lock")
         with self._lock:
-            logger.info(
-                "[PROBE-O4] orchestrator: inside self._lock, assigning story_draft"
-            )
             self.output.story_draft = draft
             try:
                 draft.target_total_chapters = (
@@ -704,13 +619,7 @@ async def _run_full_pipeline_body(
             except Exception:
                 pass
             self.output.progress = 0.33
-        logger.info(
-            "[PROBE-O5] orchestrator: released self._lock, about to _log Layer 1 hoàn tất trong"
-        )
         _log(f"Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
-        logger.info(
-            "[PROBE-O6] orchestrator: post-_log returned, entering context-health block"
-        )
 
         # Surface context health (Sprint 1 Task 1)
         try:

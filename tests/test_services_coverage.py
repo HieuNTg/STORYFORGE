@@ -668,23 +668,6 @@ class TestModelFallback:
 
 
 # ============================================================
-# services.structured_output
-# ============================================================
-
-
-class TestStructuredOutput:
-    """Tests for structured output utilities."""
-
-    def test_import(self):
-        try:
-            import services.structured_output as so
-
-            assert so is not None
-        except ImportError:
-            pytest.skip("structured_output not available")
-
-
-# ============================================================
 # services.prometheus_metrics
 # ============================================================
 

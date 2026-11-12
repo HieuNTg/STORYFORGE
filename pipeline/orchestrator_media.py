@@ -190,7 +190,7 @@ class MediaProducer:
             _counts = {
                 ch.chapter_number: panels_for_chapter(ch, cfg) for ch in chapters
             }
-            comic_settings = ComicSettings(cfg, panel_provider)
+            comic_settings = ComicSettings(cfg)
             shot_extractor = make_shot_extractor(comic_settings)
             _log(
                 f"[MEDIA] Tạo {min(_counts.values())}-{max(_counts.values())} "

@@ -5,7 +5,6 @@ Covers:
 - Tier classification (_get_tier)
 - In-memory rate limiting (_check_rate_limit_memory, _evict_expired_entries)
 - RateLimitMiddleware.dispatch (429, Retry-After, exempt paths)
-- InMemoryRateLimiter service class (is_allowed, get_remaining)
 """
 
 from __future__ import annotations
@@ -27,7 +26,6 @@ from middleware.rate_limiter import (
     _LIMITS,
     _WINDOW_SECONDS,
 )
-from services._rate_limiter_inmemory import InMemoryRateLimiter
 
 
 # ---------------------------------------------------------------------------
@@ -370,56 +368,3 @@ class TestRateLimitMiddlewareDispatch:
         call_next = AsyncMock()
         await mw.dispatch(req, call_next)
         call_next.assert_not_awaited()
-
-
-# ---------------------------------------------------------------------------
-# TestInMemoryRateLimiter (service class)
-# ---------------------------------------------------------------------------
-
-
-class TestInMemoryRateLimiter:
-    def test_is_allowed_first_request(self):
-        limiter = InMemoryRateLimiter()
-        assert limiter.is_allowed("key1", limit=5, window_seconds=60) is True
-
-    def test_is_allowed_up_to_limit(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(5):
-            assert limiter.is_allowed("key2", limit=5, window_seconds=60) is True
-
-    def test_is_blocked_over_limit(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(5):
-            limiter.is_allowed("key3", limit=5, window_seconds=60)
-        assert limiter.is_allowed("key3", limit=5, window_seconds=60) is False
-
-    def test_get_remaining_full_at_start(self):
-        limiter = InMemoryRateLimiter()
-        assert limiter.get_remaining("fresh-key", limit=10, window_seconds=60) == 10
-
-    def test_get_remaining_decrements(self):
-        limiter = InMemoryRateLimiter()
-        limiter.is_allowed("dec-key", limit=10, window_seconds=60)
-        assert limiter.get_remaining("dec-key", limit=10, window_seconds=60) == 9
-
-    def test_get_remaining_zero_when_exhausted(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(10):
-            limiter.is_allowed("ex-key", limit=10, window_seconds=60)
-        assert limiter.get_remaining("ex-key", limit=10, window_seconds=60) == 0
-
-    def test_resets_after_window_expires(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(5):
-            limiter.is_allowed("win-key", limit=5, window_seconds=60)
-        # Backdate the window start
-        with limiter._lock:
-            limiter._state["win-key"][1] -= 61
-        assert limiter.is_allowed("win-key", limit=5, window_seconds=60) is True
-
-    def test_independent_keys_do_not_interfere(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(5):
-            limiter.is_allowed("key-a", limit=5, window_seconds=60)
-        assert limiter.is_allowed("key-b", limit=5, window_seconds=60) is True
-

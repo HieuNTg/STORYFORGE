@@ -2,7 +2,7 @@
 
 Covers:
 - DB persist helpers (_persist_handoff_to_db, _persist_chapter_contract_to_db,
-  persist_chapter_semantic_findings, persist_outline_metrics) with real SQLite
+  persist_outline_metrics) with real SQLite
 - run_layer2_only signal extraction (conflict_web, foreshadowing_plan)
 - run_layer1_only delegation
 - _run_structural_rewrites cap math + concurrency
@@ -256,64 +256,6 @@ class TestPersistChapterContractToDb:
                 chapter_number=99,
                 contract_dict={},
                 warnings=[],
-            )
-        assert "no chapter found" in caplog.text.lower()
-
-
-# ---------------------------------------------------------------------------
-# 4. persist_chapter_semantic_findings — non-fatal on error
-# ---------------------------------------------------------------------------
-
-
-class TestPersistChapterSemanticFindings:
-    def _setup(self, tmp_db, monkeypatch):
-        monkeypatch.setenv("STORYFORGE_DB_PATH", tmp_db)
-        import pipeline.orchestrator_layers as ol
-
-        ol._sync_engine = None
-        eng = _make_engine(tmp_db)
-        return ol, eng
-
-    def test_writes_semantic_findings(self, tmp_db, monkeypatch):
-        ol, eng = self._setup(tmp_db, monkeypatch)
-        with Session(eng) as s:
-            sid, _ = _story_and_run(s)
-            _chapter_row(s, sid, chapter_number=2)
-
-        ol.persist_chapter_semantic_findings(
-            story_id=sid,
-            chapter_number=2,
-            findings_dict={"payoffs": ["found_payoff"]},
-        )
-
-        with Session(eng) as s:
-            ch = s.query(Chapter).filter_by(story_id=sid, chapter_number=2).one()
-            assert ch.semantic_findings == {"payoffs": ["found_payoff"]}
-
-    def test_non_fatal_on_bad_engine(self, tmp_path, monkeypatch, caplog):
-        """Persist failure must not raise — just logs warning."""
-        blocker = tmp_path / "not-a-dir"
-        blocker.write_text("x")  # a file where the DB directory should be
-        monkeypatch.setenv("STORYFORGE_DB_PATH", str(blocker / "test.db"))
-        import pipeline.orchestrator_layers as ol
-
-        ol._sync_engine = None  # force re-init with bad path
-        import logging
-
-        with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator_layers"):
-            # Should not raise
-            ol.persist_chapter_semantic_findings("any-id", 1, {"x": 1})
-
-    def test_missing_chapter_logs_warning(self, tmp_db, monkeypatch, caplog):
-        ol, eng = self._setup(tmp_db, monkeypatch)
-        # DB exists but no chapter
-        import logging
-
-        with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator_layers"):
-            ol.persist_chapter_semantic_findings(
-                story_id=str(uuid.uuid4()),
-                chapter_number=77,
-                findings_dict={},
             )
         assert "no chapter found" in caplog.text.lower()
 

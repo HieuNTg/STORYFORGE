@@ -62,58 +62,12 @@ class TestXSSInStoryTitle:
         # (It will appear escaped as &lt;img in body/h1/nav areas)
         assert "&lt;img" in content or XSS_IMG not in content.replace("&lt;img", "")
 
-    def test_xss_title_escaped_in_web_reader(self):
-        """WebReaderGenerator escapes XSS title."""
-        from services.web_reader_generator import WebReaderGenerator
-
-        story = _make_story(title=XSS_SCRIPT)
-        html = WebReaderGenerator.generate(story)
-        assert XSS_SCRIPT not in html
-
-    def test_xss_title_entities_present_in_web_reader(self):
-        """WebReaderGenerator produces &lt;script&gt; for XSS title."""
-        from services.web_reader_generator import WebReaderGenerator
-
-        story = _make_story(title=XSS_SCRIPT)
-        html = WebReaderGenerator.generate(story)
-        # html.escape produces &lt; &gt; &amp; etc.
-        assert "&lt;" in html or "&#" in html
-
-
 # ---------------------------------------------------------------------------
-# 2. XSS in chapter content → escaped in web reader output
+# 2. XSS in chapter content → escaped in HTML export
 # ---------------------------------------------------------------------------
 
 
 class TestXSSInChapterContent:
-    def test_xss_script_in_content_escaped_in_web_reader(self):
-        """XSS payload in chapter content is escaped in WebReader output."""
-        from services.web_reader_generator import WebReaderGenerator
-
-        story = _make_story(content=XSS_SCRIPT)
-        html = WebReaderGenerator.generate(story)
-        # The raw <script> tag must not appear unescaped
-        # The _content_to_html method runs html.escape first
-        assert "<script>alert" not in html
-
-    def test_xss_script_entities_in_web_reader_content(self):
-        """Chapter XSS is converted to HTML entities in WebReader."""
-        from services.web_reader_generator import WebReaderGenerator
-
-        story = _make_story(content=XSS_SCRIPT)
-        html = WebReaderGenerator.generate(story)
-        assert "&lt;script&gt;" in html
-
-    def test_closing_tag_injection_blocked_in_web_reader(self):
-        """</script> injection attempt is neutralized in WebReader content."""
-        from services.web_reader_generator import WebReaderGenerator
-
-        malicious = "Normal text</script><script>evil()</script>"
-        story = _make_story(content=malicious)
-        html = WebReaderGenerator.generate(story)
-        # After html.escape + extra </> neutralization, raw closing tag absent
-        assert "</script><script>" not in html
-
     def test_xss_in_content_escaped_in_html_exporter(self, tmp_path):
         """XSS payload in chapter content is escaped in HTMLExporter output."""
         from services.html_exporter import HTMLExporter
@@ -154,41 +108,6 @@ class TestVeryLongInput:
         result = HTMLExporter.export(story, out)
         assert result == out
         assert len(open(out, encoding="utf-8").read()) > 0
-
-    def test_idea_100000_chars_does_not_crash_web_reader(self):
-        """WebReaderGenerator handles 100000-char content without crashing."""
-        from services.web_reader_generator import WebReaderGenerator
-
-        huge_content = "word " * 100000
-        story = _make_story(content=huge_content)
-        html = WebReaderGenerator.generate(story)
-        assert isinstance(html, str)
-        assert len(html) > 0
-
-    def test_web_reader_truncates_at_word_limit(self):
-        """WebReaderGenerator truncates story at MAX_WORDS limit."""
-        from services.web_reader_generator import WebReaderGenerator, MAX_WORDS
-        from models.schemas import StoryDraft, Chapter
-
-        # Create story well over limit: 3 chapters × (MAX_WORDS // 2) words each
-        huge_chapter_content = "word " * (MAX_WORDS // 2)
-        chapters = [
-            Chapter(chapter_number=i, title=f"Ch{i}", content=huge_chapter_content)
-            for i in range(1, 4)
-        ]
-        story = StoryDraft(title="Huge Story", genre="test", chapters=chapters)
-        html = WebReaderGenerator.generate(story)
-        # Should not include all 3 chapters since total exceeds MAX_WORDS
-        assert 'id="chapter-3"' not in html or "Chưa có nội dung" not in html
-
-    def test_title_10000_chars_does_not_crash_web_reader(self):
-        """WebReaderGenerator handles 10000-char title without crashing."""
-        from services.web_reader_generator import WebReaderGenerator
-
-        long_title = "T" * 10000
-        story = _make_story(title=long_title, content="Some content here.")
-        html = WebReaderGenerator.generate(story)
-        assert isinstance(html, str)
 
     def test_epub_export_long_title_does_not_crash(self, tmp_path):
         """EPUBExporter handles long title gracefully (truncates identifier)."""

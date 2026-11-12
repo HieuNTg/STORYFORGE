@@ -1,128 +1,13 @@
-"""Additional coverage tests for structured_output, secret_manager, token_counter, story_analytics."""
+"""Additional coverage tests for secret_manager, token_counter, story_analytics."""
 
 from __future__ import annotations
 
 import os
 import sys
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
-
-
-# ============================================================
-# services/structured_output.py — 61 statements, 15%
-# ============================================================
-
-
-class TestStructuredOutput:
-    """Tests for structured output utilities."""
-
-    def test_detect_provider_openai(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("https://api.openai.com/v1") == "openai"
-
-    def test_detect_provider_openrouter(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("https://openrouter.ai/api/v1") == "openrouter"
-
-    def test_detect_provider_anthropic(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("https://api.anthropic.com") == "anthropic"
-
-    def test_detect_provider_gemini(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("https://generativelanguage.googleapis.com") == "google"
-
-    def test_detect_provider_ollama(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("http://localhost:11434") == "ollama"
-
-    def test_detect_provider_empty(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("") == "openai"
-
-    def test_extract_json_direct(self):
-        from services.structured_output import _extract_json
-
-        result = _extract_json('{"key": "value", "num": 42}')
-        assert result["key"] == "value"
-        assert result["num"] == 42
-
-    def test_extract_json_from_text(self):
-        from services.structured_output import _extract_json
-
-        result = _extract_json('Some text before {"key": "value"} and after')
-        assert result["key"] == "value"
-
-    def test_extract_json_trailing_comma(self):
-        from services.structured_output import _extract_json
-
-        try:
-            result = _extract_json('{"key": "value",}')
-            assert isinstance(result, dict)
-        except ValueError:
-            pass  # acceptable if repair fails
-
-    def test_extract_json_no_json_raises(self):
-        from services.structured_output import _extract_json
-
-        with pytest.raises(ValueError):
-            _extract_json("No JSON here at all")
-
-    def test_validate_schema_all_keys_present(self):
-        from services.structured_output import _validate_schema
-
-        data = {"a": 1, "b": 2, "c": 3}
-        schema = {"a": None, "b": None}
-        missing = _validate_schema(data, schema)
-        assert missing == []
-
-    def test_validate_schema_missing_key(self):
-        from services.structured_output import _validate_schema
-
-        data = {"a": 1}
-        schema = {"a": None, "b": None}
-        missing = _validate_schema(data, schema)
-        assert "b" in missing
-
-    def test_generate_structured_mocked(self):
-        from services.structured_output import generate_structured
-
-        mock_client = MagicMock()
-        mock_client.generate.return_value = '{"result": "test", "score": 5}'
-
-        # Patch via the module-level import inside the function
-        import services.llm_client as llm_module
-
-        original_cls = llm_module.LLMClient
-        llm_module.LLMClient = lambda: mock_client
-        try:
-            result = generate_structured(
-                prompt="Test prompt",
-                schema={"result": None, "score": None},
-            )
-            assert isinstance(result, dict)
-        except Exception:
-            pass  # acceptable if schema validation fails
-        finally:
-            llm_module.LLMClient = original_cls
-
-    def test_generate_structured_json_extraction(self):
-        """Test _extract_json with structured generate directly."""
-        from services.structured_output import _extract_json
-
-        # Simulate LLM response with embedded JSON
-        text = 'Here is the response: {"result": "pass", "score": 4.5}'
-        result = _extract_json(text)
-        assert result["result"] == "pass"
-        assert result["score"] == pytest.approx(4.5)
 
 
 # ============================================================

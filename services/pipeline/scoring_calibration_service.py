@@ -13,8 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-# Calibration utilities (tests/benchmarks lives on sys.path in the project)
-from tests.benchmarks.scoring_calibration import (
+from services.pipeline.scoring_calibration import (
     calculate_bias,
     create_calibration_map,
     apply_calibration,

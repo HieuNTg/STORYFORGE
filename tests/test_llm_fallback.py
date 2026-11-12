@@ -182,11 +182,8 @@ class TestBuildFallbackChain(unittest.TestCase):
         MockCM.return_value = _make_llm_config()
         client = LLMClient()
         config = _make_llm_config()
-        # Manually set _current_model
-        client._current_model = "gpt-4"
         mock_openai = MagicMock()
         client._client = mock_openai
-        client._last_key = "http://api.test:key"
         chain = client._build_fallback_chain(config, "default")
         self.assertTrue(len(chain) >= 1)
         self.assertEqual(chain[0]["label"], "primary")
@@ -201,9 +198,7 @@ class TestBuildFallbackChain(unittest.TestCase):
         )
         MockCM.return_value = cfg
         client = LLMClient()
-        client._current_model = "gpt-4"
         client._client = MagicMock()
-        client._last_key = "http://api.test:key"
         MockOpenAI.return_value = MagicMock()
         chain = client._build_fallback_chain(cfg, "cheap")
         self.assertTrue(any("cheap" in p["label"] for p in chain))
@@ -220,9 +215,7 @@ class TestBuildFallbackChain(unittest.TestCase):
         cfg = _make_llm_config(fallback_models=fallbacks)
         MockCM.return_value = cfg
         client = LLMClient()
-        client._current_model = "gpt-4"
         client._client = MagicMock()
-        client._last_key = "http://api.test:key"
         MockOpenAI.return_value = MagicMock()
         chain = client._build_fallback_chain(cfg, "default")
         labels = [p["label"] for p in chain]
@@ -236,9 +229,7 @@ class TestBuildFallbackChain(unittest.TestCase):
         cfg = _make_llm_config(cheap_model="")
         MockCM.return_value = cfg
         client = LLMClient()
-        client._current_model = "gpt-4"
         client._client = MagicMock()
-        client._last_key = "http://api.test:key"
         chain = client._build_fallback_chain(cfg, "default")
         labels = [p["label"] for p in chain]
         self.assertFalse(any("cheap" in lbl for lbl in labels))
@@ -252,9 +243,7 @@ class TestBuildFallbackChain(unittest.TestCase):
         cfg = _make_llm_config(fallback_models=fallbacks)
         MockCM.return_value = cfg
         client = LLMClient()
-        client._current_model = "gpt-4"
         client._client = MagicMock()
-        client._last_key = "http://api.test:key"
         chain = client._build_fallback_chain(cfg, "default")
         labels = [p["label"] for p in chain]
         self.assertFalse(

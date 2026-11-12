@@ -243,8 +243,7 @@ def test_compositor_runs_for_every_provider():
     from services.media.comic_chapter import ComicSettings
 
     cfg = SimpleNamespace(comic_shot_list_enabled=True, comic_compositor_enabled=True)
-    assert ComicSettings(cfg, provider="codex").compose_pages is True
-    assert ComicSettings(cfg, provider="dalle").compose_pages is True
+    assert ComicSettings(cfg).compose_pages is True
 
 
 def test_dialogue_baking_is_gone():
