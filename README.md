@@ -72,7 +72,7 @@ Any non-empty API key works for Ollama.
 
 ## Image providers
 
-Images are off by default (text-only). Choose a provider in **Settings → API Keys**, or set `image_provider` in `data/config.json`.
+Images are off by default (text-only). Choose a provider in **Settings → General → Image provider** and enter its key in **Settings → API Keys**, or set the `STORYFORGE_IMAGE_PROVIDER` environment variable (see `.env.example`).
 
 | Provider | Needs | Cost | Notes |
 |----------|-------|------|-------|
@@ -105,7 +105,26 @@ Settings are stored in `data/config.json` (inside the `storyforge-data` volume) 
 
 ## Cost
 
-StoryForge is free software, but **you pay your LLM (and image) provider** for every call, and a long story makes many calls. Set a budget with the per-run caps `llm.max_cost_per_run_usd`, `llm.max_total_tokens_per_run` and `llm.max_calls_per_run` (`0` disables a cap). The Settings page does not expose them yet, so edit `data/config.json`. The **Usage** page shows token usage.
+StoryForge is free software, but **you pay your LLM (and image) provider** for every call, and a long story makes many calls. Set a budget with the per-run caps (`0`, the default, disables a cap):
+
+| Environment variable | Config field | Meaning |
+|----------|---------|---------|
+| `STORYFORGE_MAX_COST_PER_RUN_USD` | `llm.max_cost_per_run_usd` | Stop a run once its estimated cost reaches this many US dollars. |
+| `STORYFORGE_MAX_TOKENS_PER_RUN` | `llm.max_total_tokens_per_run` | Stop a run after this many tokens. |
+| `STORYFORGE_MAX_CALLS_PER_RUN` | `llm.max_calls_per_run` | Stop a run after this many LLM calls. |
+
+The Settings page does not expose them yet. With Docker, set them on the `api` service in a `compose.override.yaml` next to `compose.yaml`, then run `docker compose up -d`:
+
+```yaml
+services:
+  api:
+    environment:
+      STORYFORGE_MAX_COST_PER_RUN_USD: "2"
+      STORYFORGE_MAX_TOKENS_PER_RUN: "2000000"
+      STORYFORGE_MAX_CALLS_PER_RUN: "300"
+```
+
+Running from source, put them in `.env` (see `.env.example`) or edit `data/config.json`. An environment variable wins over `config.json`. The **Usage** page shows token usage.
 
 ## Privacy and security
 

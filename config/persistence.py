@@ -30,6 +30,11 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_MODEL": ("llm", "model"),
     "STORYFORGE_REQUEST_TIMEOUT": ("llm", "request_timeout"),
     "STORYFORGE_TEMPERATURE": ("llm", "temperature"),
+    # Per-run cost caps (0 disables a cap). Settings does not expose them, and
+    # Docker users cannot easily edit config.json inside the data volume.
+    "STORYFORGE_MAX_COST_PER_RUN_USD": ("llm", "max_cost_per_run_usd"),
+    "STORYFORGE_MAX_TOKENS_PER_RUN": ("llm", "max_total_tokens_per_run"),
+    "STORYFORGE_MAX_CALLS_PER_RUN": ("llm", "max_calls_per_run"),
     "STORYFORGE_IMAGE_PROVIDER": ("pipeline", "image_provider"),
     "STORYFORGE_LENGTH_GATE": ("pipeline", "enable_length_gate"),
     "STORYFORGE_AGENTIC_REPAIR": ("pipeline", "enable_agentic_repair"),
@@ -54,7 +59,14 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_BLOCK_INJECTION": ("pipeline", "block_on_injection"),
 }
 
-_FLOAT_FIELDS = {"temperature", "quality_gate_threshold", "request_timeout"}
+_FLOAT_FIELDS = {
+    "temperature",
+    "quality_gate_threshold",
+    "request_timeout",
+    "max_cost_per_run_usd",
+}
+# Integer fields; "200" and "200.0" both give 200, anything else is ignored.
+_INT_FIELDS = {"max_total_tokens_per_run", "max_calls_per_run"}
 # Env values arrive as strings. A bool field missing from this set gets the raw
 # string, and every non-empty string is truthy — so `FLAG=0` turns the flag ON.
 # Any bool in _ENV_MAP must be listed here or its override can only ever enable.
@@ -182,6 +194,11 @@ def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
             try:
                 val = float(val)  # type: ignore[assignment]
             except ValueError:
+                continue
+        elif field in _INT_FIELDS:
+            try:
+                val = int(float(val))  # type: ignore[assignment]
+            except (ValueError, OverflowError):
                 continue
         elif field in _BOOL_FIELDS:
             val = val.lower() in ("1", "true", "yes")  # type: ignore[assignment]

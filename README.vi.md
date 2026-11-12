@@ -72,7 +72,7 @@ Ollama chấp nhận bất kỳ API key không rỗng nào.
 
 ## Provider ảnh
 
-Mặc định tắt ảnh (chỉ văn bản). Chọn provider trong **Settings → API Keys**, hoặc đặt `image_provider` trong `data/config.json`.
+Mặc định tắt ảnh (chỉ văn bản). Chọn provider trong **Settings → Chung → Image provider** và nhập key của nó trong **Settings → Khóa API**, hoặc đặt biến môi trường `STORYFORGE_IMAGE_PROVIDER` (xem `.env.example`).
 
 | Provider | Cần | Chi phí | Ghi chú |
 |----------|-----|---------|---------|
@@ -105,7 +105,26 @@ Cài đặt được lưu trong `data/config.json` (trong volume `storyforge-dat
 
 ## Chi phí
 
-StoryForge là phần mềm miễn phí, nhưng **bạn trả tiền cho nhà cung cấp LLM (và ảnh)** cho mỗi lệnh gọi, và một truyện dài tạo ra rất nhiều lệnh gọi. Đặt ngân sách bằng các giới hạn theo mỗi lần chạy `llm.max_cost_per_run_usd`, `llm.max_total_tokens_per_run` và `llm.max_calls_per_run` (`0` là tắt giới hạn). Trang Settings chưa hiển thị các giá trị này, hãy sửa trong `data/config.json`. Trang **Usage** cho biết lượng token đã dùng.
+StoryForge là phần mềm miễn phí, nhưng **bạn trả tiền cho nhà cung cấp LLM (và ảnh)** cho mỗi lệnh gọi, và một truyện dài tạo ra rất nhiều lệnh gọi. Đặt ngân sách bằng các giới hạn theo mỗi lần chạy (`0`, mặc định, là tắt giới hạn):
+
+| Biến môi trường | Trường cấu hình | Ý nghĩa |
+|----------|---------|---------|
+| `STORYFORGE_MAX_COST_PER_RUN_USD` | `llm.max_cost_per_run_usd` | Dừng lần chạy khi chi phí ước tính đạt số đô la Mỹ này. |
+| `STORYFORGE_MAX_TOKENS_PER_RUN` | `llm.max_total_tokens_per_run` | Dừng lần chạy sau ngần này token. |
+| `STORYFORGE_MAX_CALLS_PER_RUN` | `llm.max_calls_per_run` | Dừng lần chạy sau ngần này lệnh gọi LLM. |
+
+Trang Settings chưa hiển thị các giá trị này. Với Docker, đặt chúng cho service `api` trong file `compose.override.yaml` cạnh `compose.yaml`, rồi chạy `docker compose up -d`:
+
+```yaml
+services:
+  api:
+    environment:
+      STORYFORGE_MAX_COST_PER_RUN_USD: "2"
+      STORYFORGE_MAX_TOKENS_PER_RUN: "2000000"
+      STORYFORGE_MAX_CALLS_PER_RUN: "300"
+```
+
+Khi chạy từ mã nguồn, đặt chúng trong `.env` (xem `.env.example`) hoặc sửa `data/config.json`. Biến môi trường thắng giá trị trong `config.json`. Trang **Usage** cho biết lượng token đã dùng.
 
 ## Quyền riêng tư và bảo mật
 

@@ -77,6 +77,21 @@ docker compose down -v
 
 This deletes both volumes: all stories, settings, saved API keys and the encryption key. Back up first if you may want anything back. `docker compose down` without `-v` only stops and removes the containers.
 
+## Spending caps
+
+Every LLM and image call is billed by your provider. Cap each pipeline run with environment variables on the `api` service (`0`, the default, disables a cap). Put them in `compose.override.yaml` next to `compose.yaml` and apply with `docker compose up -d`:
+
+```yaml
+services:
+  api:
+    environment:
+      STORYFORGE_MAX_COST_PER_RUN_USD: "2"     # estimated US dollars per run
+      STORYFORGE_MAX_TOKENS_PER_RUN: "2000000" # tokens per run
+      STORYFORGE_MAX_CALLS_PER_RUN: "300"      # LLM calls per run
+```
+
+These override `llm.max_cost_per_run_usd`, `llm.max_total_tokens_per_run` and `llm.max_calls_per_run` in `config.json`; the Settings page does not show them yet.
+
 ## Exposing StoryForge to your LAN
 
 By default only the machine itself can reach StoryForge. To let other devices on your network use it, do all of the following. Do not skip the token.
@@ -93,7 +108,7 @@ By default only the machine itself can reach StoryForge. To let other devices on
        ports: !override ["0.0.0.0:3001:3000"]
    ```
 
-2. `STORYFORGE_ACCESS_TOKEN` makes every API call require the token. The UI shows an unlock screen and keeps you signed in with an httponly session cookie.
+2. `STORYFORGE_ACCESS_TOKEN` makes every API call require the token. The UI shows an unlock screen and keeps you signed in with an httponly session cookie. Share and gallery pages also sit behind that unlock screen in the UI, so people you send a share link to need the token too (the API itself serves share reads without it).
 3. `STORYFORGE_ALLOWED_ORIGINS` takes full origins, comma-separated: put the address you type in the browser, e.g. `http://192.168.1.20:3001` or `http://storyforge.lan:3001`. It adds to the built-in `localhost` origins. It is required: the API refuses requests whose browser host (`X-Forwarded-Host`, set by the web server) is not trusted, and writes whose `Origin` is not allowed. The host name of each origin listed here is trusted automatically.
 4. Only if you also publish the API port 7860 and call it directly, add the name or IP to `STORYFORGE_ALLOWED_HOSTS` (host names or IPs only, comma-separated, no ports or wildcards).
 5. Apply with `docker compose up -d`. Compose loads `compose.override.yaml` automatically only when you do not pass `-f`; with the prebuilt images pass both files: `STORYFORGE_VERSION=x.y.z docker compose -f compose.release.yaml -f compose.override.yaml up -d`.
