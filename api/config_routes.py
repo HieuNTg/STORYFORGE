@@ -596,10 +596,6 @@ def _fetch_openai_compatible_models(base_url: str, api_key: str) -> list[dict]:
     return out
 
 
-def _host(url: str) -> str:
-    return (urlparse(url or "").hostname or "").lower()
-
-
 _DEFAULT_PORTS = {"http": 80, "https": 443}
 
 
@@ -654,13 +650,14 @@ def _preset_models_for(base_url: str) -> list[dict]:
     Fallback for when live discovery fails (offline, no key yet, provider
     without a /models endpoint) — so the dropdown is never empty just because
     the network was. config/presets.py stays the single source of truth; this
-    route keeps no second copy of the lists.
+    route keeps no second copy of the lists. Matched by origin (scheme, host,
+    port), so LM Studio at localhost:1234 does not get Ollama's list.
     """
-    host = _host(base_url)
-    if not host:
+    origin = _origin(base_url)
+    if not origin[1]:
         return []
     for preset in provider_presets():
-        if _host(preset.get("base_url", "")) == host:
+        if _origin(preset.get("base_url", "")) == origin:
             return list(preset.get("models") or [])
     return []
 
@@ -670,17 +667,19 @@ def _stored_key_for(base_url: str) -> str:
 
     Lets the UI auto-refresh a configured provider's model list without the
     user re-typing a secret the server already holds. Never returned to the
-    client — only used to authenticate the outgoing discovery call.
+    client — only used to authenticate the outgoing discovery call. Matched by
+    origin like ``_key_survives``: an http:// downgrade or another port on the
+    same host does not get the key.
     """
-    host = _host(base_url)
-    if not host:
+    origin = _origin(base_url)
+    if not origin[1]:
         return ""
     cfg = ConfigManager()
     candidates = list(cfg.llm.fallback_models) + [
         {"base_url": cfg.llm.base_url, "api_key": cfg.llm.api_key}
     ]
     for profile in candidates:
-        if _host(profile.get("base_url") or "") == host and profile.get("api_key"):
+        if _origin(profile.get("base_url") or "") == origin and profile.get("api_key"):
             return str(profile["api_key"])
     return ""
 
