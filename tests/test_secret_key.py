@@ -91,3 +91,34 @@ def test_undecryptable_value_becomes_empty_and_app_starts(key_file, tmp_path, mo
     llm, pipeline = LLMConfig(), PipelineConfig()
     p.load_config(llm, pipeline)
     assert llm.api_key == ""
+
+
+def test_publish_never_overwrites_and_both_callers_get_disk_key(key_file):
+    k1, k2 = Fernet.generate_key(), Fernet.generate_key()
+    assert sm._publish_key(key_file, k1) is True
+    assert sm._publish_key(key_file, k2) is False
+    assert key_file.read_bytes().strip() == k1
+    assert [p.name for p in key_file.parent.iterdir()] == [".secret_key"]
+
+
+def test_publish_falls_back_to_excl_create_without_hardlinks(key_file, monkeypatch):
+    def no_link(*a, **k):
+        raise OSError("links unsupported")
+
+    monkeypatch.setattr(sm.os, "link", no_link)
+    k1, k2 = Fernet.generate_key(), Fernet.generate_key()
+    assert sm._publish_key(key_file, k1) is True
+    assert sm._publish_key(key_file, k2) is False
+    assert key_file.read_bytes().strip() == k1
+
+
+def test_race_loser_returns_winners_key(key_file, monkeypatch):
+    winner = Fernet.generate_key()
+    real = sm._publish_key
+
+    def racing(path, key):
+        real(path, winner)  # another process publishes first
+        return real(path, key)
+
+    monkeypatch.setattr(sm, "_publish_key", racing)
+    assert ensure_secret_key() == winner

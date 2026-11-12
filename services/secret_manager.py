@@ -19,6 +19,7 @@ import logging
 import sys
 import tempfile
 from pathlib import Path
+from typing import NoReturn
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -72,7 +73,7 @@ def _is_valid_fernet_key(raw: bytes) -> bool:
     return True
 
 
-def _die(message: str) -> "None":
+def _die(message: str) -> NoReturn:
     print(f"STORYFORGE: {message}", file=sys.stderr)
     raise SystemExit(2)
 
@@ -91,19 +92,28 @@ def ensure_secret_key() -> bytes:
         return key
 
     path = Path(SECRET_KEY_FILE)
-    if path.exists():
-        key = path.read_bytes().strip()
-        if not _is_valid_fernet_key(key):
-            _die(
-                f"{path} exists but does not contain a valid Fernet key. "
-                "Refusing to regenerate it, because that would orphan every "
-                "encrypted value. Restore the file from a backup, or delete it "
-                "to start fresh (stored API keys will have to be re-entered)."
-            )
-        return key
+    if not path.exists():
+        path.parent.mkdir(parents=True, exist_ok=True)
+        if _publish_key(path, Fernet.generate_key()):
+            logger.info("Generated a new encryption key at %s", path)
+    # Always return what is on disk: if another process won the race, its key
+    # is the one that counts.
+    key = path.read_bytes().strip()
+    if not _is_valid_fernet_key(key):
+        _die(
+            f"{path} exists but does not contain a valid Fernet key. "
+            "Refusing to regenerate it, because that would orphan every "
+            "encrypted value. Restore the file from a backup, or delete it "
+            "to start fresh (stored API keys will have to be re-entered)."
+        )
+    return key
 
-    key = Fernet.generate_key()
-    path.parent.mkdir(parents=True, exist_ok=True)
+
+def _publish_key(path: Path, key: bytes) -> bool:
+    """Atomically create `path` holding `key`; never overwrite an existing file.
+
+    Returns True if this call created the file, False if it already existed.
+    """
     fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".secret_key.", suffix=".tmp")
     try:
         with os.fdopen(fd, "wb") as f:
@@ -112,16 +122,25 @@ def ensure_secret_key() -> bytes:
             os.chmod(tmp, 0o600)
         except OSError:
             pass  # best effort (Windows)
-        if path.exists():  # another process won the race; use its key
+        try:
+            os.link(tmp, path)  # fails if the destination exists
+            return True
+        except FileExistsError:
+            return False
+        except (OSError, NotImplementedError, AttributeError):
+            pass  # hard links unsupported on this filesystem
+        try:
+            wfd = os.open(path, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+        except FileExistsError:
+            return False
+        with os.fdopen(wfd, "wb") as f:
+            f.write(key)
+        return True
+    finally:
+        try:
             os.unlink(tmp)
-            return ensure_secret_key()
-        os.replace(tmp, path)
-    except BaseException:
-        if os.path.exists(tmp):
-            os.unlink(tmp)
-        raise
-    logger.info("Generated a new encryption key at %s", path)
-    return key
+        except OSError:
+            pass
 
 
 def _get_fernet() -> Fernet:

@@ -381,6 +381,11 @@ def main():
         host, access_token(), os.environ.get("STORYFORGE_IN_CONTAINER") == "1"
     )
 
+    # Fail at boot (not inside a request) if the encryption key is unusable.
+    from services.secret_manager import ensure_secret_key
+
+    ensure_secret_key()
+
     main_app = create_app()
 
     if not _preflight_check():
