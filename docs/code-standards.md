@@ -38,7 +38,7 @@ Conventions for StoryForge contributors. Setup, checks and the PR checklist are 
 
 - Python tests live in `tests/` as `test_<module>.py`; frontend tests sit next to the code as `*.test.ts(x)` or under `frontend/tests/`.
 - Mock all LLM and network calls. Pytest blocks real network access (`--disable-socket`, localhost allowed) and fails any test over 120 s.
-- Coverage floor is 60% (`--cov-fail-under=60`), set in `pyproject.toml`.
+- Coverage floor is 75% (`--cov-fail-under=75`), set in `pyproject.toml`.
 - Every bug fix starts with a test that fails on the old code. Do not delete a behavior test to get green.
 - Slow suites use markers (`calibration`, `bench`, `perf`) and are excluded from the default run: `python -m pytest -q -m "not calibration and not bench and not perf"`.
 

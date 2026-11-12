@@ -159,16 +159,19 @@ Python 3.11+ và Node 24.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows Git Bash: source .venv/Scripts/activate
-pip install -r requirements.lock.txt --extra-index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt -r requirements-test.txt
+# Linux: thêm --extra-index-url https://download.pytorch.org/whl/cpu để cài bản
+# torch chỉ dùng CPU thay vì bản CUDA nặng nhiều GB.
 (cd frontend && npm ci)
 
 python scripts/dev.py        # chạy API và dev server Next.js
 ```
 
+`requirements.lock.txt` ghim phiên bản chính xác cho image Docker và CI. File này được biên dịch cho Linux x86_64 và Python 3.12 nên không cài được trên Windows hay macOS; ở đó hãy dùng `requirements.txt`.
+
 Chạy test:
 
 ```bash
-pip install -r requirements.lock.txt -r requirements-test.txt --extra-index-url https://download.pytorch.org/whl/cpu
 python -m pytest -q -m "not calibration and not bench and not perf"
 
 cd frontend && npm ci && npx vitest run

@@ -159,16 +159,19 @@ Python 3.11+ and Node 24.
 
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows Git Bash: source .venv/Scripts/activate
-pip install -r requirements.lock.txt --extra-index-url https://download.pytorch.org/whl/cpu
+pip install -r requirements.txt -r requirements-test.txt
+# Linux: append --extra-index-url https://download.pytorch.org/whl/cpu to get the
+# CPU-only torch wheel instead of the multi-GB CUDA build.
 (cd frontend && npm ci)
 
 python scripts/dev.py        # starts the API and the Next.js dev server
 ```
 
+`requirements.lock.txt` pins the exact versions for the Docker image and CI. It is compiled for Linux x86_64 and Python 3.12, so it does not install on Windows or macOS; use `requirements.txt` there.
+
 Tests:
 
 ```bash
-pip install -r requirements.lock.txt -r requirements-test.txt --extra-index-url https://download.pytorch.org/whl/cpu
 python -m pytest -q -m "not calibration and not bench and not perf"
 
 cd frontend && npm ci && npx vitest run

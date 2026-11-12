@@ -32,7 +32,7 @@ python -m pytest tests/test_x.py -k name --no-cov      # one test
 cd frontend && npx tsc --noEmit && npx eslint . && npx vitest run
 ```
 
-Pytest blocks real network access (mock LLM calls), enforces a 60% coverage floor and a 120 s per-test timeout.
+Pytest blocks real network access (mock LLM calls), enforces a 75% coverage floor and a 120 s per-test timeout.
 
 ## Conventions and gotchas
 

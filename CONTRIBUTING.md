@@ -19,6 +19,8 @@ cd STORYFORGE
 python -m venv .venv
 source .venv/bin/activate          # Windows Git Bash: source .venv/Scripts/activate
 pip install -r requirements.txt -r requirements-test.txt
+# Linux: append --extra-index-url https://download.pytorch.org/whl/cpu to get the
+# CPU-only torch wheel instead of the multi-GB CUDA build.
 # or with uv: uv venv && uv pip install -r requirements.txt -r requirements-test.txt
 
 # Frontend
@@ -27,7 +29,7 @@ cd frontend && npm ci && cd ..
 cp .env.example .env               # then add your LLM API key (or set it in the UI)
 ```
 
-CI installs from the pinned `requirements.lock.txt`; use it if you need to reproduce CI exactly (it needs `--extra-index-url https://download.pytorch.org/whl/cpu`).
+CI and the Docker image install from the pinned `requirements.lock.txt`. It is compiled for Linux x86_64 and Python 3.12 (it does not install on Windows or macOS); on Linux you can use it to reproduce CI exactly (it needs `--extra-index-url https://download.pytorch.org/whl/cpu`). CI checks that it stays in sync with `requirements.txt`; after changing `requirements.txt`, regenerate it with the `uv pip compile` command in its header.
 
 ## Running it
 
@@ -51,7 +53,7 @@ npx eslint .
 npx vitest run
 ```
 
-CI also runs `pip-audit`, `npm audit --omit=dev --audit-level=high` and `docker compose build`. Pytest enforces a coverage floor (`--cov-fail-under=60` in `pyproject.toml`) and blocks real network access in tests, so mock LLM calls. Run a single test with `python -m pytest tests/test_foo.py -k name --no-cov`.
+CI also runs `pip-audit`, `npm audit --omit=dev --audit-level=high` and `docker compose build`. Pytest enforces a coverage floor (`--cov-fail-under=75` in `pyproject.toml`) and blocks real network access in tests, so mock LLM calls. Run a single test with `python -m pytest tests/test_foo.py -k name --no-cov`.
 
 ## Code style
 
