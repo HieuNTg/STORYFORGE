@@ -5,13 +5,13 @@
 # node_modules and .next out of it.
 
 # ---- deps ------------------------------------------------------------------
-FROM node:24-slim AS deps
+FROM node:25-slim AS deps
 WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 
 # ---- build -----------------------------------------------------------------
-FROM node:24-slim AS build
+FROM node:25-slim AS build
 WORKDIR /app
 # next.config.ts reads API_ORIGIN at build time and bakes it into the
 # /api and /media rewrites; "api" is the compose service name.
@@ -23,7 +23,7 @@ COPY . .
 RUN npm run build
 
 # ---- runtime ---------------------------------------------------------------
-FROM node:24-slim AS runtime
+FROM node:25-slim AS runtime
 WORKDIR /app
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
