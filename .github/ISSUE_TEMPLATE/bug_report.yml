@@ -97,6 +97,6 @@ body:
     id: screenshots
     attributes:
       label: Screenshots or Logs
-      description: Paste relevant log output or attach screenshots. Logs are in `storyforge.log`.
+      description: Paste relevant log output or attach screenshots. Logs are in `data/logs/storyforge.log`.
     validations:
       required: false

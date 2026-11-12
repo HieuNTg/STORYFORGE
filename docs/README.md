@@ -4,9 +4,10 @@
 
 | Doc | Audience | Purpose |
 |-----|----------|---------|
-| [system-architecture.md](./system-architecture.md) | Architects, DevOps | Pipeline flow, signal integration, retry semantics |
+| [ARCHITECTURE.md](../ARCHITECTURE.md) | Contributors | Layout, pipeline flow, middleware order, per-run isolation |
 | [code-standards.md](./code-standards.md) | Contributors | Python/TypeScript style, design patterns, security |
-| [deployment-production.md](./deployment-production.md) | Self-hosters | Production setup, scaling, monitoring |
+| [frontend-security.md](./frontend-security.md) | Contributors | API key handling and CSRF notes for the UI |
+| [frontend-accessibility.md](./frontend-accessibility.md) | Contributors | UI accessibility checklist |
 
 ## Architecture Decision Records
 
