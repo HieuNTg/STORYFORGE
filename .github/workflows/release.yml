@@ -26,7 +26,7 @@ jobs:
             context: frontend
             file: docker/web.Dockerfile
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Image name
         id: image
         # GHCR repository names must be lowercase.
