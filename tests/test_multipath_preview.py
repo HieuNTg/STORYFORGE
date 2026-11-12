@@ -422,3 +422,146 @@ class TestMultiPathAPI:
         )
         # Schema validation passed (would be 422 otherwise)
         assert resp.status_code in [404, 200]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# Task 12: /continue/select-path and /continue/paths run inside the
+# orchestrator's per-run cost wallet and report what was written.
+# ══════════════════════════════════════════════════════════════════════════════
+
+
+def _parse_sse_events(text: str) -> list[dict]:
+    import json
+
+    return [
+        json.loads(line[6:])
+        for line in text.splitlines()
+        if line.startswith("data: ")
+    ]
+
+
+def _capped_cm(cost: float = 0.0):
+    """Set the per-run cost cap on the live config singleton (``llm`` section)."""
+    from config import ConfigManager
+
+    return patch.multiple(
+        ConfigManager().llm,
+        max_cost_per_run_usd=cost,
+        max_total_tokens_per_run=0,
+        max_calls_per_run=0,
+    )
+
+
+class TestSelectPathRunsInWalletScope:
+    @pytest.fixture
+    def checkpoint(self, tmp_path):
+        path = tmp_path / "ckpt.json"
+        path.write_text(
+            PipelineOutput(story_draft=_make_draft(3), status="done").model_dump_json(),
+            encoding="utf-8",
+        )
+        with (
+            patch("api.continuation_routes._resolve_checkpoint", return_value=path),
+            patch("pipeline.orchestrator_checkpoint.CheckpointManager.save"),
+            patch("services.continuation_history.record_continuation"),
+        ):
+            yield path
+
+    @staticmethod
+    def _fake_writer(seen: dict, charge: float):
+        def _write(*, generator, draft, outlines, **_kw):
+            from services.llm.client import LLMClient, current_run_id
+
+            rid = current_run_id.get()
+            seen["run_id"] = rid
+            seen["wallet_open"] = bool(rid) and LLMClient.has_wallet(rid)
+            seen["loaded_chapters"] = len(draft.chapters)
+            LLMClient.charge_wallet(charge, 10)
+            for o in outlines:
+                draft.chapters.append(
+                    Chapter(
+                        chapter_number=o.chapter_number,
+                        title=o.title,
+                        content="Written",
+                        word_count=1,
+                    )
+                )
+            return draft
+
+        return _write
+
+    _BODY = {
+        "checkpoint": "ckpt.json",
+        "path_id": "path_1",
+        "outlines": [
+            {"chapter_number": 4, "title": "Ch4", "summary": "S", "key_events": []}
+        ],
+    }
+
+    @pytest.mark.asyncio
+    async def test_select_path_returns_written_chapters(self, client, checkpoint):
+        seen: dict = {}
+        with (
+            _capped_cm(),
+            patch(
+                "pipeline.layer1_story.story_continuation.write_from_outlines",
+                side_effect=self._fake_writer(seen, 0.01),
+            ),
+        ):
+            resp = await client.post("/api/pipeline/continue/select-path", json=self._BODY)
+
+        events = _parse_sse_events(resp.text)
+        assert seen["loaded_chapters"] == 3, "writer must see the loaded checkpoint"
+        done = [e for e in events if e["type"] == "done"]
+        assert done, events
+        assert len(done[0]["data"]["draft"]["chapters"]) == 4
+        assert done[0]["data"]["path_id"] == "path_1"
+
+    @pytest.mark.asyncio
+    async def test_select_path_write_is_capped_and_wallet_closed(
+        self, client, checkpoint
+    ):
+        from services.llm.client import LLMClient
+
+        seen: dict = {}
+        with (
+            _capped_cm(cost=0.5),
+            patch(
+                "pipeline.layer1_story.story_continuation.write_from_outlines",
+                side_effect=self._fake_writer(seen, 1.0),
+            ),
+        ):
+            resp = await client.post("/api/pipeline/continue/select-path", json=self._BODY)
+
+        events = _parse_sse_events(resp.text)
+        assert seen["wallet_open"] is True, "the write must run inside a wallet"
+        assert any(
+            e["type"] == "progress" and "cost cap" in str(e["data"]) for e in events
+        ), events
+        assert events[-1]["type"] == "error"
+        assert not LLMClient.has_wallet(seen["run_id"])
+
+    @pytest.mark.asyncio
+    async def test_paths_runs_inside_a_wallet(self, client, checkpoint):
+        seen: dict = {}
+
+        def _paths(generator, draft, **_kw):
+            from services.llm.client import LLMClient, current_run_id
+
+            rid = current_run_id.get()
+            seen["wallet_open"] = bool(rid) and LLMClient.has_wallet(rid)
+            seen["loaded_chapters"] = len(draft.chapters)
+            return []
+
+        with patch(
+            "pipeline.layer1_story.story_continuation.generate_continuation_paths",
+            side_effect=_paths,
+        ):
+            resp = await client.post(
+                "/api/pipeline/continue/paths",
+                json={"checkpoint": "ckpt.json", "num_paths": 2},
+            )
+
+        assert resp.status_code == 200, resp.text
+        assert resp.json()["existing_chapters"] == 3
+        assert seen == {"wallet_open": True, "loaded_chapters": 3}

@@ -383,6 +383,23 @@ class PipelineOrchestrator:
                 direction=direction,
             )
 
+    def generate_continuation_paths(
+        self,
+        additional_chapters: int = 5,
+        num_paths: int = 3,
+        progress_callback=None,
+        arc_directives: list = None,
+    ) -> list:
+        """Generate alternative continuation paths (outlines only)."""
+        self._sync_output()
+        with self._wallet_scope():
+            return self.continuation.generate_continuation_paths(
+                additional_chapters=additional_chapters,
+                num_paths=num_paths,
+                progress_callback=progress_callback,
+                arc_directives=arc_directives,
+            )
+
     def write_from_outlines(
         self,
         outlines: list,

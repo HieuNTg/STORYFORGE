@@ -1006,7 +1006,9 @@ async def generate_continuation_paths(body: MultiPathRequest):
         )
 
     orch = PipelineOrchestrator()
-    draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+    # Orchestrator wrappers, not orch.continuation: they keep orch.output in
+    # sync and run the LLM work inside the run's cost wallet.
+    draft = orch.load_from_checkpoint(str(checkpoint_path))
     if not draft:
         return JSONResponse(
             status_code=500,
@@ -1015,7 +1017,7 @@ async def generate_continuation_paths(body: MultiPathRequest):
 
     try:
         paths = await asyncio.to_thread(
-            orch.continuation.generate_continuation_paths,
+            orch.generate_continuation_paths,
             additional_chapters=body.additional_chapters,
             num_paths=body.num_paths,
             arc_directives=body.arc_directives,
@@ -1049,7 +1051,10 @@ async def select_path_and_write(request: Request, body: SelectPathRequest):
             return
 
         orch = PipelineOrchestrator()
-        draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+        # Orchestrator wrappers, not orch.continuation: load_from_checkpoint
+        # syncs orch.output (read back below as the result), and
+        # write_from_outlines runs inside the run's cost wallet.
+        draft = orch.load_from_checkpoint(str(checkpoint_path))
         if not draft:
             yield f"data: {json.dumps({'type': 'error', 'data': 'Failed to load checkpoint'})}\n\n"
             return
@@ -1076,7 +1081,7 @@ async def select_path_and_write(request: Request, body: SelectPathRequest):
         async def run_write():
             try:
                 await asyncio.to_thread(
-                    orch.continuation.write_from_outlines,
+                    orch.write_from_outlines,
                     outlines=outlines,
                     word_count=body.word_count,
                     style=body.style,

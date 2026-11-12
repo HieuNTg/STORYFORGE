@@ -569,15 +569,15 @@ class TestFix8WalletIsolatedPerRun:
 
 
 def _capped_config(cost=0.0, tokens=0, calls=0):
-    """A ConfigManager stand-in whose pipeline carries the given wallet caps."""
-    from types import SimpleNamespace
+    """Set the wallet caps on the live config singleton (they live on ``llm``)."""
+    from config import ConfigManager
 
-    pipeline = SimpleNamespace(
+    return patch.multiple(
+        ConfigManager().llm,
         max_cost_per_run_usd=cost,
         max_total_tokens_per_run=tokens,
         max_calls_per_run=calls,
     )
-    return MagicMock(return_value=SimpleNamespace(pipeline=pipeline))
 
 
 class TestWalletScopeEntryPoints:
@@ -620,7 +620,7 @@ class TestWalletScopeEntryPoints:
         owner_name, attr = target.split(".")
         seen = {}
         with (
-            patch("services.llm_client.ConfigManager", _capped_config(cost=0.5)),
+            _capped_config(cost=0.5),
             patch.object(getattr(orch, owner_name), attr, side_effect=self._charging(seen)),
         ):
             with pytest.raises(LLMBudgetExceededError):
@@ -646,6 +646,22 @@ class TestWalletScopeEntryPoints:
         assert snap["calls"] == 2
         assert "outer" not in LLMClient._wallet_state
 
+    def test_caps_are_read_from_the_llm_config_section(self):
+        """The caps are LLMConfig fields; reading them off PipelineConfig meant
+        every cap silently stayed 0 and never fired."""
+        import contextvars
+
+        from services.llm.client import LLMBudgetExceededError
+        from services.llm.run_context import run_wallet_scope
+
+        def _go():
+            with run_wallet_scope("r"):
+                LLMClient.charge_wallet(1.0, 10)
+
+        with _capped_config(cost=0.5):
+            with pytest.raises(LLMBudgetExceededError):
+                contextvars.Context().run(_go)
+
     def test_closed_wallet_is_not_recreated_by_a_late_charge(self):
         LLMClient.reset_wallet("r")
         LLMClient.close_wallet("r")
@@ -667,7 +683,7 @@ class TestUnscopedChargeLogging:
     def test_warns_once_when_a_cap_is_set(self, caplog):
         import logging
 
-        with patch("services.llm_client.ConfigManager", _capped_config(calls=5)):
+        with _capped_config(calls=5):
             with caplog.at_level(logging.DEBUG, logger="services.llm.client"):
                 self._charge_twice_out_of_run()
 
@@ -677,7 +693,7 @@ class TestUnscopedChargeLogging:
     def test_no_warning_when_caps_are_disabled(self, caplog):
         import logging
 
-        with patch("services.llm_client.ConfigManager", _capped_config()):
+        with _capped_config():
             with caplog.at_level(logging.DEBUG, logger="services.llm.client"):
                 self._charge_twice_out_of_run()
 

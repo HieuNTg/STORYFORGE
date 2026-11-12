@@ -431,8 +431,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
     def charge_wallet(cls, cost_usd: float, tokens: int, run_id: str = "") -> None:
         """Charge the wallet and raise LLMBudgetExceededError if any cap is exceeded.
 
-        Caps come from PipelineConfig: max_cost_per_run_usd, max_total_tokens_per_run,
-        max_calls_per_run. A cap value of 0 means disabled.
+        Caps come from LLMConfig (``config.llm``): max_cost_per_run_usd,
+        max_total_tokens_per_run, max_calls_per_run. A cap value of 0 means
+        disabled. (They were once read off ``config.pipeline``, which has no
+        such fields — so every cap silently stayed 0.)
         """
 
         def _safe_num(v, cast, default):
@@ -443,10 +445,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         try:
             ConfigManager, _, _ = _imports()
-            pcfg = ConfigManager().pipeline
-            cap_cost = _safe_num(getattr(pcfg, "max_cost_per_run_usd", 0.0), float, 0.0)
-            cap_tokens = _safe_num(getattr(pcfg, "max_total_tokens_per_run", 0), int, 0)
-            cap_calls = _safe_num(getattr(pcfg, "max_calls_per_run", 0), int, 0)
+            lcfg = ConfigManager().llm
+            cap_cost = _safe_num(getattr(lcfg, "max_cost_per_run_usd", 0.0), float, 0.0)
+            cap_tokens = _safe_num(getattr(lcfg, "max_total_tokens_per_run", 0), int, 0)
+            cap_calls = _safe_num(getattr(lcfg, "max_calls_per_run", 0), int, 0)
         except Exception:
             cap_cost = cap_tokens = cap_calls = 0
 
