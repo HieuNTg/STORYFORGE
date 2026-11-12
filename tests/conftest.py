@@ -73,11 +73,9 @@ if os.path.exists(_config_persistence.CONFIG_FILE):
 
     shutil.copyfile(_config_persistence.CONFIG_FILE, _TEST_CONFIG_FILE)
 
-    # Drop encrypted secrets from the sandbox copy. Tests deliberately do not
-    # load .env (STORYFORGE_SKIP_DOTENV above), so STORYFORGE_SECRET_KEY is
-    # absent and every ENC: value decrypts to "" anyway — but noisily, logging
-    # "cannot decrypt" on each read. Removing them keeps the effective state
-    # identical and the log honest: tests run without secrets, on purpose.
+    # Drop encrypted secrets from the sandbox copy: they were encrypted with the
+    # developer's real data/.secret_key, which tests never see, so they would
+    # only decrypt to "" with a warning. Tests run without secrets, on purpose.
     try:
         with open(_TEST_CONFIG_FILE, "r", encoding="utf-8") as _f:
             _seed = json.load(_f)
@@ -154,6 +152,12 @@ if os.path.exists(_config_persistence.CONFIG_FILE):
         pass  # malformed config — tests fall back to dataclass defaults anyway
 
 _config_persistence.CONFIG_FILE = _TEST_CONFIG_FILE
+
+# Never read/write the developer's real data/.secret_key during tests.
+import services.secret_manager as _secret_manager  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+
+_secret_manager.SECRET_KEY_FILE = _Path(_TEST_CONFIG_DIR) / ".secret_key"
 _config_persistence._SECRETS_FILE = os.path.join(_TEST_CONFIG_DIR, "secrets.json")
 
 # Block lazy loads of the real sentence-transformers model during unit tests.

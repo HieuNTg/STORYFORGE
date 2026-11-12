@@ -130,6 +130,11 @@ class TestStructuredOutput:
 # ============================================================
 
 
+from cryptography.fernet import Fernet as _Fernet  # noqa: E402
+
+_FK = _Fernet.generate_key().decode()
+
+
 class TestSecretManager:
     """Tests for secret manager encryption/decryption."""
 
@@ -158,14 +163,14 @@ class TestSecretManager:
         assert _is_sensitive("base_url") is False
         assert _is_sensitive("temperature") is False
 
-    def test_encrypt_value_no_key(self):
-        """Without STORYFORGE_SECRET_KEY, encrypt_value returns plaintext."""
+    def test_encrypt_value_no_env_key_still_encrypts(self):
+        """Without STORYFORGE_SECRET_KEY the auto-generated key is used."""
         from services.secret_manager import encrypt_value
 
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("STORYFORGE_SECRET_KEY", None)
             result = encrypt_value("my-secret")
-        assert result == "my-secret"
+        assert result.startswith("ENC:")
 
     def test_encrypt_value_empty_string(self):
         from services.secret_manager import encrypt_value
@@ -176,7 +181,7 @@ class TestSecretManager:
     def test_encrypt_decrypt_roundtrip(self):
         from services.secret_manager import encrypt_value, decrypt_value
 
-        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "test-key-1234"}):
+        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": _FK}):
             encrypted = encrypt_value("my-secret-value")
             assert encrypted.startswith("ENC:")
             decrypted = decrypt_value(encrypted)
@@ -192,7 +197,7 @@ class TestSecretManager:
     def test_encrypt_sensitive_fields(self):
         from services.secret_manager import encrypt_sensitive_fields
 
-        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "test-key-1234"}):
+        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": _FK}):
             data = {"api_key": "sk-test", "model": "gpt-4o", "token": "hf-token"}
             result = encrypt_sensitive_fields(data)
             assert result["api_key"].startswith("ENC:")
@@ -205,25 +210,25 @@ class TestSecretManager:
             decrypt_sensitive_fields,
         )
 
-        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "test-key-5678"}):
+        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": _FK}):
             original = {"api_key": "sk-test-123", "model": "gpt-4o"}
             encrypted = encrypt_sensitive_fields(original)
             decrypted = decrypt_sensitive_fields(encrypted)
             assert decrypted["api_key"] == "sk-test-123"
             assert decrypted["model"] == "gpt-4o"
 
-    def test_get_fernet_returns_none_without_key(self):
+    def test_get_fernet_never_none_without_env_key(self):
         from services.secret_manager import _get_fernet
 
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("STORYFORGE_SECRET_KEY", None)
             result = _get_fernet()
-        assert result is None
+        assert result is not None
 
     def test_get_fernet_returns_fernet_with_key(self):
         from services.secret_manager import _get_fernet
 
-        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "test-key"}):
+        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": _FK}):
             result = _get_fernet()
         assert result is not None
 

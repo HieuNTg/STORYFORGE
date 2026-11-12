@@ -286,7 +286,7 @@ def create_app() -> FastAPI:
         start_job_reaper()
         logger.info("Pipeline job reaper started")
 
-        # One-shot: encrypt secrets that were written while no key was loaded.
+        # One-shot: encrypt any plaintext secrets left in config.json.
         try:
             from config.persistence import CONFIG_FILE
             from services.secret_manager import migrate_plaintext_secrets
@@ -400,14 +400,6 @@ def main():
     )
 
     main_app = create_app()
-
-    _secret = os.environ.get("STORYFORGE_SECRET_KEY", "")
-    if _secret in ("", "change-me-in-production"):
-        logger.warning(
-            "STORYFORGE_SECRET_KEY is not set or still default — "
-            "secrets at rest will NOT be encrypted. "
-            "Set a strong key for production use."
-        )
 
     if not _preflight_check():
         logger.error("Preflight checks failed — aborting startup")

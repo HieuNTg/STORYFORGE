@@ -161,7 +161,7 @@ class TestConfigPersistence:
                 pipeline2 = PipelineConfig()
                 load_config(llm2, pipeline2)
 
-    def test_save_config_includes_api_key(self):
+    def test_save_config_encrypts_api_key_without_env_key(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config
 
@@ -176,11 +176,12 @@ class TestConfigPersistence:
                 save_config(llm, pipeline)
                 with open(config_file) as f:
                     data = json.load(f)
-                assert data["llm"]["api_key"] == "sk-test-key"
+                assert data["llm"]["api_key"].startswith("ENC:")
 
     def test_save_config_encrypts_sensitive_fields_when_secret_set(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config, load_config
+        from cryptography.fernet import Fernet
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = os.path.join(tmpdir, "config.json")
@@ -192,7 +193,7 @@ class TestConfigPersistence:
                 ),
                 patch.dict(
                     os.environ,
-                    {"STORYFORGE_SECRET_KEY": "unit-test-secret"},
+                    {"STORYFORGE_SECRET_KEY": Fernet.generate_key().decode()},
                     clear=False,
                 ),
             ):

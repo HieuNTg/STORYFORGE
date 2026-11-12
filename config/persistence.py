@@ -121,7 +121,7 @@ def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> Non
     silently locking away the user's real API keys/profiles. This recovers
     them: read once, fold into the in-memory config, then on the next save
     config.json becomes the single source of truth and the legacy file is
-    can be archived manually with scripts/recover_secrets.py after verification.
+    can be archived manually after verification.
     """
     if not os.path.exists(_SECRETS_FILE):
         return
@@ -133,16 +133,10 @@ def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> Non
         logger.warning(f"Legacy secrets load error: {e}")
         return
     if not data:
-        # Encrypted but no key, or corrupt — leave the file alone for manual
-        # recovery. load_encrypted() only logs the raw JSONDecodeError from
-        # parsing ciphertext as text ("Expecting value: line 1 column 1"),
-        # which reads like a corrupt-file bug rather than a missing key, so
-        # say what actually happened and what to do about it.
+        # Encrypted with a key we no longer have, or corrupt — ignore it.
         logger.warning(
-            "%s exists but could not be read — it is encrypted and "
-            "STORYFORGE_SECRET_KEY does not match the key it was written with. "
-            "Config now lives in %s; recover the legacy file with "
-            "scripts/recover_secrets.py (needs the original key), or archive it "
+            "%s exists but could not be read (encrypted with a different "
+            "key). Config now lives in %s; archive or delete the legacy file "
             "to silence this warning.",
             _SECRETS_FILE,
             CONFIG_FILE,
@@ -215,7 +209,7 @@ def _section_dict(obj, skip: frozenset) -> dict:
 
 
 def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
-    """Persist config to JSON, encrypting sensitive fields when a secret key is set.
+    """Persist config to JSON, encrypting sensitive fields (key auto-generated in data/.secret_key).
 
     Sections are built from the dataclass fields rather than a hand-written list.
     The list had drifted to 103 of 244 fields, so every l2_* knob, the budget

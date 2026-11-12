@@ -16,10 +16,6 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Ensure a secret key is set before config/secret_manager imports
-os.environ.setdefault(
-    "STORYFORGE_SECRET_KEY", "test-secret-key-for-unit-tests-coverage"
-)
 
 try:
     from fastapi.testclient import TestClient

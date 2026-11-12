@@ -3,22 +3,33 @@
 Field-level encryption for sensitive config values:
   Sensitive fields: any key containing 'key', 'secret', 'token', 'password'.
   Encrypted values are stored as strings prefixed with ENC: followed by the
-  Fernet ciphertext (base64url). Plaintext values are left as-is when no
-  STORYFORGE_SECRET_KEY env var is set (backward-compatible).
+  Fernet ciphertext (base64url).
+
+The Fernet key is never something the user has to create. Resolution order:
+  1. STORYFORGE_SECRET_KEY env var, if set, not a placeholder, and a valid
+     Fernet key (anything else is a hard startup error).
+  2. data/.secret_key, if present (must hold a valid Fernet key).
+  3. Otherwise a fresh key is generated and written to data/.secret_key.
+Values that cannot be decrypted with the current key become empty strings.
 """
 
 import os
 import json
 import logging
-import base64
-import hashlib
+import sys
+import tempfile
+from pathlib import Path
 
 from cryptography.fernet import Fernet, InvalidToken
 
 logger = logging.getLogger(__name__)
 
+DATA_DIR = Path(__file__).resolve().parents[1] / "data"
+SECRET_KEY_FILE = DATA_DIR / ".secret_key"
+
 STORYFORGE_SECRET_KEY_ENV = "STORYFORGE_SECRET_KEY"
 _ENC_PREFIX = "ENC:"
+_decrypt_warned = False
 
 # Placeholder values shipped in .env templates. Encrypting with one of these is
 # worse than storing plaintext: anyone with the file can decrypt it, while the
@@ -47,50 +58,100 @@ def _is_sensitive(field_name: str) -> bool:
     return any(s in name_lower for s in _SENSITIVE_SUBSTRINGS)
 
 
-def _get_fernet():
-    """Get Fernet instance from env var. Returns None if no usable key is set."""
-    raw_key = os.environ.get(STORYFORGE_SECRET_KEY_ENV, "")
-    if not raw_key:
-        return None
-    if is_placeholder_key(raw_key):
-        logger.warning(
-            "%s is still a template placeholder — refusing to encrypt with a "
-            "publicly known key. Set a real key to enable secrets at rest.",
-            STORYFORGE_SECRET_KEY_ENV,
-        )
-        return None
-    # Derive a valid Fernet key from arbitrary string
-    key = base64.urlsafe_b64encode(hashlib.sha256(raw_key.encode()).digest())
-    return Fernet(key)
+_KEY_HELP = (
+    "Generate one with: python -c \"from cryptography.fernet import Fernet; "
+    "print(Fernet.generate_key().decode())\""
+)
+
+
+def _is_valid_fernet_key(raw: bytes) -> bool:
+    try:
+        Fernet(raw)
+    except (ValueError, TypeError):
+        return False
+    return True
+
+
+def _die(message: str) -> "None":
+    print(f"STORYFORGE: {message}", file=sys.stderr)
+    raise SystemExit(2)
+
+
+def ensure_secret_key() -> bytes:
+    """Return the Fernet key, creating data/.secret_key on first use."""
+    env_raw = os.environ.get(STORYFORGE_SECRET_KEY_ENV, "").strip()
+    if env_raw and not is_placeholder_key(env_raw):
+        key = env_raw.encode("ascii", errors="replace")
+        if not _is_valid_fernet_key(key):
+            _die(
+                f"{STORYFORGE_SECRET_KEY_ENV} is not a valid Fernet key "
+                f"(32 url-safe base64 bytes). {_KEY_HELP} -- or unset it and "
+                f"a key will be generated automatically in {SECRET_KEY_FILE}."
+            )
+        return key
+
+    path = Path(SECRET_KEY_FILE)
+    if path.exists():
+        key = path.read_bytes().strip()
+        if not _is_valid_fernet_key(key):
+            _die(
+                f"{path} exists but does not contain a valid Fernet key. "
+                "Refusing to regenerate it, because that would orphan every "
+                "encrypted value. Restore the file from a backup, or delete it "
+                "to start fresh (stored API keys will have to be re-entered)."
+            )
+        return key
+
+    key = Fernet.generate_key()
+    path.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp = tempfile.mkstemp(dir=path.parent, prefix=".secret_key.", suffix=".tmp")
+    try:
+        with os.fdopen(fd, "wb") as f:
+            f.write(key)
+        try:
+            os.chmod(tmp, 0o600)
+        except OSError:
+            pass  # best effort (Windows)
+        if path.exists():  # another process won the race; use its key
+            os.unlink(tmp)
+            return ensure_secret_key()
+        os.replace(tmp, path)
+    except BaseException:
+        if os.path.exists(tmp):
+            os.unlink(tmp)
+        raise
+    logger.info("Generated a new encryption key at %s", path)
+    return key
+
+
+def _get_fernet() -> Fernet:
+    """Fernet instance for the resolved key. Never None."""
+    return Fernet(ensure_secret_key())
 
 
 def encrypt_value(plaintext: str) -> str:
-    """Encrypt a single string value. Returns 'ENC:<ciphertext>' or plaintext if no key."""
+    """Encrypt a single string value. Returns 'ENC:<ciphertext>'."""
     if not plaintext:
         return plaintext
-    fernet = _get_fernet()
-    if not fernet:
-        return plaintext
-    ciphertext = fernet.encrypt(plaintext.encode("utf-8")).decode("ascii")
+    ciphertext = _get_fernet().encrypt(plaintext.encode("utf-8")).decode("ascii")
     return f"{_ENC_PREFIX}{ciphertext}"
 
 
 def decrypt_value(value: str) -> str:
-    """Decrypt a single string value. Handles ENC: prefix or plaintext gracefully."""
+    """Decrypt a single value. Plaintext passes through; undecryptable -> ''."""
+    global _decrypt_warned
     if not value or not value.startswith(_ENC_PREFIX):
         return value  # plaintext or empty — pass through
-    fernet = _get_fernet()
-    if not fernet:
-        # No key: strip prefix and return raw ciphertext (won't be useful, but won't crash)
-        logger.warning(
-            "ENC: value found but STORYFORGE_SECRET_KEY not set — cannot decrypt"
-        )
-        return ""
     try:
-        raw = fernet.decrypt(value[len(_ENC_PREFIX) :].encode("ascii"))
+        raw = _get_fernet().decrypt(value[len(_ENC_PREFIX) :].encode("ascii"))
         return raw.decode("utf-8")
-    except InvalidToken:
-        logger.warning("Failed to decrypt value — wrong key or corrupted data")
+    except (InvalidToken, UnicodeError):
+        if not _decrypt_warned:
+            _decrypt_warned = True
+            logger.warning(
+                "Could not decrypt a stored secret (key changed or data "
+                "corrupted) — it was reset to empty; re-enter it in Settings."
+            )
         return ""
 
 
@@ -131,23 +192,17 @@ def decrypt_sensitive_fields(data: dict) -> dict:
 
 
 def encrypt_json(data: dict) -> bytes:
-    """Encrypt dict as JSON bytes. Returns plaintext JSON if no key set."""
-    fernet = _get_fernet()
+    """Encrypt dict as JSON bytes."""
     json_bytes = json.dumps(data, ensure_ascii=False).encode("utf-8")
-    if not fernet:
-        return json_bytes
-    return fernet.encrypt(json_bytes)
+    return _get_fernet().encrypt(json_bytes)
 
 
 def decrypt_json(data: bytes) -> dict:
     """Decrypt bytes to dict. Falls back to plaintext JSON parse if decryption fails."""
-    fernet = _get_fernet()
-    if fernet:
-        try:
-            decrypted = fernet.decrypt(data)
-            return json.loads(decrypted)
-        except Exception as e:
-            logger.warning(f"Decryption failed, trying plaintext: {e}")
+    try:
+        return json.loads(_get_fernet().decrypt(data))
+    except Exception as e:
+        logger.warning(f"Decryption failed, trying plaintext: {e}")
     # Try plaintext JSON (backward compatibility)
     return json.loads(data)
 
@@ -190,15 +245,12 @@ def has_plaintext_secrets(data: dict) -> bool:
 def migrate_plaintext_secrets(filepath: str) -> bool:
     """Encrypt any plaintext secrets already sitting in `filepath`.
 
-    Until .env was loaded, STORYFORGE_SECRET_KEY was never set, so every save
-    wrote secrets in the clear. Once a key exists the next ordinary save would
-    encrypt new values but leave the existing file readable; this rewrites it
-    once. No key configured means no encryption is expected — return quietly.
+    Hand-edited or pre-encryption files may hold plaintext keys; the next
+    ordinary save would encrypt new values but leave the rest readable, so
+    this rewrites the file once at startup.
 
     Returns True if the file was rewritten.
     """
-    if _get_fernet() is None:
-        return False
     try:
         with open(filepath, "r", encoding="utf-8") as f:
             data = json.load(f)
@@ -213,10 +265,9 @@ def migrate_plaintext_secrets(filepath: str) -> bool:
         json.dump(encrypt_sensitive_fields(data), f, ensure_ascii=False, indent=2)
     os.replace(tmp, filepath)
     logger.warning(
-        "Encrypted the plaintext secrets stored in %s. These values can only be "
-        "read back with the current %s — keep it backed up, or the keys must be "
-        "re-entered in Settings.",
+        "Encrypted the plaintext secrets stored in %s. They can only be read "
+        "back with %s — keep that file backed up.",
         filepath,
-        STORYFORGE_SECRET_KEY_ENV,
+        SECRET_KEY_FILE,
     )
     return True
