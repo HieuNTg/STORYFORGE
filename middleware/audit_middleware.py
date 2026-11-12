@@ -17,6 +17,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 # Import trusted proxy set from rate_limiter — single source of truth for
 # which upstream addresses are allowed to set X-Forwarded-For.
 from middleware.rate_limiter import _TRUSTED_PROXIES
+from middleware.trace_id import get_trace_id
 
 logger = logging.getLogger("audit")
 
@@ -48,6 +49,7 @@ class AuditMiddleware(BaseHTTPMiddleware):
                 "path": path,
                 "status": response.status_code,
                 "duration_ms": duration_ms,
+                "trace_id": get_trace_id(),
             },
         )
 

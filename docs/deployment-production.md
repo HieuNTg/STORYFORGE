@@ -29,7 +29,7 @@ All production settings are in `.env.production` (DO NOT commit to source contro
 | `STORYFORGE_ALLOWED_ORIGINS` | CORS-allowed domains | `https://storyforge.example.com` |
 | `STORYFORGE_API_KEY` | LLM provider API key | `sk-...` |
 | `STORYFORGE_MODEL` | Default LLM model | `gpt-4o-mini` |
-| `STORYFORGE_ENABLE_DOCS` | Disable public Swagger/Redoc in prod | `0` |
+| `STORYFORGE_DEBUG` | Enables Swagger/Redoc/OpenAPI; leave unset in prod | unset |
 
 Sensitive values persisted through the Settings UI are encrypted in
 `data/config.json` when `STORYFORGE_SECRET_KEY` is set. Without that key,

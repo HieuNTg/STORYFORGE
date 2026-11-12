@@ -1,27 +1,28 @@
 """Security headers middleware for StoryForge.
 
 Adds Content-Security-Policy and other security headers to all responses.
-Protects the app even when accessed directly (bypassing Nginx).
+Applies to every response the API serves, however it is reached.
 """
 
 from starlette.middleware.base import BaseHTTPMiddleware
 from fastapi import Request
 
-# CSP is the single source of truth — nginx.conf intentionally omits CSP so
-# this policy is never overridden or duplicated. Update only here.
+# CSP is the single source of truth — set only here, never by a proxy.
 #
-# 'unsafe-inline' in script-src: required by Alpine.js (v3), which evaluates
-# inline expressions in x-data / x-on attributes at runtime. Removing it
-# breaks all Alpine.js interactivity. Tracked for removal if Alpine adds a
-# CSP-compatible mode in a future release.
+# This policy covers what the API itself serves: JSON, /media files and
+# error pages. The UI is served by the Next.js server, and next/font
+# self-hosts its fonts, so no third-party origin is needed.
 #
-# 'unsafe-eval' in script-src: required by Alpine.js expression evaluation.
+# script-src keeps 'unsafe-inline' (Next.js emits inline hydration scripts)
+# but no longer 'unsafe-eval' or the jsdelivr CDN, which only the retired
+# Alpine.js UI needed. The API docs (STORYFORGE_DEBUG=1 only) load Swagger
+# UI from a CDN, so those paths are skipped below.
 _CSP_DIRECTIVES = "; ".join(
     [
         "default-src 'self'",
-        "script-src 'self' 'unsafe-eval' 'unsafe-inline' https://cdn.jsdelivr.net",
-        "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-        "font-src 'self' https://fonts.gstatic.com",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'",
+        "font-src 'self'",
         "img-src 'self' data: blob:",
         "connect-src 'self'",
         "object-src 'none'",

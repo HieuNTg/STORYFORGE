@@ -167,20 +167,20 @@ User Input
 
 ## Middleware Stack (app.py, order matters)
 
-The FastAPI application uses the following middleware stack (from outermost to innermost):
+The FastAPI application uses the following middleware stack (from outermost to innermost; pinned by `tests/test_middleware_order.py`):
 
-1. **BodySizeLimitMiddleware** — 10MB body size limit (runs first)
-2. **GZipMiddleware** — Compresses responses ≥1KB (shrink ~5-7×)
+1. **TrustedHostsMiddleware** — Rejects unknown `Host` headers (DNS rebinding)
+2. **TraceIDMiddleware** — Sets `X-Request-ID` on every response past the Host check, rejections included
 3. **CORS middleware** — Explicit origins only, no wildcard `*`
-4. **CSRF middleware** — Double-submit cookie protection
-5. **TraceIDMiddleware** — Must be outermost so all downstream layers see it
-6. **SecurityHeadersMiddleware** — CSP, X-Frame-Options, etc.
-7. **SanitizationMiddleware** — Prompt injection detection
-8. **RateLimitMiddleware** — Redis or in-memory per-IP rate limiting
-9. **AuditMiddleware** — Audit logging
-10. **MetricsMiddleware** — Request metrics collection
-
-**Note:** BodySizeLimitMiddleware runs outermost to block oversized requests early.
+4. **BodySizeLimitMiddleware** — 10MB request bodies, chunked uploads included (`middleware/body_limit.py`)
+5. **SecurityHeadersMiddleware** — CSP, X-Frame-Options, etc.
+6. **CSRF middleware** — Double-submit cookie protection
+7. **AccessMiddleware** — Optional access token for `/media` and WebSocket upgrades
+8. **RateLimitMiddleware** — In-memory per-IP rate limiting
+9. **SanitizationMiddleware** — Prompt injection detection
+10. **AuditMiddleware** — Audit logging (records carry the trace ID)
+11. **MetricsMiddleware** — Request metrics collection
+12. **GZipMiddleware** — Compresses responses ≥1KB (shrink ~5-7×)
 
 ---
 
@@ -241,7 +241,7 @@ The API has 38 route modules under `api/`, plus a versioned `api/v1/` router:
 - Key environment variables:
   - `REDIS_URL` — Redis connection for session state
   - `STORYFORGE_REDIS_REQUIRED` — Make Redis failure fatal
-  - `STORYFORGE_ENABLE_DOCS` — Enable `/docs` and `/redoc`
+  - `STORYFORGE_DEBUG=1` — Enable `/docs`, `/redoc` and `/openapi.json` (off by default)
   - `STORYFORGE_ALLOWED_ORIGINS` — CORS allowed origins
 
 ### Pipeline Orchestrator (`pipeline/orchestrator.py`)

@@ -143,12 +143,12 @@ def create_app() -> FastAPI:
     """Build the StoryForge FastAPI app: middleware, routes, static mounts."""
     from api import api_router
 
-    # STORYFORGE_ENABLE_DOCS defaults to "1" (enabled). Set to "0" in production
-    # to hide /docs and /redoc from the public route inventory.
-    _docs_enabled = os.environ.get("STORYFORGE_ENABLE_DOCS", "1") not in (
-        "0",
-        "false",
-        "no",
+    # API docs (/docs, /redoc, /openapi.json) only under STORYFORGE_DEBUG=1
+    # (scripts/dev.py sets it). Off by default: no public route inventory.
+    _docs_enabled = os.environ.get("STORYFORGE_DEBUG", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
     )
     main_app = FastAPI(
         title="StoryForge",
@@ -160,6 +160,7 @@ def create_app() -> FastAPI:
         version="3.0.0",
         docs_url="/docs" if _docs_enabled else None,
         redoc_url="/redoc" if _docs_enabled else None,
+        openapi_url="/openapi.json" if _docs_enabled else None,
         openapi_tags=[
             {
                 "name": "pipeline",
@@ -189,20 +190,54 @@ def create_app() -> FastAPI:
         ],
     )
 
-    # --- GZip compression (≥1KB responses; HTML/JS/CSS shrink ~5–7×) ---
-    main_app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
-
-    # --- Optional access token: /media/* and WebSocket upgrades ---
-    # API routes are guarded by require_access on their routers; this covers
-    # what never reaches a router dependency. Added before CORS so it sits
-    # inside it and 401s still carry CORS headers.
+    # --- Middleware. Starlette makes the LAST add_middleware() call the
+    # outermost layer, so they are added innermost first. Effective order,
+    # outer → inner (pinned by tests/test_middleware_order.py):
+    #
+    #   TrustedHosts → TraceID → CORS → BodySize → SecurityHeaders → CSRF
+    #   → Access → RateLimit → Sanitization → Audit → Metrics → GZip
+    #
+    # - TrustedHosts first: DNS-rebinding requests are rejected before any
+    #   other layer runs (allow list: middleware/hosts.py).
+    # - TraceID next: every response past the Host check carries
+    #   X-Request-ID (413/403/401/429 rejections included), and every inner
+    #   log line can read it.
+    # - CORS outside every layer that can reject, so rejections stay
+    #   readable by the browser.
+    # - BodySize before anything reads or answers on the body.
+    # - Access after CSRF/before RateLimit: covers /media and WebSocket
+    #   upgrades (API routers use the require_access dependency).
     from middleware.access import AccessMiddleware
+    from middleware.audit_middleware import AuditMiddleware
+    from middleware.body_limit import BodySizeLimitMiddleware
+    from middleware.csrf import CSRFMiddleware
+    from middleware.hosts import TrustedHostsMiddleware
+    from middleware.metrics_middleware import MetricsMiddleware
+    from middleware.rate_limiter import RateLimitMiddleware
+    from middleware.sanitization import SanitizationMiddleware
+    from middleware.security_headers import SecurityHeadersMiddleware
+    from middleware.trace_id import TraceIDMiddleware
 
-    main_app.add_middleware(AccessMiddleware)
-
-    # --- CORS middleware (restrictive: explicit origins only, no wildcard) ---
     allowed_origins = _get_allowed_origins()
     logger.info(f"CORS allowed origins: {allowed_origins}")
+
+    # GZip (≥1KB responses; HTML/JS/CSS shrink ~5–7×) — innermost.
+    main_app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+    main_app.add_middleware(MetricsMiddleware)
+    main_app.add_middleware(AuditMiddleware)
+    # Prompt-injection detection on JSON bodies.
+    main_app.add_middleware(SanitizationMiddleware)
+    # In-memory, per-IP.
+    main_app.add_middleware(RateLimitMiddleware)
+    # Optional access token for /media/* and WebSocket upgrades.
+    main_app.add_middleware(AccessMiddleware)
+    # Double-submit cookie; the docs routes are exempt only when they exist.
+    main_app.add_middleware(CSRFMiddleware, exempt_docs=_docs_enabled)
+    # CSP, X-Frame-Options, etc.
+    main_app.add_middleware(SecurityHeadersMiddleware)
+    # 10 MB request bodies; stream-safe (middleware/body_limit.py).
+    main_app.add_middleware(BodySizeLimitMiddleware)
+    # Explicit origins only, no wildcard.
     main_app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
@@ -210,41 +245,8 @@ def create_app() -> FastAPI:
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Accept", "X-CSRF-Token"],
     )
-
-    # --- CSRF protection middleware (double-submit cookie) ---
-    from middleware.csrf import CSRFMiddleware
-
-    main_app.add_middleware(CSRFMiddleware)
-
-    # --- Request trace ID middleware (must be outermost so all downstream layers see it) ---
-    from middleware.trace_id import TraceIDMiddleware
-
     main_app.add_middleware(TraceIDMiddleware)
-
-    # --- Security headers middleware (CSP, X-Frame-Options, etc.) ---
-    from middleware.security_headers import SecurityHeadersMiddleware
-
-    main_app.add_middleware(SecurityHeadersMiddleware)
-
-    # --- Input sanitization middleware (prompt injection detection) ---
-    from middleware.sanitization import SanitizationMiddleware
-
-    main_app.add_middleware(SanitizationMiddleware)
-
-    # --- Rate limiting middleware (in-memory, per-IP) ---
-    from middleware.rate_limiter import RateLimitMiddleware
-
-    main_app.add_middleware(RateLimitMiddleware)
-
-    # --- Audit logging middleware ---
-    from middleware.audit_middleware import AuditMiddleware
-
-    main_app.add_middleware(AuditMiddleware)
-
-    # --- Request metrics middleware ---
-    from middleware.metrics_middleware import MetricsMiddleware
-
-    main_app.add_middleware(MetricsMiddleware)
+    main_app.add_middleware(TrustedHostsMiddleware)  # outermost
 
     from errors.exceptions import StoryForgeError
     from errors.handlers import storyforge_error_handler
@@ -325,31 +327,6 @@ def create_app() -> FastAPI:
     # that ran on *every* request, wrapping each one in an extra task and
     # stream pair, only to set a Deprecation header on the paths nobody called.
     # (/api/v1/eval is unaffected: that prefix belongs to eval_routes itself.)
-
-    # --- Body size limit (outermost — runs first, blocks oversized requests early) ---
-    from starlette.middleware.base import BaseHTTPMiddleware
-    from fastapi import Request
-    from starlette.responses import JSONResponse as _SJSONResponse
-
-    MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
-
-    class BodySizeLimitMiddleware(BaseHTTPMiddleware):
-        async def dispatch(self, request: Request, call_next):
-            content_length = request.headers.get("content-length")
-            if content_length and int(content_length) > MAX_BODY_SIZE:
-                return _SJSONResponse(
-                    status_code=413,
-                    content={"detail": "Request body too large. Maximum size is 10MB."},
-                )
-            return await call_next(request)
-
-    main_app.add_middleware(BodySizeLimitMiddleware)
-
-    # --- Trusted Host header (added last = outermost: rejects DNS-rebinding
-    # requests before any other layer runs). Allow list: middleware/hosts.py.
-    from middleware.hosts import TrustedHostsMiddleware
-
-    main_app.add_middleware(TrustedHostsMiddleware)
 
     # Static files (locales only — UI served by Next.js from frontend/)
     base_dir = os.path.dirname(os.path.abspath(__file__))

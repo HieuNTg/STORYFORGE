@@ -91,17 +91,19 @@ User Input
 
 ---
 
-## Middleware Stack (app.py, order matters)
-1. BodySizeLimitMiddleware (10MB limit)
-2. GZipMiddleware
+## Middleware Stack (app.py, order matters; outermost first)
+1. TrustedHostsMiddleware (rejects unknown Host headers)
+2. TraceIDMiddleware (X-Request-ID on every response past the Host check)
 3. CORS middleware (explicit origins only, no wildcard)
-4. CSRF middleware (double-submit cookie)
-5. TraceIDMiddleware (must be outermost)
-6. SecurityHeadersMiddleware (CSP, X-Frame-Options, etc.)
-7. SanitizationMiddleware (prompt injection detection)
-8. RateLimitMiddleware (Redis or in-memory per-IP)
-9. AuditMiddleware
-10. MetricsMiddleware
+4. BodySizeLimitMiddleware (10MB limit, chunked bodies included)
+5. SecurityHeadersMiddleware (CSP, X-Frame-Options, etc.)
+6. CSRF middleware (double-submit cookie)
+7. AccessMiddleware (optional access token: /media, WebSocket)
+8. RateLimitMiddleware (in-memory per-IP)
+9. SanitizationMiddleware (prompt injection detection)
+10. AuditMiddleware
+11. MetricsMiddleware
+12. GZipMiddleware
 
 ---
 
