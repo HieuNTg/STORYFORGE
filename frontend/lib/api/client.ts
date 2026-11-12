@@ -41,7 +41,15 @@ function joinUrl(base: string, path: string): string {
   return base.replace(/\/+$/, "") + "/" + path.replace(/^\/+/, "");
 }
 
-async function normalizeError(res: Response): Promise<ApiError> {
+/**
+ * Turn a non-2xx response into an `ApiError` carrying the backend's code and
+ * message. `fallbackMessage` is used when the body has no message (SSE callers
+ * pass e.g. "SSE 502"); otherwise the status text.
+ */
+export async function normalizeError(
+  res: Response,
+  fallbackMessage?: string,
+): Promise<ApiError> {
   let bodyText = "";
   try {
     bodyText = await res.text();
@@ -70,7 +78,12 @@ async function normalizeError(res: Response): Promise<ApiError> {
 
   const code = errObj?.code ?? `http_${res.status}`;
   const message =
-    errObj?.message ?? detail ?? errStr ?? res.statusText ?? "Request failed";
+    errObj?.message ??
+    detail ??
+    errStr ??
+    fallbackMessage ??
+    res.statusText ??
+    "Request failed";
   return new ApiError(res.status, code, message, errObj?.details);
 }
 

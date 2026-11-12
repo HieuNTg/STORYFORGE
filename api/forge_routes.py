@@ -27,6 +27,7 @@ from config import ConfigManager
 from middleware.access import require_access
 from models.schemas import ForgeRequest, ForgeResponse
 from services.forge_service import forge_from_sentence
+from services.llm.provider_config_keys import ensure_llm_key
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +127,7 @@ def _resolve_model() -> str | None:
 async def forge_sentence(
     req: ForgeRequest,
     _enabled: None = Depends(_ensure_enabled),
+    _key: None = Depends(ensure_llm_key),
 ) -> ForgeResponse:
     """Synchronous forge. Runs the (sync) LLM call in a threadpool."""
     llm = _get_llm()
@@ -160,6 +162,7 @@ def _sse(event: str, data: dict | str) -> bytes:
 async def forge_sentence_stream(
     req: ForgeRequest,
     _enabled: None = Depends(_ensure_enabled),
+    _key: None = Depends(ensure_llm_key),
 ) -> StreamingResponse:
     """SSE wrapper around the sync forge. Emits coarse progress stages, then
     a single ``final`` event with the validated ForgeResponse JSON.

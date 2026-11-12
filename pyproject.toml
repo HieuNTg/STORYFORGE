@@ -38,6 +38,7 @@ markers = [
     "perf: performance benchmarks (10-chapter pipeline timing)",
     "bench: async-nesting perf bench (Sprint 3 P8; excluded from default suite)",
     "unit: fast, isolated unit test (informational; not used to select tests)",
+    "llm_key_guard: keep the missing-API-key guard on (conftest turns it off by default)",
 ]
 
 [tool.coverage.run]

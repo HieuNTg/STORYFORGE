@@ -17,6 +17,7 @@ import {
   fetchEventSource,
   type EventSourceMessage,
 } from "@microsoft/fetch-event-source";
+import { normalizeError } from "@/lib/api/client";
 
 export type StreamReadyState = "idle" | "connecting" | "open" | "closed" | "error";
 
@@ -127,7 +128,8 @@ export function usePostStream(opts: UsePostStreamOptions): UsePostStreamResult {
       async onopen(res) {
         if (!res.ok) {
           setReadyState("error");
-          throw new Error(`SSE ${res.status}`);
+          // ApiError with the backend's message (e.g. 400 api_key_missing).
+          throw await normalizeError(res, `SSE ${res.status}`);
         }
         setReadyState("open");
         onOpenRef.current?.();

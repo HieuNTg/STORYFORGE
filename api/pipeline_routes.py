@@ -18,6 +18,7 @@ from models.schemas import normalize_drama as _normalize_drama
 
 from middleware.access import require_access
 from services.i18n import I18n
+from services.llm.provider_config_keys import ensure_llm_key
 from services.text_utils import sanitize_story_html
 from pipeline.orchestrator import PipelineOrchestrator
 from api import pipeline_job_registry as _jobs
@@ -710,7 +711,7 @@ def list_stories(limit: int = 20, offset: int = 0, enhanced_only: bool = True):
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
-@router.post("/run")
+@router.post("/run", dependencies=[Depends(ensure_llm_key)])
 async def run_pipeline(request: Request, body: PipelineRequest):
     """Run the full pipeline, streaming progress via SSE."""
     # Validate input

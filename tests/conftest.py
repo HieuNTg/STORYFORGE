@@ -192,6 +192,20 @@ def _default_strict_handoff(monkeypatch):
     yield
 
 
+# The run/forge endpoints refuse to start without a usable LLM key
+# (services.llm.provider_config_keys.ensure_llm_key). Route tests mock the LLM
+# and, on CI, run on dataclass defaults with no key, so the guard is switched
+# off for them. Tests of the guard itself opt back in with
+# @pytest.mark.llm_key_guard (tests/test_api_key_guard.py).
+@pytest.fixture(autouse=True)
+def _llm_key_guard_off(request, monkeypatch):
+    if request.node.get_closest_marker("llm_key_guard") is None:
+        import services.llm.provider_config_keys as _keys
+
+        monkeypatch.setattr(_keys, "has_usable_llm_key", lambda llm: True)
+    yield
+
+
 # An unmocked LLM call in a test lands in services.llm.client's retry backoff
 # (30s base, exponential) and hangs the whole suite past any per-test timeout.
 # No-op the dedicated retry-sleep seam so such calls fail fast and visibly.

@@ -74,4 +74,18 @@ describe("forgeFromSentenceStream", () => {
     await expect(captured().onopen({ ok: false, status: 500 })).rejects.toThrow(/HTTP 500/);
     await assertion;
   });
+
+  it("surfaces the backend's error message on a non-ok open", async () => {
+    const onError = vi.fn();
+    const p = forgeFromSentenceStream(req, { onError });
+    const message = "Set an API key in Settings → API Keys";
+    const assertion = expect(p).rejects.toThrow(message);
+    const res = new Response(
+      JSON.stringify({ error: { code: "api_key_missing", message } }),
+      { status: 400, headers: { "Content-Type": "application/json" } },
+    );
+    await expect(captured().onopen(res)).rejects.toThrow(message);
+    await assertion;
+    expect(onError.mock.calls[0][0]).toMatchObject({ code: "api_key_missing", status: 400 });
+  });
 });
