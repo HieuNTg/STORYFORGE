@@ -565,6 +565,125 @@ class TestFix8WalletIsolatedPerRun:
         assert "run" not in LLMClient._wallet_state
 
 
+# ─── Task 12 fix round 1: wallet scopes for resume/continuation, log noise ────
+
+
+def _capped_config(cost=0.0, tokens=0, calls=0):
+    """A ConfigManager stand-in whose pipeline carries the given wallet caps."""
+    from types import SimpleNamespace
+
+    pipeline = SimpleNamespace(
+        max_cost_per_run_usd=cost,
+        max_total_tokens_per_run=tokens,
+        max_calls_per_run=calls,
+    )
+    return MagicMock(return_value=SimpleNamespace(pipeline=pipeline))
+
+
+class TestWalletScopeEntryPoints:
+    @pytest.fixture(autouse=True)
+    def _clean(self):
+        yield
+        with LLMClient._wallet_lock:
+            for rid in ["run", "r", "outer"]:
+                LLMClient._wallet_state.pop(rid, None)
+
+    def _charging(self, seen):
+        def _charge(*_a, **_kw):
+            seen["in_wallet"] = "run" in LLMClient._wallet_state
+            LLMClient.charge_wallet(1.0, 10)  # over the 0.5 USD cap
+            return MagicMock()
+
+        return _charge
+
+    @pytest.mark.parametrize(
+        "method, target, kwargs",
+        [
+            ("resume_from_checkpoint", "checkpoint.resume", {"checkpoint_path": "x"}),
+            ("continue_story", "continuation.continue_story", {}),
+            ("enhance_chapters", "continuation.enhance_chapters", {}),
+            ("write_from_outlines", "continuation.write_from_outlines", {"outlines": []}),
+            (
+                "generate_continuation_outlines",
+                "continuation.generate_continuation_outlines",
+                {},
+            ),
+        ],
+    )
+    def test_entry_point_enforces_cap_and_closes_wallet(self, method, target, kwargs):
+        import contextvars
+
+        from pipeline.orchestrator import PipelineOrchestrator
+        from services.llm.client import LLMBudgetExceededError
+
+        orch = PipelineOrchestrator(session_id="run")
+        owner_name, attr = target.split(".")
+        seen = {}
+        with (
+            patch("services.llm_client.ConfigManager", _capped_config(cost=0.5)),
+            patch.object(getattr(orch, owner_name), attr, side_effect=self._charging(seen)),
+        ):
+            with pytest.raises(LLMBudgetExceededError):
+                contextvars.Context().run(getattr(orch, method), **kwargs)
+
+        assert seen["in_wallet"] is True
+        assert "run" not in LLMClient._wallet_state
+
+    def test_nested_scope_with_same_run_keeps_outer_wallet(self):
+        import contextvars
+
+        from services.llm.run_context import run_wallet_scope
+
+        def _go():
+            with run_wallet_scope("outer"):
+                LLMClient.charge_wallet(0.0, 1)
+                with run_wallet_scope("outer"):
+                    LLMClient.charge_wallet(0.0, 1)
+                snap = LLMClient.wallet_snapshot("outer")
+            return snap
+
+        snap = contextvars.Context().run(_go)
+        assert snap["calls"] == 2
+        assert "outer" not in LLMClient._wallet_state
+
+    def test_closed_wallet_is_not_recreated_by_a_late_charge(self):
+        LLMClient.reset_wallet("r")
+        LLMClient.close_wallet("r")
+        LLMClient.charge_wallet(0.01, 10, run_id="r")
+        assert "r" not in LLMClient._wallet_state
+
+
+class TestUnscopedChargeLogging:
+    @pytest.fixture(autouse=True)
+    def _fresh_flag(self, monkeypatch):
+        monkeypatch.setattr(LLMClient, "_unscoped_charge_warned", False)
+
+    def _charge_twice_out_of_run(self):
+        import contextvars
+
+        for _ in range(2):
+            contextvars.Context().run(LLMClient.charge_wallet, 0.01, 10)
+
+    def test_warns_once_when_a_cap_is_set(self, caplog):
+        import logging
+
+        with patch("services.llm_client.ConfigManager", _capped_config(calls=5)):
+            with caplog.at_level(logging.DEBUG, logger="services.llm.client"):
+                self._charge_twice_out_of_run()
+
+        warnings = [r for r in caplog.records if r.levelno == logging.WARNING]
+        assert len(warnings) == 1, [r.getMessage() for r in warnings]
+
+    def test_no_warning_when_caps_are_disabled(self, caplog):
+        import logging
+
+        with patch("services.llm_client.ConfigManager", _capped_config()):
+            with caplog.at_level(logging.DEBUG, logger="services.llm.client"):
+                self._charge_twice_out_of_run()
+
+        assert not [r for r in caplog.records if r.levelno >= logging.WARNING]
+
+
 # ─── Fix #9: structural rewrite capped per-chapter ───────────────────────────
 # Root cause: cap was _max_rewrites * len(chapters) instead of min(_max_rewrites, len(issues)).
 

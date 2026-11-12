@@ -11,11 +11,12 @@ sanctioned ways to hop threads without dropping the run.
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import contextvars
 import functools
 import threading
 from concurrent.futures import Executor, Future
-from typing import Any, Callable
+from typing import Any, Callable, Iterator
 
 current_run_id: contextvars.ContextVar[str] = contextvars.ContextVar(
     "current_run_id", default=""
@@ -31,6 +32,34 @@ async def run_in_thread(fn: Callable[..., Any], /, *args: Any, **kwargs: Any) ->
     if kwargs:
         fn = functools.partial(fn, **kwargs)
     return await asyncio.to_thread(fn, *args)
+
+
+@contextlib.contextmanager
+def run_wallet_scope(run_id: str) -> Iterator[str]:
+    """Bind ``run_id`` as the ambient run and give it a fresh cost wallet.
+
+    On exit the wallet is closed and the previous ambient run restored, even
+    if the body raised (a budget cap included). Plain ``with`` works in sync
+    and async code alike; the contextvar is set and reset in the same task.
+
+    Re-entrant: if ``run_id`` is already the ambient run with an open wallet
+    (an entry point nested inside another for the same run), the outer scope
+    owns it — no reset, no close.
+    """
+    from services.llm.client import LLMClient  # lazy: client imports this module
+
+    if not run_id:
+        raise ValueError("run_wallet_scope requires a run_id")
+    if current_run_id.get() == run_id and LLMClient.has_wallet(run_id):
+        yield run_id
+        return
+    token = current_run_id.set(run_id)
+    LLMClient.reset_wallet(run_id)
+    try:
+        yield run_id
+    finally:
+        LLMClient.close_wallet(run_id)
+        current_run_id.reset(token)
 
 
 def spawn_with_context(target: Callable[..., Any], *args: Any) -> threading.Thread:

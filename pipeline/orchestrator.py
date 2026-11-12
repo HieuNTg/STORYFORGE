@@ -25,6 +25,7 @@ from pipeline.orchestrator_media import MediaProducer
 from pipeline.orchestrator_export import PipelineExporter
 from pipeline.orchestrator_checkpoint import CheckpointManager, CHECKPOINT_DIR
 from pipeline.orchestrator_continuation import StoryContinuation
+from services.llm.run_context import run_wallet_scope
 
 # Import layer-execution functions (bound as methods below)
 from pipeline.orchestrator_layers import (
@@ -148,6 +149,14 @@ class PipelineOrchestrator:
         self.continuation.output = self.output
         self.continuation.checkpoint_manager.output = self.output
         self._save_output()
+
+    def _wallet_scope(self):
+        """Per-run LLM cost wallet for an entry point that drives LLM work.
+
+        Caps (max_cost_per_run_usd / tokens / calls) only apply inside a
+        wallet scope; outside one, charges are dropped.
+        """
+        return run_wallet_scope(self.session_id or uuid.uuid4().hex[:8])
 
     # ── Layer execution (implemented in orchestrator_layers.py) ─────────────
 
@@ -278,9 +287,14 @@ class PipelineOrchestrator:
         **kwargs,
     ) -> PipelineOutput:
         self._sync_output()
-        result = self.checkpoint.resume(
-            checkpoint_path, progress_callback, enable_agents, enable_scoring, **kwargs
-        )
+        with self._wallet_scope():
+            result = self.checkpoint.resume(
+                checkpoint_path,
+                progress_callback,
+                enable_agents,
+                enable_scoring,
+                **kwargs,
+            )
         self.output = result
         self._sync_output()
         return result
@@ -305,15 +319,16 @@ class PipelineOrchestrator:
         direction: str = "",
     ) -> StoryDraft:
         self._sync_output()
-        result = self.continuation.continue_story(
-            additional_chapters,
-            word_count,
-            style,
-            progress_callback,
-            stream_callback,
-            arc_directives=arc_directives or [],
-            direction=direction,
-        )
+        with self._wallet_scope():
+            result = self.continuation.continue_story(
+                additional_chapters,
+                word_count,
+                style,
+                progress_callback,
+                stream_callback,
+                arc_directives=arc_directives or [],
+                direction=direction,
+            )
         self.output = self.continuation.output
         self._sync_output()
         return result
@@ -343,9 +358,10 @@ class PipelineOrchestrator:
         progress_callback=None,
     ) -> Optional[EnhancedStory]:
         self._sync_output()
-        result = self.continuation.enhance_chapters(
-            num_sim_rounds, word_count, progress_callback
-        )
+        with self._wallet_scope():
+            result = self.continuation.enhance_chapters(
+                num_sim_rounds, word_count, progress_callback
+            )
         self.output = self.continuation.output
         self._sync_output()
         return result
@@ -359,12 +375,13 @@ class PipelineOrchestrator:
     ) -> list:
         """Generate outlines for continuation without writing chapters."""
         self._sync_output()
-        return self.continuation.generate_continuation_outlines(
-            additional_chapters=additional_chapters,
-            progress_callback=progress_callback,
-            arc_directives=arc_directives,
-            direction=direction,
-        )
+        with self._wallet_scope():
+            return self.continuation.generate_continuation_outlines(
+                additional_chapters=additional_chapters,
+                progress_callback=progress_callback,
+                arc_directives=arc_directives,
+                direction=direction,
+            )
 
     def write_from_outlines(
         self,
@@ -377,14 +394,15 @@ class PipelineOrchestrator:
     ) -> Optional[StoryDraft]:
         """Write chapters from pre-generated outlines."""
         self._sync_output()
-        result = self.continuation.write_from_outlines(
-            outlines=outlines,
-            word_count=word_count,
-            style=style,
-            progress_callback=progress_callback,
-            stream_callback=stream_callback,
-            arc_directives=arc_directives,
-        )
+        with self._wallet_scope():
+            result = self.continuation.write_from_outlines(
+                outlines=outlines,
+                word_count=word_count,
+                style=style,
+                progress_callback=progress_callback,
+                stream_callback=stream_callback,
+                arc_directives=arc_directives,
+            )
         self.output = self.continuation.output
         self._sync_output()
         return result

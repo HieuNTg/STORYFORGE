@@ -490,12 +490,10 @@ async def run_full_pipeline(
     behind. ``current_run_id`` is a contextvar: awaits and ``asyncio.gather``
     inherit it, and thread hops go through ``services.llm.run_context``.
     """
-    from services.llm.client import LLMClient, current_run_id as _current_run_id
+    from services.llm.run_context import run_wallet_scope
 
     _run_id = getattr(self, "session_id", "") or uuid.uuid4().hex[:8]
-    _token = _current_run_id.set(_run_id)
-    LLMClient.reset_wallet(_run_id)
-    try:
+    with run_wallet_scope(_run_id):
         return await _run_full_pipeline_body(
             self,
             title=title,
@@ -513,9 +511,6 @@ async def run_full_pipeline(
             enable_media=enable_media,
             target_total_chapters=target_total_chapters,
         )
-    finally:
-        LLMClient.close_wallet(_run_id)
-        _current_run_id.reset(_token)
 
 
 async def _run_full_pipeline_body(

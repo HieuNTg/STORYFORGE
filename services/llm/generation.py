@@ -318,8 +318,9 @@ class GenerationMixin:
 
         from services.llm.run_context import current_run_id
 
-        # Bind the run when the stream starts: whoever drains the generator
-        # later (another thread, an SSE pump) may not carry this context.
+        # Generator body: this line runs at the first next(), in the context of
+        # whoever drains the stream. Bind the run once here so the final charge
+        # uses it even if later next() calls come from a different context.
         run_id = current_run_id.get()
 
         all_errors: list[str] = []

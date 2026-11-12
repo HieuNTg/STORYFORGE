@@ -391,6 +391,8 @@ class LLMClient(StreamingMixin, GenerationMixin):
     # rather than billed to whichever run happened to reset its wallet last.
     _wallet_lock = threading.Lock()
     _wallet_state: dict = {}  # dict[str, WalletState]
+    # One WARNING per process for charges outside any run (see charge_wallet).
+    _unscoped_charge_warned: bool = False
 
     @classmethod
     def reset_wallet(cls, run_id: str) -> None:
@@ -399,6 +401,12 @@ class LLMClient(StreamingMixin, GenerationMixin):
             raise ValueError("reset_wallet requires a run_id")
         with cls._wallet_lock:
             cls._wallet_state[run_id] = WalletState()
+
+    @classmethod
+    def has_wallet(cls, run_id: str) -> bool:
+        """True while ``run_id`` has an open wallet."""
+        with cls._wallet_lock:
+            return run_id in cls._wallet_state
 
     @classmethod
     def close_wallet(cls, run_id: str) -> None:
@@ -444,20 +452,33 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         rid = run_id or current_run_id.get()
         if not rid:
-            # A thread hop dropped the context (or the caller is outside any
-            # run). Never guess: charging another run would trip its caps.
-            logger.warning(
+            # Outside any run (single-shot endpoints), or a thread hop dropped
+            # the context. Never guess: charging another run would trip its
+            # caps. Only worth a WARNING — once — when a cap is actually set.
+            caps_on = cap_cost > 0 or cap_tokens > 0 or cap_calls > 0
+            with cls._wallet_lock:
+                first = caps_on and not cls._unscoped_charge_warned
+                if first:
+                    cls._unscoped_charge_warned = True
+            logger.log(
+                logging.WARNING if first else logging.DEBUG,
                 "charge_wallet called without a run_id (cost=$%.4f, tokens=%s) — "
-                "not charged; hop threads via services.llm.run_context",
+                "not charged; run caps apply only inside run_wallet_scope "
+                "(services.llm.run_context)",
                 float(cost_usd or 0.0),
                 tokens,
             )
             return
 
         with cls._wallet_lock:
-            if rid not in cls._wallet_state:
-                cls._wallet_state[rid] = WalletState()
-            state = cls._wallet_state[rid]
+            state = cls._wallet_state.get(rid)
+            if state is None:
+                # Wallet already closed (a late pool thread after the run
+                # ended or aborted) or never opened. Recreating it would leak.
+                logger.debug(
+                    "charge_wallet: no open wallet for run %s — charge dropped", rid
+                )
+                return
             state.cost_usd += float(cost_usd or 0.0)
             state.tokens += int(tokens or 0)
             state.calls += 1
