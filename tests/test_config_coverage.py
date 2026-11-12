@@ -404,11 +404,14 @@ class TestConfigManagerSingleton:
         assert isinstance(result, list)
 
     def test_config_manager_save_raises_on_critical(self):
+        # A missing API key is only a warning (a host change clears the key and
+        # must still save); an out-of-range pipeline value is still critical.
         from config import ConfigManager
 
         cm = ConfigManager()
         original_key = cm.llm.api_key
         original_fallbacks = cm.llm.fallback_models
+        original_chapters = cm.pipeline.num_chapters
         # Patch CONFIG_FILE so a regression here (save NOT raising) can never
         # clobber the developer's real data/config.json with the gutted
         # singleton state.
@@ -419,8 +422,11 @@ class TestConfigManagerSingleton:
                 try:
                     cm.llm.api_key = ""
                     cm.llm.fallback_models = []
+                    assert any("No LLM API key" in w for w in cm.save())
+                    cm.pipeline.num_chapters = 0
                     with pytest.raises(ValueError):
                         cm.save()
                 finally:
+                    cm.pipeline.num_chapters = original_chapters
                     cm.llm.api_key = original_key
                     cm.llm.fallback_models = original_fallbacks

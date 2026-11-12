@@ -313,6 +313,9 @@ def save_config(body: ConfigUpdate):
                     status_code=400,
                     detail="masked echo cannot be persisted as a real api_keys entry",
                 )
+    key_cleared = False
+    old_base_url = cfg.llm.base_url
+    old_cheap_host_url = cfg.llm.cheap_base_url or old_base_url
     if body.api_key is not None:
         cfg.llm.api_key = body.api_key
     if body.api_keys is not None:
@@ -324,6 +327,15 @@ def save_config(body: ConfigUpdate):
     if body.base_url is not None:
         validate_base_url(body.base_url)
         cfg.llm.base_url = body.base_url
+        # Don't let a saved key follow the user to a different host unless
+        # this same request supplies a key for it.
+        if (
+            not body.api_key
+            and cfg.llm.api_key
+            and not _key_survives(old_base_url, body.base_url)
+        ):
+            cfg.llm.api_key = ""
+            key_cleared = True
     if body.model is not None:
         cfg.llm.model = body.model
     if body.temperature is not None:
@@ -338,6 +350,19 @@ def save_config(body: ConfigUpdate):
     if body.cheap_base_url is not None:
         validate_base_url(body.cheap_base_url)
         cfg.llm.cheap_base_url = body.cheap_base_url
+        # The cheap route has no key slot of its own: it sends the primary
+        # api_key. Clear that key if it would now go to a host other than
+        # the one it was stored for (neither the old cheap host nor the
+        # primary host) and no new key came with this request.
+        new_cheap = body.cheap_base_url or cfg.llm.base_url
+        if (
+            not body.api_key
+            and cfg.llm.api_key
+            and not _key_survives(old_cheap_host_url, new_cheap)
+            and not _key_survives(cfg.llm.base_url, new_cheap)
+        ):
+            cfg.llm.api_key = ""
+            key_cleared = True
     if body.layer1_model is not None:
         cfg.llm.layer1_model = body.layer1_model
     if body.layer2_model is not None:
@@ -386,7 +411,10 @@ def save_config(body: ConfigUpdate):
     from services.llm_client import LLMClient
 
     LLMClient.reset()
-    return {"status": "ok"}
+    result: dict = {"status": "ok"}
+    if key_cleared:
+        result["key_cleared"] = True
+    return result
 
 
 @router.post("/test-connection")
@@ -561,6 +589,11 @@ def _host(url: str) -> str:
     return (urlparse(url or "").hostname or "").lower()
 
 
+def _key_survives(old_url: str, new_url: str) -> bool:
+    """A stored key may only follow the user to the same provider host."""
+    return _host(old_url) == _host(new_url)
+
+
 def _preset_models_for(base_url: str) -> list[dict]:
     """The curated model list of whichever provider card owns `base_url`.
 
@@ -706,10 +739,19 @@ def update_profile(index: int, body: ProfileCreate):
         raise HTTPException(status_code=404, detail="Profile index out of range")
     existing_key = profiles[index].get("api_key", "")
     validate_base_url(body.base_url)
+    key_cleared = False
+    if not body.api_key and existing_key:
+        if _key_survives(profiles[index].get("base_url", ""), body.base_url):
+            new_key = existing_key
+        else:
+            new_key = ""
+            key_cleared = True
+    else:
+        new_key = body.api_key
     profiles[index] = {
         "name": body.name,
         "base_url": body.base_url,
-        "api_key": body.api_key if body.api_key else existing_key,
+        "api_key": new_key,
         "model": body.model,
         "enabled": body.enabled,
     }
@@ -721,6 +763,8 @@ def update_profile(index: int, body: ProfileCreate):
     from services.llm_client import LLMClient
 
     LLMClient.reset()
+    if key_cleared:
+        return {"status": "ok", "key_cleared": True}
     return {"status": "ok"}
 
 

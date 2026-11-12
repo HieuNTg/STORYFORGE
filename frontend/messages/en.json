@@ -377,6 +377,7 @@
     "empty_library_hint": "Create or import a story in the Library first."
   },
   "settings_panel": {
+    "keyCleared": "Provider address changed — please re-enter the API key.",
     "api": {
       "title": "API Keys",
       "configured": "Configured",

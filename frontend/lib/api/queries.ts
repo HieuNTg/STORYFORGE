@@ -19,6 +19,8 @@ import {
   type InfiniteData,
   type QueryFunctionContext,
 } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { apiFetch } from "@/lib/api/client";
 import {
   configResponseSchema,
@@ -304,6 +306,12 @@ export function useConfig() {
   });
 }
 
+/** Save response; `key_cleared` is set when a provider-host change wiped a key. */
+interface SaveResponse {
+  status: string;
+  key_cleared?: boolean;
+}
+
 /**
  * PUT /api/config — partial update. Invalidates ['config'] on success so
  * the next render shows the freshly-masked secrets returned by the server.
@@ -314,13 +322,15 @@ export function useConfig() {
  */
 export function useUpdateConfig() {
   const qc = useQueryClient();
-  return useMutation<{ status: string }, Error, ConfigUpdate>({
+  const t = useTranslations("settings_panel");
+  return useMutation<SaveResponse, Error, ConfigUpdate>({
     mutationFn: (body) =>
-      apiFetch<{ status: string }>("/api/config", {
+      apiFetch<SaveResponse>("/api/config", {
         method: "PUT",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      if (res?.key_cleared) toast.warning(t("keyCleared"));
       void qc.invalidateQueries({ queryKey: ["config"] });
     },
   });
@@ -406,13 +416,15 @@ export interface ProfileUpdate {
 
 export function useUpdateProfile() {
   const qc = useQueryClient();
-  return useMutation<{ status: string }, Error, ProfileUpdate>({
+  const t = useTranslations("settings_panel");
+  return useMutation<SaveResponse, Error, ProfileUpdate>({
     mutationFn: ({ index, ...body }) =>
-      apiFetch<{ status: string }>(`/api/config/profiles/${index}`, {
+      apiFetch<SaveResponse>(`/api/config/profiles/${index}`, {
         method: "PUT",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      if (res?.key_cleared) toast.warning(t("keyCleared"));
       void qc.invalidateQueries({ queryKey: ["config"] });
     },
   });

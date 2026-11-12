@@ -377,6 +377,7 @@
     "empty_library_hint": "Vui lòng tạo hoặc nhập một truyện trong Thư viện trước."
   },
   "settings_panel": {
+    "keyCleared": "Đã đổi địa chỉ provider — vui lòng nhập lại API key.",
     "api": {
       "title": "Khóa API",
       "configured": "Đã cấu hình",
