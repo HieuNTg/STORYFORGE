@@ -461,7 +461,7 @@ export function useSessionUsage() {
       return sessionUsageSchema.parse(raw);
     },
     staleTime: 30_000,
-    // Usage endpoint is RBAC-gated in production; soft-fail to zero totals.
+    // No retries: a failed request (e.g. 401 before unlock) soft-fails to zero totals.
     retry: false,
   });
 }

@@ -57,6 +57,9 @@ _START_TIME = time.time()
 #
 from middleware.hosts import _DEFAULT_ORIGINS, _get_allowed_origins  # noqa: F401
 
+# Keep in step with pyproject.toml and CHANGELOG.md (tests/test_version.py).
+APP_VERSION = "2.0.0"
+
 # ---------------------------------------------------------------------------
 # Bind address and exposure guard
 # ---------------------------------------------------------------------------
@@ -140,7 +143,7 @@ def create_app() -> FastAPI:
             "Generate long-form Vietnamese stories with multi-layer pipeline: "
             "story generation, drama simulation, and video storyboarding."
         ),
-        version="3.0.0",
+        version=APP_VERSION,
         docs_url="/docs" if _docs_enabled else None,
         redoc_url="/redoc" if _docs_enabled else None,
         openapi_url="/openapi.json" if _docs_enabled else None,
@@ -361,7 +364,7 @@ def create_app() -> FastAPI:
             status_code=503 if degraded else 200,
             content={
                 "status": status,
-                "version": "3.0",
+                "version": APP_VERSION,
                 "uptime_seconds": round(time.time() - _START_TIME, 1),
                 "services": {
                     "llm": llm_ok,

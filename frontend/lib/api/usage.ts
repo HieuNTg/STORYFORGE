@@ -12,8 +12,8 @@
  * events when available; the page surfaces a "Backend endpoint pending"
  * banner when no breakdown can be computed.
  *
- * RBAC: production gates analytics under ACCESS_ANALYTICS. We `retry: false`
- * so a 403 fails fast without thrashing.
+ * We `retry: false` so a failed request (e.g. 401 while the access token is
+ * still locked) fails fast without thrashing.
  */
 
 import { useQuery } from "@tanstack/react-query";

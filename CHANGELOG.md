@@ -16,10 +16,13 @@ First Docker-first, local self-hosted release. This is a breaking release: authe
 - **One-command Docker run** -- `docker compose up -d --build`, then open http://localhost:3001. Both ports are published on 127.0.0.1 only; data lives in the `storyforge-data` and `storyforge-output` volumes. `compose.release.yaml` runs prebuilt images via `STORYFORGE_VERSION`
 - **Self-hosting guide** (`docs/self-hosting.md`) covering install, update, backup/restore, reset, LAN exposure, local LLMs and troubleshooting
 - **Optional shared access token** (`STORYFORGE_ACCESS_TOKEN`) with an httponly session cookie and an unlock screen in the UI
-- **Host and Origin checks** with `STORYFORGE_ALLOWED_HOSTS` / `STORYFORGE_ALLOWED_ORIGINS`
+- **Host and Origin checks** with `STORYFORGE_ALLOWED_HOSTS` / `STORYFORGE_ALLOWED_ORIGINS`: the `Host` header and, behind the web proxy, `X-Forwarded-Host` must be trusted (DNS rebinding), and writes with a foreign `Origin` get 403. `STORYFORGE_ALLOWED_ORIGINS` adds to the local defaults, and its hosts are trusted
+- **Cost caps from the environment** -- `STORYFORGE_MAX_COST_PER_RUN_USD`, `STORYFORGE_MAX_TOKENS_PER_RUN`, `STORYFORGE_MAX_CALLS_PER_RUN`
+- **Clear first-run error** -- starting a story or forge with no API key (and no local endpoint) answers 400 `api_key_missing` with "Set an API key in Settings → API Keys"
+- **Anti-framing headers** (`X-Frame-Options`, `frame-ancestors`, `nosniff`, `Referrer-Policy`) from the web server on every page
 - **Auto-generated encryption key** saved to `data/.secret_key`, validated at boot
 - **Cross-platform dev launcher** `scripts/dev.py`
-- **CI** running lint, tests and dependency audits on every push and pull request
+- **CI** running lint, tests, dependency audits and a `requirements.lock.txt` sync check on every push and pull request
 - **Per-run config snapshot** so a run keeps the settings it started with
 
 ### Changed
@@ -31,7 +34,7 @@ First Docker-first, local self-hosted release. This is a breaking release: authe
 - **Changing the provider host requires re-entering the API key**
 - **Vietnamese token estimate** uses a continuous blend instead of a step threshold
 - **Dependencies** -- Next.js patched, shadcn moved to dev dependencies, lint errors cleared, and a fresh install now resolves and passes the suite
-- **README rewritten** for the Docker-first release; `scripts/dev.py` replaces `dev.ps1`
+- **README rewritten** for the Docker-first release; `scripts/dev.py` replaces `dev.ps1` and the stale `scripts/setup.sh` is removed. From-source installs use `requirements.txt`; `requirements.lock.txt` (Linux x86_64, Python 3.12) is for Docker and CI
 - **Internal plans, specs and the worklog are removed from the tree** (they remain in git history); `docs/deployment-production.md` is replaced by `docs/self-hosting.md`
 
 ### Removed
@@ -55,7 +58,7 @@ First Docker-first, local self-hosted release. This is a breaking release: authe
 
 - Loopback binding, Host/Origin enforcement and the optional access token (see `SECURITY.md`)
 - API keys encrypted at rest with a generated Fernet key; the key file is published without overwriting an existing one. Old SHA-256-derived keys are not migrated, so re-enter your API keys after upgrading
-- Pool keys are pinned to the old host, and the full origin is compared when the provider host changes
+- Pool keys are pinned to the old host, and the full origin is compared when the provider host changes, when a saved key is reused for model discovery, and when picking a provider card's model list
 - Patched Next.js and dependency audits in CI
 
 ## Earlier unreleased changes (included in 2.0.0)

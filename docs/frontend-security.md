@@ -1,8 +1,8 @@
 # Frontend Security — API Key Handling (Phase 3)
 
 Scope: audits the planned Settings/Providers/Export pages in `frontend/` (Next.js App
-Router) against the StoryForge open-source, self-hosted deployment model. Targets the
-spec at `plans/260519-1908-ui-rebuild-react-shadcn/phase-03-settings-providers-export.md`.
+Router) against the StoryForge open-source, self-hosted deployment model. (The phase-3 UI
+spec it was written against was an internal plan and is not part of the repository.)
 
 This is a **single-user, self-hosted, same-origin** application. Threat model is NOT
 multi-tenant SaaS. Host compromise = game over (out of scope).

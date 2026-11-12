@@ -1,8 +1,9 @@
 name: Release images
 
 # Pushing a tag v1.2.3 publishes ghcr.io/<owner>/storyforge-{api,web}:1.2.3
-# (plus 1.2 and latest) for linux/amd64 and linux/arm64. compose.release.yaml
-# runs them with STORYFORGE_VERSION=1.2.3.
+# plus 1.2 and latest, for linux/amd64 and linux/arm64. A pre-release tag
+# (v1.2.3-rc.1) publishes only its own version, never latest.
+# compose.release.yaml runs them with STORYFORGE_VERSION=1.2.3.
 on:
   push:
     tags: ["v*"]
@@ -41,9 +42,13 @@ jobs:
         uses: docker/metadata-action@v5
         with:
           images: ${{ steps.image.outputs.ref }}
+          # latest is spelled out rather than left to flavor latest=auto.
+          flavor: |
+            latest=false
           tags: |
             type=semver,pattern={{version}}
             type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ !contains(github.ref_name, '-') }}
       - uses: docker/build-push-action@v6
         with:
           context: ${{ matrix.context }}

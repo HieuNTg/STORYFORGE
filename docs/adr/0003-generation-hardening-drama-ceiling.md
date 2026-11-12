@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-05-04
-**Sprint:** [Sprint 3 — Generation Hardening](../../plans/260504-1356-generation-hardening/README.md)
+**Sprint:** Sprint 3 — Generation Hardening (the sprint plan was internal and is not part of the repository)
 
 ## Context
 
@@ -146,7 +146,5 @@ that don't run the simulator.
 
 ## References
 
-- Plan: [`plans/260504-1356-generation-hardening/README.md`](../../plans/260504-1356-generation-hardening/README.md)
-- Schema: [`plans/260504-1356-generation-hardening/schema.md`](../../plans/260504-1356-generation-hardening/schema.md) §1
-- Phases: [`plans/260504-1356-generation-hardening/phases.md`](../../plans/260504-1356-generation-hardening/phases.md) P1
+- The sprint plan, schema and phase notes were internal working documents and are not part of the repository.
 - Sprint 1 ADR (contract unification): [`0001-l1-handoff-envelope.md`](0001-l1-handoff-envelope.md)
