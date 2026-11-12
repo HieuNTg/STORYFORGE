@@ -489,7 +489,6 @@ class StoryGenerator:
         progress_callback=None,
         stream_callback=None,
         batch_checkpoint_callback=None,
-        chapter_complete_callback=None,
         resume_from_batch=0,
     ) -> StoryDraft:
         """Generate complete story from start to finish."""
@@ -960,7 +959,6 @@ class StoryGenerator:
             premise=premise,
             voice_profiles=voice_profiles,
             batch_checkpoint_callback=batch_checkpoint_callback,
-            chapter_complete_callback=chapter_complete_callback,
             resume_from_batch=resume_from_batch,
             idea=idea or "",
             idea_summary=idea_summary_for_chapters,

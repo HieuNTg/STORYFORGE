@@ -422,9 +422,10 @@ class TestBatchCheckpointAndResume:
         )
 
         assert checkpoint_cb.call_count == 3  # 3 batches: [1,2], [3,4], [5]
-        checkpoint_cb.assert_any_call(1, 3)
-        checkpoint_cb.assert_any_call(2, 3)
-        checkpoint_cb.assert_any_call(3, 3)
+        # Callbacks that accept it also get the live draft (Task 15 fix).
+        checkpoint_cb.assert_any_call(1, 3, draft)
+        checkpoint_cb.assert_any_call(2, 3, draft)
+        checkpoint_cb.assert_any_call(3, 3, draft)
 
     @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_resume_from_batch_skips_earlier(self, mock_post_write):

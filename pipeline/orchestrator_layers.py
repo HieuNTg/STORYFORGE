@@ -586,10 +586,15 @@ async def _run_full_pipeline_body(
             _keep = getattr(self.config.pipeline, "chapter_checkpoint_keep_last", 5)
             self.checkpoint._chapter_keep_last = _keep
 
-            def _l1_chkpt_cb(batch_done, total_batches):
+            def _l1_chkpt_cb(batch_done, total_batches, partial_draft=None):
                 if batch_done % _every != 0 and batch_done != total_batches:
                     return
                 last_ch = min(batch_done * _bs, num_chapters)
+                # output.story_draft is only set once L1 returns; publish the
+                # live partial draft so the checkpoint can resume after it.
+                if partial_draft is not None:
+                    with self._lock:
+                        self.output.story_draft = partial_draft
                 try:
                     self.checkpoint.save_chapter(
                         chapter_number=last_ch, layer=1, background=True
