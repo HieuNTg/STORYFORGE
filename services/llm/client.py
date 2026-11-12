@@ -518,9 +518,6 @@ class LLMClient(StreamingMixin, GenerationMixin):
         if self._initialized:
             return
         self._initialized = True
-        self._provider = None
-        self._last_key = ""
-        self._current_model = ""
         self._client_lock = threading.Lock()
         self._providers_cache: dict = {}
         self._key_index = 0
@@ -553,18 +550,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """
         ConfigManager, _, _ = _imports()
         config = ConfigManager()
-        base_url = config.llm.base_url
-        api_key = config.llm.api_key
-        model = config.llm.model
-
-        cache_key = f"{base_url}:{api_key}"
-        with self._client_lock:
-            if self._provider is None or self._last_key != cache_key:
-                self._provider = _get_provider(base_url, api_key)
-                self._last_key = cache_key
-                self._current_model = model
-
-        return self._provider
+        # Task 13: resolve for the caller's own (base_url, api_key) — the run's
+        # snapshot inside a run — from the keyed cache. A shared "current"
+        # provider flipped between runs with different keys, and was read
+        # outside the lock, so a caller could get the other key's provider.
+        return self._get_or_create_provider(config.llm.base_url, config.llm.api_key)
 
     def model_for_layer(self, layer: int) -> str:
         """Return model name for a given pipeline layer (1, 2, or 3).
@@ -584,7 +574,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """
         ConfigManager, _, _ = _imports()
         config = ConfigManager()
-        primary_model = self._current_model or config.llm.model
+        # Always the caller's config (the run snapshot inside a run). A model
+        # cached on this process-wide client leaked one run's model into others.
+        primary_model = config.llm.model
         primary_base_url = config.llm.base_url
         primary_api_key = config.llm.api_key
 
@@ -709,10 +701,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         config = ConfigManager()
         cheap_model = config.llm.cheap_model
         if not cheap_model:
-            provider = self._get_client()
-            with self._client_lock:
-                model = self._current_model or config.llm.model
-            return provider, model
+            return self._get_client(), config.llm.model
 
         cheap_base = config.llm.cheap_base_url or config.llm.base_url
         api_key = config.llm.api_key
@@ -1260,7 +1249,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         fm = get_fallback_manager()
 
         # Resolve primary model
-        default_model = self._current_model or config.llm.model
+        default_model = config.llm.model
         raw_model = model_override or default_model
 
         # If the caller asked for a specific model that doesn't match the

@@ -253,3 +253,95 @@ def _keep_singleton(monkeypatch):
     original = ConfigManager._instance
     yield
     ConfigManager._instance = original
+
+
+# ─── fix round 1: the LLM client reads the run's model / key ─────────────────
+
+
+@pytest.fixture
+def _llm_live(monkeypatch):
+    """Live settings for an OpenAI-style primary, no per-layer overrides."""
+    from services.llm import client as client_module
+    from services.llm_client import LLMClient
+
+    live = ConfigManager()
+    for field, value in {
+        "model": "gpt-4o",
+        "api_key": "sk-task13-a",
+        "base_url": "https://api.openai.com/v1",
+        "api_keys": [],
+        "fallback_models": [],
+        "cheap_model": "",
+        "layer1_model": "",
+        "layer1_base_url": "",
+        "layer1_api_key": "",
+    }.items():
+        monkeypatch.setattr(live.llm, field, value)
+    # providers are tagged with the key they were built for; no network
+    monkeypatch.setattr(
+        client_module,
+        "_get_provider",
+        lambda base_url, api_key: type("P", (), {"key": api_key})(),
+    )
+    LLMClient.reset()
+    yield live
+    LLMClient.reset()
+
+
+def _chain_model() -> str:
+    from services.llm_client import LLMClient
+
+    return LLMClient()._build_fallback_chain(ConfigManager(), "default")[0]["model"]
+
+
+class TestLLMClientUsesTheRunSnapshot:
+    def test_model_saved_mid_run_does_not_cross_runs(self, _llm_live):
+        from services.llm_client import LLMClient
+
+        snap = _llm_live.snapshot()  # run A starts with gpt-4o
+        _llm_live.llm.model = "gpt-4.1-mini"  # Settings save, same key
+        LLMClient.reset()
+
+        with config_module.run_scope(snap):  # run A's next LLM call
+            LLMClient()._get_client()
+            assert LLMClient().get_layer_config(1).model == "gpt-4o"
+            assert _chain_model() == "gpt-4o"
+            assert LLMClient()._get_cheap_client()[1] == "gpt-4o"
+
+        # a request / new run after the save, outside run A
+        assert LLMClient().get_layer_config(1).model == "gpt-4.1-mini"
+        assert _chain_model() == "gpt-4.1-mini"
+        assert LLMClient()._get_cheap_client()[1] == "gpt-4.1-mini"
+
+    def test_run_keeps_its_model_when_a_later_request_warms_the_client(
+        self, _llm_live
+    ):
+        from services.llm_client import LLMClient
+
+        snap = _llm_live.snapshot()
+        _llm_live.llm.model = "gpt-4.1-mini"
+        LLMClient.reset()
+        LLMClient()._get_client()  # first use after the save is outside run A
+
+        with config_module.run_scope(snap):
+            assert LLMClient().get_layer_config(1).model == "gpt-4o"
+            assert _chain_model() == "gpt-4o"
+
+    def test_get_client_returns_the_provider_for_the_callers_key(self, _llm_live):
+        from services.llm_client import LLMClient
+
+        snap = _llm_live.snapshot()  # run A: key a
+        _llm_live.llm.api_key = "sk-task13-b"  # Settings save: key b
+
+        with config_module.run_scope(snap):
+            assert LLMClient()._get_client().key == "sk-task13-a"
+        assert LLMClient()._get_client().key == "sk-task13-b"
+        with config_module.run_scope(snap):
+            assert LLMClient()._get_client().key == "sk-task13-a"
+
+
+def test_snapshot_cannot_be_saved():
+    """A run's snapshot carries per-run overrides; it must never hit disk."""
+    snap = ConfigManager().snapshot()
+    with pytest.raises(RuntimeError):
+        snap.save()

@@ -611,6 +611,11 @@ class TestWalletScopeEntryPoints:
                 "continuation.generate_continuation_outlines",
                 {},
             ),
+            (
+                "generate_continuation_paths",
+                "continuation.generate_continuation_paths",
+                {},
+            ),
         ],
     )
     def test_entry_point_enforces_cap_and_closes_wallet(self, method, target, kwargs):

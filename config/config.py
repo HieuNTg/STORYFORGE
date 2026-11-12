@@ -68,6 +68,7 @@ class ConfigManager:
         clone.llm = copy.deepcopy(self.llm)
         clone.pipeline = copy.deepcopy(self.pipeline)
         clone._initialized = True
+        clone._is_snapshot = True
         return clone
 
     def validate(self) -> list[str]:
@@ -79,7 +80,13 @@ class ConfigManager:
         return self
 
     def save(self) -> list[str]:
-        """Save config. Returns warnings. Raises ValueError on critical errors."""
+        """Save config. Returns warnings. Raises ValueError on critical errors.
+
+        Only the live settings can be saved: a run snapshot carries per-run
+        overrides that must never reach config.json (RuntimeError).
+        """
+        if getattr(self, "_is_snapshot", False):
+            raise RuntimeError("a run's config snapshot cannot be saved")
         with self._lock:
             warnings = self.validate()
             critical = [
