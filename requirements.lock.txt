@@ -126,7 +126,7 @@ idna==3.11
     #   anyio
     #   httpx
     #   requests
-importlib-metadata==8.7.1
+importlib-metadata==10.1.0
     # via opentelemetry-api
 importlib-resources==6.5.2
     # via chromadb
