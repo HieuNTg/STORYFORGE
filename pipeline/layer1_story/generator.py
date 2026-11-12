@@ -789,6 +789,8 @@ class StoryGenerator:
         # Bug #3: Parallelize conflict_web + arc_milestones, then foreshadowing (depends on conflict_web)
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
+        from services.llm.run_context import submit_with_context
+
         conflict_web = []
         arc_milestones = []
 
@@ -828,8 +830,8 @@ class StoryGenerator:
         _log("Đang xây dựng mạng lưới xung đột + arc milestones (song song)...")
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = {
-                executor.submit(_gen_conflict_web): "conflict_web",
-                executor.submit(_gen_arc_milestones): "arc_milestones",
+                submit_with_context(executor, _gen_conflict_web): "conflict_web",
+                submit_with_context(executor, _gen_arc_milestones): "arc_milestones",
             }
             for future in as_completed(futures):
                 task_name = futures[future]

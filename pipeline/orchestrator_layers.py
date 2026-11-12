@@ -483,6 +483,58 @@ async def run_full_pipeline(
     enable_media: bool = False,
     target_total_chapters: int | None = None,
 ) -> PipelineOutput:
+    """Chạy toàn bộ pipeline 2 lớp, with a per-run LLM wallet around it.
+
+    P0-8 / Task 12: bind the ambient run_id and open this run's wallet, then
+    always close it — a finished (or crashed) run must not leave its counters
+    behind. ``current_run_id`` is a contextvar: awaits and ``asyncio.gather``
+    inherit it, and thread hops go through ``services.llm.run_context``.
+    """
+    from services.llm.client import LLMClient, current_run_id as _current_run_id
+
+    _run_id = getattr(self, "session_id", "") or uuid.uuid4().hex[:8]
+    _token = _current_run_id.set(_run_id)
+    LLMClient.reset_wallet(_run_id)
+    try:
+        return await _run_full_pipeline_body(
+            self,
+            title=title,
+            genre=genre,
+            idea=idea,
+            style=style,
+            num_chapters=num_chapters,
+            num_characters=num_characters,
+            word_count=word_count,
+            num_sim_rounds=num_sim_rounds,
+            progress_callback=progress_callback,
+            stream_callback=stream_callback,
+            enable_agents=enable_agents,
+            enable_scoring=enable_scoring,
+            enable_media=enable_media,
+            target_total_chapters=target_total_chapters,
+        )
+    finally:
+        LLMClient.close_wallet(_run_id)
+        _current_run_id.reset(_token)
+
+
+async def _run_full_pipeline_body(
+    self: "PipelineOrchestrator",
+    title: str,
+    genre: str,
+    idea: str,
+    style: str = "Miêu tả chi tiết",
+    num_chapters: int = 10,
+    num_characters: int = 5,
+    word_count: int = 2000,
+    num_sim_rounds: int = 5,
+    progress_callback=None,
+    stream_callback=None,
+    enable_agents: bool = True,
+    enable_scoring: bool = True,
+    enable_media: bool = False,
+    target_total_chapters: int | None = None,
+) -> PipelineOutput:
     """Chạy toàn bộ pipeline 2 lớp (story gen → drama sim).
 
     Async: all blocking LLM/IO calls are offloaded via asyncio.to_thread()
@@ -512,15 +564,6 @@ async def run_full_pipeline(
     draft = None
     enhanced = None
     pipeline_start = time.time()
-
-    # P0-8: bind ambient run_id + reset wallet for this run.
-    # current_run_id is a contextvar — child tasks (asyncio.gather, to_thread)
-    # inherit the current value automatically.
-    from services.llm.client import LLMClient, current_run_id as _current_run_id
-
-    _run_id = getattr(self, "session_id", "") or uuid.uuid4().hex[:8]
-    _current_run_id.set(_run_id)
-    LLMClient.reset_wallet(_run_id)
 
     # Trace instrumentation (Sprint 1 Task 2)
     trace = PipelineTrace(

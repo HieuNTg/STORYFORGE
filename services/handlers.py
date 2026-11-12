@@ -471,6 +471,7 @@ def handle_generate_images(
         # ImageGenerator, not by this worker count, which is why fanning out at
         # two levels is safe.
         from concurrent.futures import ThreadPoolExecutor, as_completed
+        from services.llm.run_context import submit_with_context
         from services.output_paths import rel_to_output_root
 
         _workers = max(
@@ -483,7 +484,7 @@ def handle_generate_images(
         else:
             with ThreadPoolExecutor(max_workers=_workers) as _executor:
                 _futures = {
-                    _executor.submit(_comic_for_chapter, ch): ch
+                    submit_with_context(_executor, _comic_for_chapter, ch): ch
                     for ch in target_chapters
                 }
                 for _future in as_completed(_futures):

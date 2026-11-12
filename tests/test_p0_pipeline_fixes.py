@@ -367,7 +367,7 @@ class TestFix8WalletIsolatedPerRun:
         yield
         # Clean up any test run_ids we created
         with LLMClient._wallet_lock:
-            for rid in ["run-A", "run-B", "__test_sentinel__"]:
+            for rid in ["run-A", "run-B", "A", "B", "R", "other", "run", "__test_sentinel__"]:
                 LLMClient._wallet_state.pop(rid, None)
 
     def test_wallet_isolated_per_run(self):
@@ -424,6 +424,145 @@ class TestFix8WalletIsolatedPerRun:
         with LLMClient._wallet_lock:
             for rid in ["ctx-A", "ctx-B"]:
                 LLMClient._wallet_state.pop(rid, None)
+
+    @pytest.mark.asyncio
+    async def test_concurrent_runs_charge_their_own_wallets(self):
+        """Task 12: a charge made in a worker thread lands on the caller's run."""
+        import asyncio
+
+        from services.llm.client import current_run_id
+        from services.llm.run_context import run_in_thread
+
+        async def run(rid, n):
+            current_run_id.set(rid)
+            LLMClient.reset_wallet(rid)
+            for _ in range(n):
+                await run_in_thread(LLMClient.charge_wallet, 0.01, 10)
+
+        await asyncio.gather(run("A", 3), run("B", 5))
+        assert LLMClient.wallet_snapshot("A")["calls"] == 3
+        assert LLMClient.wallet_snapshot("B")["calls"] == 5
+
+    def test_executor_hop_keeps_run_id(self):
+        """Task 12: agent reviews offloaded to a worker thread charge run "R".
+
+        Another run reset its wallet after "R" started, so the old global
+        default pointer pointed at the wrong run.
+        """
+        import asyncio
+        import contextvars
+
+        from models.schemas import AgentReview
+        from pipeline.agents.agent_registry import AgentRegistry
+        from services.llm.client import current_run_id
+
+        class _ChargingAgent:
+            name = "charging-agent"
+
+            def review(self, output, layer, iteration, prior):
+                LLMClient.charge_wallet(0.01, 10)
+                return AgentReview(
+                    agent_role="critic",
+                    agent_name=self.name,
+                    score=0.9,
+                    issues=[],
+                    suggestions=[],
+                    approved=True,
+                    layer=layer,
+                    iteration=iteration,
+                )
+
+        def _run_R():
+            current_run_id.set("R")
+            LLMClient.reset_wallet("R")
+            LLMClient.reset_wallet("other")  # a concurrent run starts later
+            registry = AgentRegistry.__new__(AgentRegistry)
+            return asyncio.run(
+                registry._run_tier_parallel_async(
+                    [_ChargingAgent()], PipelineOutput(), 1, 1, [], None
+                )
+            )
+
+        reviews = contextvars.Context().run(_run_R)
+        assert len(reviews) == 1
+        assert LLMClient.wallet_snapshot("R")["calls"] == 1
+        assert LLMClient.wallet_snapshot("other")["calls"] == 0
+
+    def test_charge_without_run_id_charges_nothing(self):
+        """Task 12: no explicit or ambient run_id -> warn, never charge another run."""
+        import contextvars
+
+        LLMClient.reset_wallet("run-A")
+        contextvars.Context().run(LLMClient.charge_wallet, 0.01, 10)
+        assert LLMClient.wallet_snapshot("run-A")["calls"] == 0
+        assert "" not in LLMClient._wallet_state
+
+    def test_reset_wallet_requires_run_id(self):
+        """Task 12: reset_wallet no longer invents a run id or a default pointer."""
+        with pytest.raises(TypeError):
+            LLMClient.reset_wallet()
+        assert not hasattr(LLMClient, "_wallet_run_id")
+
+    def test_close_wallet_removes_entry(self):
+        LLMClient.reset_wallet("run-A")
+        LLMClient.close_wallet("run-A")
+        assert "run-A" not in LLMClient._wallet_state
+        LLMClient.close_wallet("run-A")  # idempotent
+
+    def test_spawn_with_context_keeps_run_id(self):
+        """Task 12: a fresh thread started with spawn_with_context sees the run."""
+        import contextvars
+
+        from services.llm.client import current_run_id
+        from services.llm.run_context import spawn_with_context
+
+        def _go():
+            current_run_id.set("run-A")
+            LLMClient.reset_wallet("run-A")
+            LLMClient.reset_wallet("run-B")
+            t = spawn_with_context(LLMClient.charge_wallet, 0.01, 10)
+            t.join()
+
+        contextvars.Context().run(_go)
+        assert LLMClient.wallet_snapshot("run-A")["calls"] == 1
+        assert LLMClient.wallet_snapshot("run-B")["calls"] == 0
+
+    @pytest.mark.parametrize("connected", [False, True])
+    def test_wallet_closed_after_run(self, connected):
+        """Task 12: run_full_pipeline drops its wallet entry when it finishes."""
+        import asyncio
+        import contextvars
+
+        from models.schemas import StoryDraft
+        from pipeline.orchestrator import PipelineOrchestrator
+
+        orch = PipelineOrchestrator(session_id="run")
+        seen = {}
+
+        def _gen(**_kw):
+            seen["in_wallet"] = "run" in LLMClient._wallet_state
+            return StoryDraft(title="Empty", genre="test", chapters=[])
+
+        with (
+            patch(
+                "services.llm_client.LLMClient.check_connection",
+                return_value=(connected, "ok" if connected else "down"),
+            ),
+            patch.object(orch.story_gen, "generate_full_story", side_effect=_gen),
+        ):
+            contextvars.Context().run(
+                asyncio.run,
+                orch.run_full_pipeline(
+                    title="T",
+                    genre="g",
+                    idea="i",
+                    enable_agents=False,
+                    enable_scoring=False,
+                ),
+            )
+        if connected:
+            assert seen["in_wallet"] is True
+        assert "run" not in LLMClient._wallet_state
 
 
 # ─── Fix #9: structural rewrite capped per-chapter ───────────────────────────

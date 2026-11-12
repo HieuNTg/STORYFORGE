@@ -6,6 +6,7 @@ Extracted before enhance, injected as constraints, validated after enhance.
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from services.llm.run_context import submit_with_context
 from pydantic import BaseModel, Field
 from services.llm_client import LLMClient
 
@@ -82,7 +83,8 @@ Chỉ ghi nhận thông tin CHẮC CHẮN xuất hiện trong văn bản. Nếu 
         else:
             with ThreadPoolExecutor(max_workers=min(len(present), 5)) as pool:
                 futures = {
-                    pool.submit(
+                    submit_with_context(
+                        pool,
                         self._extract_one, name, chapter_number, content_truncated
                     ): name
                     for name in present

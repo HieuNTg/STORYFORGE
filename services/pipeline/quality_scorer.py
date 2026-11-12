@@ -8,6 +8,7 @@ from models.schemas import Chapter, ChapterScore, StoryScore
 from services.llm_client import LLMClient
 from services import prompts
 from services.text_utils import excerpt_text
+from services.llm.run_context import run_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -63,7 +64,7 @@ class QualityScorer:
     def score_story(self, chapters: list[Chapter], layer: int = 1) -> StoryScore:
         """Score all chapters with rolling context, return aggregate StoryScore.
 
-        Uses asyncio.gather + run_in_executor for concurrent LLM scoring while
+        Uses asyncio.gather + run_in_thread for concurrent LLM scoring while
         keeping the public API synchronous (safe to call from threads or sync code).
         Context is built sequentially before dispatch so each chapter gets the
         previous chapter's tail as coherence context.
@@ -82,12 +83,11 @@ class QualityScorer:
         # Score in parallel via asyncio.gather — releases the event loop between
         # LLM calls instead of tying up OS threads per concurrent.futures workers.
         async def _score_all() -> list[ChapterScore]:
-            loop = asyncio.get_running_loop()
             results: list[ChapterScore] = []
 
             async def _score_one(ch: Chapter, ctx: str) -> ChapterScore:
                 try:
-                    return await loop.run_in_executor(None, self.score_chapter, ch, ctx)
+                    return await run_in_thread(self.score_chapter, ch, ctx)
                 except Exception as e:
                     logger.warning(f"Scoring chapter {ch.chapter_number} failed: {e}")
                     return ChapterScore(chapter_number=ch.chapter_number)

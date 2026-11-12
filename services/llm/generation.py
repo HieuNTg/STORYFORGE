@@ -316,6 +316,12 @@ class GenerationMixin:
         )
         from services.llm.model_fallback import get_fallback_manager
 
+        from services.llm.run_context import current_run_id
+
+        # Bind the run when the stream starts: whoever drains the generator
+        # later (another thread, an SSE pump) may not carry this context.
+        run_id = current_run_id.get()
+
         all_errors: list[str] = []
         total_yielded = 0
         for entry in chain:
@@ -364,6 +370,7 @@ class GenerationMixin:
                     messages=messages,
                     text="".join(streamed_parts),
                     duration_ms=int((time.monotonic() - stream_started) * 1000),
+                    run_id=run_id,
                 )
                 return
             except Exception as e:
@@ -409,7 +416,14 @@ class GenerationMixin:
 
 
     def _account_for_stream(
-        self, *, model: str, label: str, messages: list, text: str, duration_ms: int
+        self,
+        *,
+        model: str,
+        label: str,
+        messages: list,
+        text: str,
+        duration_ms: int,
+        run_id: str = "",
     ) -> None:
         """Cost a completed stream: trace entry plus wallet charge.
 
@@ -454,7 +468,9 @@ class GenerationMixin:
             from services.llm_pricing import compute_cost
 
             cost = compute_cost(model, prompt_tokens, completion_tokens)
-            LLMClient.charge_wallet(cost, prompt_tokens + completion_tokens)
+            LLMClient.charge_wallet(
+                cost, prompt_tokens + completion_tokens, run_id=run_id
+            )
         except LLMBudgetExceededError:
             raise
         except Exception as exc:  # pragma: no cover

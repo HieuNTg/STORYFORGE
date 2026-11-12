@@ -28,9 +28,8 @@ from services.llm.model_fallback import get_fallback_manager
 
 # P0-8: contextvar for ambient run_id — propagates across asyncio.gather boundaries
 # so charge_wallet() inherits the orchestrator's run_id without explicit threading.
-current_run_id: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "current_run_id", default=""
-)
+# Defined in run_context (with the thread-hop helpers); re-exported here.
+from services.llm.run_context import current_run_id, run_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -387,25 +386,31 @@ class LLMClient(StreamingMixin, GenerationMixin):
     _instance = None
     _lock = threading.Lock()
 
-    # Per-run wallet dict (P0-8). Key = run_id string. _wallet_run_id is the
-    # default-pointer so legacy callers without run_id still work.
+    # Per-run wallet dict (P0-8). Key = run_id string. There is deliberately
+    # no "default run" pointer: a charge that cannot name its run is dropped
+    # rather than billed to whichever run happened to reset its wallet last.
     _wallet_lock = threading.Lock()
     _wallet_state: dict = {}  # dict[str, WalletState]
-    _wallet_run_id: str = ""
 
     @classmethod
-    def reset_wallet(cls, run_id: str = "") -> None:
-        """Reset (or create) wallet entry for run_id. Updates default pointer."""
-        rid = run_id or uuid.uuid4().hex[:8]
+    def reset_wallet(cls, run_id: str) -> None:
+        """Reset (or create) the wallet entry for ``run_id``."""
+        if not run_id:
+            raise ValueError("reset_wallet requires a run_id")
         with cls._wallet_lock:
-            cls._wallet_state[rid] = WalletState()
-            cls._wallet_run_id = rid
+            cls._wallet_state[run_id] = WalletState()
+
+    @classmethod
+    def close_wallet(cls, run_id: str) -> None:
+        """Drop the wallet entry for ``run_id`` once its run is over. Idempotent."""
+        with cls._wallet_lock:
+            cls._wallet_state.pop(run_id, None)
 
     @classmethod
     def wallet_snapshot(cls, run_id: str = "") -> dict:
-        """Return a snapshot of wallet counters for run_id (default pointer if omitted)."""
+        """Return a snapshot of wallet counters for run_id (ambient run if omitted)."""
         with cls._wallet_lock:
-            rid = run_id or current_run_id.get() or cls._wallet_run_id
+            rid = run_id or current_run_id.get()
             state = cls._wallet_state.get(rid, WalletState())
             return {
                 "cost_usd": state.cost_usd,
@@ -437,8 +442,19 @@ class LLMClient(StreamingMixin, GenerationMixin):
         except Exception:
             cap_cost = cap_tokens = cap_calls = 0
 
+        rid = run_id or current_run_id.get()
+        if not rid:
+            # A thread hop dropped the context (or the caller is outside any
+            # run). Never guess: charging another run would trip its caps.
+            logger.warning(
+                "charge_wallet called without a run_id (cost=$%.4f, tokens=%s) — "
+                "not charged; hop threads via services.llm.run_context",
+                float(cost_usd or 0.0),
+                tokens,
+            )
+            return
+
         with cls._wallet_lock:
-            rid = run_id or current_run_id.get() or cls._wallet_run_id
             if rid not in cls._wallet_state:
                 cls._wallet_state[rid] = WalletState()
             state = cls._wallet_state[rid]
@@ -1556,6 +1572,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
         # Tier label for trace: "cheap" / "fallback" / "primary" / ...
         tier_label = entry.get("label", "").split(":", 1)[0] or "primary"
 
+        # Bind the run now: _call may be retried, but always on this run's dime.
+        run_id = current_run_id.get()
+
         def _call():
             start_time = time.monotonic()
             # Fresh per call: nothing is shared between concurrent chapters.
@@ -1608,7 +1627,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         usage.get("completion_tokens") or _estimate_tokens(result)
                     )
                     cost = compute_cost(model, p_tokens, c_tokens)
-                    LLMClient.charge_wallet(cost, p_tokens + c_tokens)
+                    LLMClient.charge_wallet(cost, p_tokens + c_tokens, run_id=run_id)
                 except LLMBudgetExceededError:
                     raise
                 except Exception as we:  # noqa: BLE001 — pricing missing must not break call
@@ -1647,21 +1666,16 @@ class LLMClient(StreamingMixin, GenerationMixin):
         Signature mirrors generate() exactly so callers can migrate by replacing
         `self.llm.generate(...)` with `await self.llm.agenerate(...)`.
         """
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self.generate(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                json_mode=json_mode,
-                model_tier=model_tier,
-                model=model,
-                budget_remaining=budget_remaining,
-            ),
+        return await run_in_thread(
+            self.generate,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            json_mode=json_mode,
+            model_tier=model_tier,
+            model=model,
+            budget_remaining=budget_remaining,
         )
 
     async def agenerate_json(
@@ -1678,19 +1692,14 @@ class LLMClient(StreamingMixin, GenerationMixin):
         Signature mirrors generate_json() exactly so callers can migrate by replacing
         `self.llm.generate_json(...)` with `await self.llm.agenerate_json(...)`.
         """
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self.generate_json(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                model_tier=model_tier,
-                model=model,
-            ),
+        return await run_in_thread(
+            self.generate_json,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            model_tier=model_tier,
+            model=model,
         )
 
     def generate_for_layer(
@@ -1877,20 +1886,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
         budget_remaining: Optional[int] = None,
     ) -> str:
         """Async wrapper around generate_for_layer()."""
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self.generate_for_layer(
-                layer=layer,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                json_mode=json_mode,
-                budget_remaining=budget_remaining,
-            ),
+        return await run_in_thread(
+            self.generate_for_layer,
+            layer=layer,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            json_mode=json_mode,
+            budget_remaining=budget_remaining,
         )
 
     @staticmethod

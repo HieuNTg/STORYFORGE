@@ -19,6 +19,7 @@ from pipeline.layer1_story.chapter_finalizer import finalize_chapter
 from pipeline.layer1_story.contract_batch_retry import validate_and_retry_threaded
 
 from pipeline.layer1_story.batch_context import CausalAccumulator, FrozenContext
+from services.llm.run_context import spawn_with_context, submit_with_context
 
 logger = logging.getLogger(__name__)
 
@@ -66,38 +67,45 @@ class ParallelDispatchMixin:
                 loop = None
 
             if loop and loop.is_running():
-                # Already in async context — run directly
-                import concurrent.futures
+                # Already inside a running loop: asyncio.run needs its own
+                # thread. spawn_with_context carries this run's context (the
+                # cost wallet's run id) into it — a bare thread starts empty.
+                box: dict = {}
 
-                with concurrent.futures.ThreadPoolExecutor() as pool:
-                    future = pool.submit(
-                        asyncio.run,
-                        self._run_batch_async(
-                            batch,
-                            frozen,
-                            draft,
-                            story_context,
-                            all_chapter_texts,
-                            title,
-                            genre,
-                            style,
-                            characters,
-                            world,
-                            word_count,
-                            context_window,
-                            executor,
-                            self_reviewer,
-                            progress_callback,
-                            macro_arcs,
-                            conflict_web,
-                            foreshadowing_plan,
-                            premise,
-                            voice_profiles,
-                            idea,
-                            idea_summary,
-                        ),
-                    )
-                    return future.result()
+                def _run_in_fresh_loop(coro):
+                    try:
+                        box["result"] = asyncio.run(coro)
+                    except BaseException as exc:  # noqa: BLE001 — re-raised below
+                        box["error"] = exc
+
+                coro = self._run_batch_async(
+                    batch,
+                    frozen,
+                    draft,
+                    story_context,
+                    all_chapter_texts,
+                    title,
+                    genre,
+                    style,
+                    characters,
+                    world,
+                    word_count,
+                    context_window,
+                    executor,
+                    self_reviewer,
+                    progress_callback,
+                    macro_arcs,
+                    conflict_web,
+                    foreshadowing_plan,
+                    premise,
+                    voice_profiles,
+                    idea,
+                    idea_summary,
+                )
+                spawn_with_context(_run_in_fresh_loop, coro).join()
+                if "error" in box:
+                    raise box["error"]
+                return box["result"]
             else:
                 return asyncio.run(
                     self._run_batch_async(
@@ -196,7 +204,8 @@ class ParallelDispatchMixin:
         max_workers = min(len(batch), 5)
         with ThreadPoolExecutor(max_workers=max_workers) as write_executor:
             futures = {
-                write_executor.submit(
+                submit_with_context(
+                    write_executor,
                     self._write_chapter_parallel,
                     o,
                     frozen,

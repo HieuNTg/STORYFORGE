@@ -174,6 +174,22 @@ class TestStreamingIsCosted:
         _cost, tokens = wallet.call_args[0][:2]
         assert tokens > 0, "the streamed body must count toward the budget"
 
+    def test_stream_charges_the_run_bound_at_stream_start(self):
+        """Task 12: the stream charges the run it started under, by explicit id."""
+        with patch("services.llm.client._record_trace_call"), patch(
+            "services.llm.client.LLMClient.charge_wallet"
+        ) as wallet:
+            self._client()._account_for_stream(
+                model="m",
+                label="primary:m",
+                messages=[{"role": "user", "content": "viết chương"}],
+                text=VI_SAMPLE,
+                duration_ms=10,
+                run_id="run-S",
+            )
+
+        assert wallet.call_args.kwargs["run_id"] == "run-S"
+
     def test_budget_exception_propagates(self):
         """A cap breach must abort the run, not be swallowed as telemetry."""
         from services.llm.client import LLMBudgetExceededError

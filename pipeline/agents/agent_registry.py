@@ -9,6 +9,7 @@ from config import ConfigManager
 from models.schemas import AgentReview, LaneSuggestion, PipelineOutput
 from pipeline.agents.base_agent import BaseAgent
 from pipeline.agents.agent_graph import AgentDAG
+from services.llm.run_context import run_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -106,14 +107,13 @@ class AgentRegistry:
         prior_reviews: list[AgentReview],
         progress_callback: Optional[Callable[[str], None]],
     ) -> list[AgentReview]:
-        """Async core: run one tier of agents concurrently via run_in_executor."""
-        loop = asyncio.get_running_loop()
+        """Async core: run one tier of agents concurrently via run_in_thread."""
         prior = prior_reviews if prior_reviews else None
 
         async def _one(agent: BaseAgent) -> "AgentReview | None":
             try:
-                review: AgentReview = await loop.run_in_executor(
-                    None, agent.review, output, layer, iteration, prior
+                review: AgentReview = await run_in_thread(
+                    agent.review, output, layer, iteration, prior
                 )
                 if progress_callback:
                     status = "OK" if review.approved else "WARN"
