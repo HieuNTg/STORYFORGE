@@ -31,6 +31,26 @@ jobs:
       - name: Test
         run: pytest -q -m "not calibration and not bench and not perf"
 
+  lock:
+    # requirements.lock.txt must match requirements.txt. Recompile with the
+    # current lock as the starting point (uv keeps existing pins it can), so
+    # only a change to requirements.txt, not a new upstream release, shows up
+    # as a diff. The 2-line header names the output path, so it is skipped.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+      - name: Check requirements.lock.txt is in sync
+        run: |
+          cp requirements.lock.txt /tmp/lock.txt
+          uv pip compile requirements.txt --python-version 3.12 \
+            --python-platform x86_64-manylinux_2_28 --torch-backend cpu \
+            -o /tmp/lock.txt
+          if ! diff <(tail -n +3 requirements.lock.txt) <(tail -n +3 /tmp/lock.txt); then
+            echo "::error file=requirements.lock.txt::out of sync with requirements.txt; regenerate it with the command in its header"
+            exit 1
+          fi
+
   frontend:
     runs-on: ubuntu-latest
     defaults:
