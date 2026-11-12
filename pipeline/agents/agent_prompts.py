@@ -1,6 +1,8 @@
 """Prompt templates for evaluation agents — loads from YAML with hardcoded fallbacks.
 
-Users can customize prompts by editing data/prompts/agent_prompts.yaml.
+Users can customize prompts by editing data/prompts/agent_prompts.yaml (the
+bundled data dir, see services/infra/bundled_data.py) or by pointing
+STORYFORGE_PROMPTS_FILE at their own copy.
 If the file is missing or a key is absent, the built-in Vietnamese defaults are used.
 """
 
@@ -8,15 +10,18 @@ import logging
 import os
 from pathlib import Path
 
+from services.infra.bundled_data import bundled_data_dir
+
 logger = logging.getLogger(__name__)
 
-# Path to user-customizable prompt file
-_PROMPTS_FILE = Path(
-    os.environ.get(
-        "STORYFORGE_PROMPTS_FILE",
-        Path(__file__).resolve().parents[2] / "data" / "prompts" / "agent_prompts.yaml",
-    )
-)
+
+def _prompts_file() -> Path:
+    """User-customizable prompt file: STORYFORGE_PROMPTS_FILE, else the bundled one."""
+    custom = os.environ.get("STORYFORGE_PROMPTS_FILE")
+    if custom:
+        return Path(custom)
+    return bundled_data_dir() / "prompts" / "agent_prompts.yaml"
+
 
 # ── Lane contract boundary (shared across all craft agents) ─────────────
 # Lane contract: debate panel agents critique craft (pacing/prose/dialogue
@@ -240,20 +245,21 @@ Nếu không có gì cần phản đối hay ủng hộ, trả về: {{"entries"
 
 def _load_custom_prompts() -> dict:
     """Load user-customized prompts from YAML file, return empty dict on failure."""
-    if not _PROMPTS_FILE.exists():
+    prompts_file = _prompts_file()
+    if not prompts_file.exists():
         return {}
     try:
         # Use yaml if available, otherwise skip custom prompts
         import yaml  # noqa: F811
 
-        with open(_PROMPTS_FILE, encoding="utf-8") as f:
+        with open(prompts_file, encoding="utf-8") as f:
             data = yaml.safe_load(f)
         if isinstance(data, dict):
             return data
     except ImportError:
         logger.debug("PyYAML not installed — using built-in prompts")
     except Exception as exc:
-        logger.warning("Failed to load custom prompts from %s: %s", _PROMPTS_FILE, exc)
+        logger.warning("Failed to load custom prompts from %s: %s", prompts_file, exc)
     return {}
 
 

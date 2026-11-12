@@ -26,7 +26,7 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    HF_HOME=/app/data/cache/huggingface
+    HF_HOME=/app/data/cache/huggingface \n    STORYFORGE_BUNDLED_DATA_DIR=/app/bundled
 
 # Bind-mount the wheels instead of copying them so they never become a layer.
 # --no-compile: the ~400 MB of .pyc files would push the image past 2.5 GB;
@@ -51,9 +51,12 @@ COPY plugins/ plugins/
 COPY services/ services/
 # The comic page compositor loads its default font from assets/fonts.
 COPY assets/fonts/ assets/fonts/
-COPY data/templates/ data/templates/
-COPY data/prompts/ data/prompts/
-COPY data/evals/ data/evals/
+# Prompts, templates and the golden eval set ship with the code. They live
+# outside /app/data so the storyforge-data volume cannot hide a newer copy
+# after an upgrade (services/infra/bundled_data.py).
+COPY data/templates/ bundled/templates/
+COPY data/prompts/ bundled/prompts/
+COPY data/evals/ bundled/evals/
 
 # /app/data and /app/output are the mount points of the storyforge-data and
 # storyforge-output volumes. A fresh named volume copies this ownership, so the

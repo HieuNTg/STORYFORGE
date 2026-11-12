@@ -570,12 +570,9 @@ def get_genres():
 @router.get("/templates")
 def get_templates():
     """Return story templates grouped by genre."""
-    templates_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data",
-        "templates",
-        "story_templates.json",
-    )
+    from services.infra.bundled_data import bundled_data_dir
+
+    templates_path = bundled_data_dir() / "templates" / "story_templates.json"
     if os.path.exists(templates_path):
         try:
             with open(templates_path, "r", encoding="utf-8") as f:

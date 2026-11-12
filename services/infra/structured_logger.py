@@ -74,7 +74,7 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_entry, ensure_ascii=False)
 
 
-def configure_logging(log_file: str | os.PathLike = "storyforge.log"):
+def configure_logging(log_file: str | os.PathLike):
     """Configure root logging based on LOG_FORMAT env var.
 
     Logs go to stdout and to ``log_file``, rotated at 10 MB with 5 backups.
