@@ -87,7 +87,7 @@ flatbuffers==25.12.19
     # via onnxruntime
 fonttools==4.62.1
     # via fpdf2
-fpdf2==2.8.1
+fpdf2==2.9.0
     # via -r requirements.txt
 fsspec==2026.3.0
     # via
