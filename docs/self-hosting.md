@@ -45,7 +45,7 @@ Both files use the same volumes, so you can switch between them without losing d
 
 ## Backup and restore
 
-Run these from the directory where you want the archives (they are written to the current directory). Stop the stack first for a consistent copy of the database:
+The volumes have fixed names (`storyforge-data`, `storyforge-output`) in both compose files, whatever directory you cloned into. Run these from the directory where you want the archives (they are written to the current directory). Stop the stack first for a consistent copy of the database:
 
 ```bash
 docker compose stop
@@ -63,7 +63,11 @@ docker run --rm -v storyforge-output:/d -v "$PWD":/b alpine sh -c "cd /d && tar 
 docker compose start
 ```
 
-On Windows, run these in Git Bash or WSL; in PowerShell replace `"$PWD"` with `"${PWD}"`.
+On Windows:
+
+- Git Bash rewrites paths such as `/d` and `/b`. Prefix each `docker run` with `MSYS_NO_PATHCONV=1`, for example `MSYS_NO_PATHCONV=1 docker run --rm -v storyforge-data:/d -v "$PWD":/b alpine tar czf /b/data.tgz -C /d .`.
+- PowerShell: use `${PWD}` instead of `$PWD` (`-v "${PWD}:/b"`), for example `docker run --rm -v storyforge-data:/d -v "${PWD}:/b" alpine tar czf /b/data.tgz -C /d .`. For restore, keep the `sh -c "..."` argument as is.
+- WSL needs no changes.
 
 ## Reset
 
@@ -77,24 +81,22 @@ This deletes both volumes: all stories, settings, saved API keys and the encrypt
 
 By default only the machine itself can reach StoryForge. To let other devices on your network use it, do all of the following. Do not skip the token.
 
-1. Create `compose.override.yaml` next to `compose.yaml`. Compose appends to port lists, so use `!override` (Compose 2.24 or newer) to replace them:
+1. Create `compose.override.yaml` next to `compose.yaml`. Publish only the web port: the browser talks to port 3001 and the web server forwards API calls internally, so the API (7860) stays on `127.0.0.1`. Compose appends to port lists, so use `!override` (Compose 2.24 or newer) to replace them:
 
    ```yaml
    services:
      api:
-       ports: !override ["0.0.0.0:7860:7860"]
        environment:
          STORYFORGE_ACCESS_TOKEN: choose-a-long-random-token
-         STORYFORGE_ALLOWED_HOSTS: storyforge.lan
-         STORYFORGE_ALLOWED_ORIGINS: http://storyforge.lan:3001
+         STORYFORGE_ALLOWED_ORIGINS: http://192.168.1.20:3001
      web:
        ports: !override ["0.0.0.0:3001:3000"]
    ```
 
 2. `STORYFORGE_ACCESS_TOKEN` makes every API call require the token. The UI shows an unlock screen and keeps you signed in with an httponly session cookie.
-3. `STORYFORGE_ALLOWED_HOSTS` takes host names or IPs only, comma-separated: no ports, no wildcards. Add the name or IP you type in the browser (for example `storyforge.lan` or `192.168.1.20`).
-4. `STORYFORGE_ALLOWED_ORIGINS` takes full origins, comma-separated, e.g. `http://192.168.1.20:3001`.
-5. Apply with `docker compose up -d`.
+3. `STORYFORGE_ALLOWED_ORIGINS` takes full origins, comma-separated: put the address you type in the browser, e.g. `http://192.168.1.20:3001` or `http://storyforge.lan:3001`.
+4. Only if you also publish the API port 7860 and call it directly, add the name or IP to `STORYFORGE_ALLOWED_HOSTS` (host names or IPs only, comma-separated, no ports or wildcards).
+5. Apply with `docker compose up -d`. Compose loads `compose.override.yaml` automatically only when you do not pass `-f`; with the prebuilt images pass both files: `STORYFORGE_VERSION=x.y.z docker compose -f compose.release.yaml -f compose.override.yaml up -d`.
 
 Sessions are not individually revocable. To sign everyone out, change the token and restart.
 
@@ -117,6 +119,6 @@ Use any non-empty API key (Ollama ignores it) and the model name you pulled, for
 - **The web build fails to download fonts.** The build needs internet access to Google Fonts. Check your proxy or VPN.
 - **Windows: the build fails with path errors.** Run `docker compose` from a shell whose current directory uses an uppercase drive letter, for example `C:\Users\you\STORYFORGE`. A lowercase `c:\...` path breaks the builder.
 - **Progress stops updating (SSE stalls) when another reverse proxy sits in front.** Turn off response buffering for StoryForge in that proxy. For nginx: `proxy_buffering off;` and a long `proxy_read_timeout`.
-- **"Invalid host header" or 400 errors on a LAN address.** Add that name to `STORYFORGE_ALLOWED_HOSTS` (and the origin to `STORYFORGE_ALLOWED_ORIGINS`).
+- **400 or 403 errors from a LAN address.** Add the exact origin you browse to (scheme, host and port) to `STORYFORGE_ALLOWED_ORIGINS`. If you call the API port 7860 directly, add that host name to `STORYFORGE_ALLOWED_HOSTS` too.
 - **Saved API keys stopped working after a restore.** `.secret_key` was not restored with `config.json`. Re-enter the keys in Settings.
 - **Logs.** `docker compose logs -f api` and `docker compose logs -f web`.

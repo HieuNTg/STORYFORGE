@@ -18,4 +18,6 @@ services:
     environment: { API_ORIGIN: http://api:7860 }
     depends_on: { api: { condition: service_healthy } }
     ports: ["127.0.0.1:3001:3000"]
-volumes: { storyforge-data: {}, storyforge-output: {} }
+volumes:
+  storyforge-data: { name: storyforge-data }
+  storyforge-output: { name: storyforge-output }
