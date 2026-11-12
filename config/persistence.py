@@ -15,6 +15,13 @@ logger = logging.getLogger(__name__)
 CONFIG_FILE = "data/config.json"
 _SECRETS_FILE = "data/secrets.json"  # legacy — read-only fallback for migration
 
+#: Image providers that automated a consumer web session and were removed.
+#: An older config.json may still select one; load_config resets it to "none"
+#: and records the name in ``image_provider_notice`` so the UI can say why.
+REMOVED_IMAGE_PROVIDERS: frozenset[str] = frozenset({"flowkit", "codex", "qwen-local"})
+#: Config keys those providers owned. save_config drops them from the file.
+_REMOVED_KEY_PREFIXES = ("flowkit_", "qwen_local_", "codex_")
+
 # Maps env var name -> (section, field_name)
 # Note: ZAI_API_KEY is handled directly in client._build_fallback_chain for auto-fallback
 _ENV_MAP: dict[str, tuple[str, str]] = {
@@ -23,14 +30,16 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_MODEL": ("llm", "model"),
     "STORYFORGE_REQUEST_TIMEOUT": ("llm", "request_timeout"),
     "STORYFORGE_TEMPERATURE": ("llm", "temperature"),
+    # Per-run cost caps (0 disables a cap). Settings does not expose them, and
+    # Docker users cannot easily edit config.json inside the data volume.
+    "STORYFORGE_MAX_COST_PER_RUN_USD": ("llm", "max_cost_per_run_usd"),
+    "STORYFORGE_MAX_TOKENS_PER_RUN": ("llm", "max_total_tokens_per_run"),
+    "STORYFORGE_MAX_CALLS_PER_RUN": ("llm", "max_calls_per_run"),
     "STORYFORGE_IMAGE_PROVIDER": ("pipeline", "image_provider"),
     "STORYFORGE_LENGTH_GATE": ("pipeline", "enable_length_gate"),
     "STORYFORGE_AGENTIC_REPAIR": ("pipeline", "enable_agentic_repair"),
     "STORYFORGE_LENGTH_GATE_RATIO": ("pipeline", "length_gate_min_ratio"),
     "IMAGE_API_KEY": ("pipeline", "image_api_key"),
-    "QWEN_LOCAL_BASE_URL": ("pipeline", "qwen_local_base_url"),
-    "QWEN_LOCAL_API_KEY": ("pipeline", "qwen_local_api_key"),
-    "QWEN_LOCAL_MODEL": ("pipeline", "qwen_local_model"),
     "IMAGE_API_URL": ("pipeline", "image_api_url"),
     "SEEDREAM_API_KEY": ("pipeline", "seedream_api_key"),
     "SEEDREAM_API_URL": ("pipeline", "seedream_api_url"),
@@ -50,7 +59,14 @@ _ENV_MAP: dict[str, tuple[str, str]] = {
     "STORYFORGE_BLOCK_INJECTION": ("pipeline", "block_on_injection"),
 }
 
-_FLOAT_FIELDS = {"temperature", "quality_gate_threshold", "request_timeout"}
+_FLOAT_FIELDS = {
+    "temperature",
+    "quality_gate_threshold",
+    "request_timeout",
+    "max_cost_per_run_usd",
+}
+# Integer fields; "200" and "200.0" both give 200, anything else is ignored.
+_INT_FIELDS = {"max_total_tokens_per_run", "max_calls_per_run"}
 # Env values arrive as strings. A bool field missing from this set gets the raw
 # string, and every non-empty string is truthy — so `FLAG=0` turns the flag ON.
 # Any bool in _ENV_MAP must be listed here or its override can only ever enable.
@@ -89,6 +105,24 @@ def load_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
 
     _migrate_legacy_secrets(llm, pipeline)
     _apply_env_overrides(llm, pipeline)
+    _retire_removed_providers(pipeline)
+
+
+def _retire_removed_providers(pipeline: "PipelineConfig") -> None:
+    """Reset a removed image provider to "none" and remember which one it was.
+
+    Runs after the file, the legacy secrets and the environment have all been
+    applied, so a removed provider is caught whichever of them selected it.
+    """
+    for field in ("image_provider", "character_consistency_provider"):
+        value = getattr(pipeline, field, "")
+        if value in REMOVED_IMAGE_PROVIDERS:
+            logger.warning(
+                "%s %r is no longer supported; reset to 'none'", field, value
+            )
+            setattr(pipeline, field, "none")
+            if not pipeline.image_provider_notice:
+                pipeline.image_provider_notice = value
 
 
 def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
@@ -99,7 +133,7 @@ def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> Non
     silently locking away the user's real API keys/profiles. This recovers
     them: read once, fold into the in-memory config, then on the next save
     config.json becomes the single source of truth and the legacy file is
-    can be archived manually with scripts/recover_secrets.py after verification.
+    can be archived manually after verification.
     """
     if not os.path.exists(_SECRETS_FILE):
         return
@@ -111,16 +145,10 @@ def _migrate_legacy_secrets(llm: "LLMConfig", pipeline: "PipelineConfig") -> Non
         logger.warning(f"Legacy secrets load error: {e}")
         return
     if not data:
-        # Encrypted but no key, or corrupt — leave the file alone for manual
-        # recovery. load_encrypted() only logs the raw JSONDecodeError from
-        # parsing ciphertext as text ("Expecting value: line 1 column 1"),
-        # which reads like a corrupt-file bug rather than a missing key, so
-        # say what actually happened and what to do about it.
+        # Encrypted with a key we no longer have, or corrupt — ignore it.
         logger.warning(
-            "%s exists but could not be read — it is encrypted and "
-            "STORYFORGE_SECRET_KEY does not match the key it was written with. "
-            "Config now lives in %s; recover the legacy file with "
-            "scripts/recover_secrets.py (needs the original key), or archive it "
+            "%s exists but could not be read (encrypted with a different "
+            "key). Config now lives in %s; archive or delete the legacy file "
             "to silence this warning.",
             _SECRETS_FILE,
             CONFIG_FILE,
@@ -167,6 +195,11 @@ def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
                 val = float(val)  # type: ignore[assignment]
             except ValueError:
                 continue
+        elif field in _INT_FIELDS:
+            try:
+                val = int(float(val))  # type: ignore[assignment]
+            except (ValueError, OverflowError):
+                continue
         elif field in _BOOL_FIELDS:
             val = val.lower() in ("1", "true", "yes")  # type: ignore[assignment]
         setattr(target, field, val)
@@ -176,7 +209,8 @@ def _apply_env_overrides(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
 #   voice — a derived nested view of the flat voice_*/l2_voice_* fields, rebuilt
 #   by PipelineConfig.__post_init__. Persisting it would let a stale copy fight
 #   the flat fields that stay authoritative.
-_NON_PERSISTED_PIPELINE_FIELDS = frozenset({"voice"})
+#   image_provider_notice — runtime only; it describes this load, not a setting.
+_NON_PERSISTED_PIPELINE_FIELDS = frozenset({"voice", "image_provider_notice"})
 _NON_PERSISTED_LLM_FIELDS: frozenset[str] = frozenset()
 
 
@@ -192,7 +226,7 @@ def _section_dict(obj, skip: frozenset) -> dict:
 
 
 def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
-    """Persist config to JSON, encrypting sensitive fields when a secret key is set.
+    """Persist config to JSON, encrypting sensitive fields (key auto-generated in data/.secret_key).
 
     Sections are built from the dataclass fields rather than a hand-written list.
     The list had drifted to 103 of 244 fields, so every l2_* knob, the budget
@@ -214,16 +248,24 @@ def save_config(llm: "LLMConfig", pipeline: "PipelineConfig") -> None:
         except (OSError, json.JSONDecodeError) as e:
             logger.warning(f"Could not read existing config for merge: {e}")
 
+    def _kept(section: str) -> dict:
+        # Keys of removed providers are dropped rather than carried forward.
+        return {
+            k: v
+            for k, v in (existing.get(section) or {}).items()
+            if not k.startswith(_REMOVED_KEY_PREFIXES)
+        }
+
     data = {
         **{k: v for k, v in existing.items() if k not in ("llm", "pipeline")},
         "llm": {
-            **(existing.get("llm") or {}),
+            **_kept("llm"),
             **_section_dict(
                 llm, _NON_PERSISTED_LLM_FIELDS | _env_overridden_fields("llm")
             ),
         },
         "pipeline": {
-            **(existing.get("pipeline") or {}),
+            **_kept("pipeline"),
             **_section_dict(
                 pipeline,
                 _NON_PERSISTED_PIPELINE_FIELDS | _env_overridden_fields("pipeline"),

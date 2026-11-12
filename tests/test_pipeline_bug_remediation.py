@@ -265,7 +265,7 @@ class TestB2AsyncSimulatorPath:
         import inspect
         from pipeline import orchestrator_layers
 
-        src = inspect.getsource(orchestrator_layers.run_full_pipeline)
+        src = inspect.getsource(orchestrator_layers._run_full_pipeline_body)
         # The async path must be present.
         assert "self.simulator.run_simulation_async" in src
         # And the broken sync-in-thread path must be gone.

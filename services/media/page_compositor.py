@@ -1,4 +1,4 @@
-"""Phase 3 — Page Compositor (comic-real-paneling spec §4 PHASE 3).
+"""Page compositor: lays out comic panels and dialogue onto pages.
 
 Turns the clean, dialogue-free panel PNGs produced by image generation plus the
 Phase 2 shot-list (:mod:`services.media.shot_list`) into finished COMIC PAGE PNGs:

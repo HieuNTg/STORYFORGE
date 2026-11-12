@@ -11,7 +11,7 @@ Running mutation tests
 Full mutation run (slow, ~5-15 min depending on model count):
 
     mutmut run \\
-        --paths-to-mutate services/auth.py,services/token_cost_tracker.py,middleware/rbac.py,pipeline/agents/debate_orchestrator.py \\
+        --paths-to-mutate services/token_cost_tracker.py,pipeline/agents/debate_orchestrator.py \\
         --tests-dir tests
 
 Or use the helper script (also generates HTML report and enforces 60% threshold):
@@ -97,7 +97,6 @@ def test_mutmut_config_is_present(tmp_path):
 @pytest.mark.parametrize(
     "module",
     [
-        "services.auth",
         "services.token_cost_tracker",
     ],
 )

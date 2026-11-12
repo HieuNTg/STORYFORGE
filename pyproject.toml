@@ -1,6 +1,11 @@
 # pyproject.toml — StoryForge project configuration
 # Coverage config for Q1: Code Coverage Reporting
 
+[project]
+name = "storyforge"
+version = "2.0.0"
+requires-python = ">=3.11"
+
 [tool.pytest.ini_options]
 # Directories pytest discovers tests in
 testpaths = ["tests"]
@@ -20,7 +25,7 @@ addopts = [
     "--cov-report=term-missing",
     "--cov-report=html:htmlcov",
     "--cov-report=xml:coverage.xml",
-    "--cov-fail-under=60",
+    "--cov-fail-under=75",
 ]
 # asyncio mode for async tests
 asyncio_mode = "auto"
@@ -32,6 +37,8 @@ markers = [
     "calibration: real-model calibration tests (slow; loads sentence-transformers)",
     "perf: performance benchmarks (10-chapter pipeline timing)",
     "bench: async-nesting perf bench (Sprint 3 P8; excluded from default suite)",
+    "unit: fast, isolated unit test (informational; not used to select tests)",
+    "llm_key_guard: keep the missing-API-key guard on (conftest turns it off by default)",
 ]
 
 [tool.coverage.run]
@@ -57,8 +64,10 @@ omit = [
 branch = true
 
 [tool.coverage.report]
-# Coverage floor — raised to 60% as of P1 sprint
-fail_under = 60
+# Coverage floor — set below the measured total after removing coverage filler
+# (76.88% on Windows) to leave room for platform differences on Linux CI.
+# Keep in step with --cov-fail-under above and .coveragerc.
+fail_under = 75
 # Show lines that are not covered
 show_missing = true
 # Skip files with 100% coverage in the detailed report (reduces noise)
@@ -83,19 +92,17 @@ title = "StoryForge Coverage Report"
 [tool.coverage.xml]
 output = "coverage.xml"
 
-[tool.mutmut]
-# Mutation testing configuration — see mutmut_config.py for hooks
-paths_to_mutate = [
-    "services/auth.py",
-    "services/token_cost_tracker.py",
-    "middleware/rbac.py",
-    "pipeline/agents/debate_orchestrator.py",
-]
-tests_dir = "tests"
-# Exclude vendor, data fixtures, and generated artefacts
-runner = "python -m pytest -x -q"
+[tool.ruff]
+target-version = "py311"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E9", "F63", "F7", "F82", "F401", "F811", "F841"]
 
 [tool.ruff.lint.per-file-ignores]
+# Package __init__ files re-export names on purpose; tests and production
+# patch through these aliases, so F401 must not remove them.
+"**/__init__.py" = ["F401"]
 # Tests stub sys.modules / monkeypatch state before importing the code under
 # test; scripts insert the repo root into sys.path before any project import.
 # In both, import-after-statement (E402) is load-bearing, not accidental.

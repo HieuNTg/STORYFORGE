@@ -51,15 +51,14 @@ const GENRES = [
 ] as const;
 const TONES = ["dark", "light", "epic", "romantic", "comedic"] as const;
 
-const formSchema = z.object({
-  title: z.string().min(1).max(120),
-  genre: z.enum(GENRES),
-  setting: z.string().max(500),
-  tone: z.enum(TONES),
-  description: z.string().max(800),
-  targetChapters: z.number().int().min(CHAPTER_MIN).max(CHAPTER_MAX),
-});
-type FormValues = z.infer<typeof formSchema>;
+interface FormValues {
+  title: string;
+  genre: (typeof GENRES)[number];
+  setting: string;
+  tone: (typeof TONES)[number];
+  description: string;
+  targetChapters: number;
+}
 
 export interface CreateStoryModalProps {
   open: boolean;
@@ -151,11 +150,11 @@ export function CreateStoryModal({
 
   const getGenreLabel = (genre: string) => {
     const key = genre.toLowerCase().replace(/\s+/g, "_");
-    return tGenres.has(key) ? tGenres(key as any) : genre;
+    return tGenres.has(key) ? tGenres(key as Parameters<typeof tGenres>[0]) : genre;
   };
 
   const getToneLabel = (tone: string) => {
-    return tTones.has(tone) ? tTones(tone as any) : tone;
+    return tTones.has(tone) ? tTones(tone as Parameters<typeof tTones>[0]) : tone;
   };
 
   return (

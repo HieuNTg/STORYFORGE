@@ -11,13 +11,13 @@ what `keep_positions` exists to prevent.
 """
 
 import threading
-import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 from services.media.image_generator import ImageGenerator
+from tests.concurrency_probe import InFlightProbe
 
 
 def _prompt(n: int):
@@ -44,40 +44,35 @@ def _generator(workers: int = 3, retries: int = 0):
 class TestPanelsRunConcurrently:
     def test_ten_panels_do_not_take_ten_round_trips(self):
         gen, cfg = _generator(workers=5)
-        gen.generate = lambda prompt, filename, size: (
-            time.sleep(0.1) or f"/img/{filename}"
-        )
+        probe = InFlightProbe(rendezvous=5)
 
+        def _gen(prompt, filename, size):
+            with probe:
+                return f"/img/{filename}"
+
+        gen.generate = _gen
         with cfg:
-            started = time.monotonic()
             paths = gen.generate_story_images([_prompt(i) for i in range(10)])
-            elapsed = time.monotonic() - started
 
         assert len(paths) == 10
-        assert elapsed < 0.6, f"serial would take ~1.0s, took {elapsed:.2f}s"
+        assert probe.peak == 5, f"only {probe.peak} panel(s) overlapped with 5 workers"
 
     def test_worker_count_is_bounded_by_config(self):
         """Image endpoints rate-limit hard; an unbounded fan-out is a new bug."""
-        live = 0
-        peak = 0
-        lock = threading.Lock()
         gen, cfg = _generator(workers=2)
+        # Ask for one more than the limit: every call stays in flight until a
+        # third joins (only an unbounded pool lets one in) or 0.2 s passes.
+        probe = InFlightProbe(rendezvous=3, timeout=0.2)
 
-        def _slow(prompt, filename, size):
-            nonlocal live, peak
-            with lock:
-                live += 1
-                peak = max(peak, live)
-            time.sleep(0.05)
-            with lock:
-                live -= 1
-            return f"/img/{filename}"
+        def _gen(prompt, filename, size):
+            with probe:
+                return f"/img/{filename}"
 
-        gen.generate = _slow
+        gen.generate = _gen
         with cfg:
             gen.generate_story_images([_prompt(i) for i in range(8)])
 
-        assert peak <= 2, f"{peak} panels ran at once against a limit of 2"
+        assert probe.peak == 2, f"{probe.peak} panels ran at once against a limit of 2"
 
     def test_one_worker_still_works(self):
         """Operators must be able to put it back to fully serial."""
@@ -90,11 +85,15 @@ class TestPanelsRunConcurrently:
 
 class TestOrderSurvivesConcurrency:
     def _staggered(self, gen):
-        """Panel 1 is slowest, so completion order is not panel order."""
+        """Panel 1 finishes last, so completion order is not panel order."""
+        others_done = threading.Semaphore(0)
 
         def _gen(prompt, filename, size):
             if "panel01" in filename:
-                time.sleep(0.15)
+                for _ in range(3):
+                    others_done.acquire(timeout=10)
+            else:
+                others_done.release()
             return f"/img/{filename}"
 
         gen.generate = _gen

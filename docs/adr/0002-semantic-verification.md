@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-05-04
-**Sprint:** [Sprint 2 — Semantic Verification](../../plans/260504-1213-semantic-verification/README.md)
+**Sprint:** Sprint 2 — Semantic Verification (the sprint plan was internal and is not part of the repository)
 
 ## Context
 
@@ -33,9 +33,8 @@ Replace the three sites with local sentence-transformer embeddings and spaCy
 NER. The LLM critic is retained as an *optional secondary* signal for outline
 scoring only.
 
-This ADR captures the model and architecture choices. Per-phase task
-breakdown lives in
-`plans/260504-1213-semantic-verification/phases.md`.
+This ADR captures the model and architecture choices. The per-phase task
+breakdown was an internal plan and is not part of the repository.
 
 ## Why local embeddings, not LLM-based semantic checks
 

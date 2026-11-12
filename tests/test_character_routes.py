@@ -6,7 +6,6 @@ import asyncio
 import json
 import os
 import sys
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -217,7 +216,8 @@ def _extract_req():
 def test_extract_story_returns_characters_and_backgrounds_avatars(client):
     # The fix: avatar generation is fire-and-forget. The response must come
     # back with the extracted characters and delegate avatars to the background
-    # helper rather than awaiting FlowKit inline (which caused the 500).
+    # helper rather than awaiting the image provider inline (which caused the
+    # 500).
     with (
         patch.object(
             character_routes, "_get_llm", return_value=_mock_llm(EXTRACT_LLM_PAYLOAD)
@@ -232,27 +232,35 @@ def test_extract_story_returns_characters_and_backgrounds_avatars(client):
     bg.assert_called_once()
 
 
-def test_extract_story_does_not_block_response_on_slow_avatar(client):
+def test_extract_story_does_not_block_response_on_slow_avatar(client, monkeypatch):
     # Regression guard for the actual bug: a slow portrait backend must NOT
     # stall the HTTP response. Inline generation made this a 2-3 min request
     # that the proxy reset into a 500; backgrounding it returns immediately.
-    async def _slow_avatar(*_a, **_k):
-        await asyncio.sleep(5)
+    # The avatar backend never finishes on its own: it waits on an event nobody
+    # sets. An inline await would hold the response until the wait times out and
+    # the avatar reports itself finished; the backgrounded path answers first.
+    # A configured provider is needed, or the helper skips avatars entirely.
+    monkeypatch.setattr(ConfigManager().pipeline, "image_provider", "stub")
+    avatar_finished = []
+
+    async def _stuck_avatar(*_a, **_k):
+        try:
+            await asyncio.wait_for(asyncio.Event().wait(), timeout=5)
+        except asyncio.TimeoutError:
+            pass
+        avatar_finished.append(True)
         return None
 
-    start = time.monotonic()
     with (
         patch.object(
             character_routes, "_get_llm", return_value=_mock_llm(EXTRACT_LLM_PAYLOAD)
         ),
-        patch("services.character_avatar.generate_character_avatar", new=_slow_avatar),
+        patch("services.character_avatar.generate_character_avatar", new=_stuck_avatar),
     ):
         resp = client.post("/api/characters/extract-story", json=_extract_req())
-    elapsed = time.monotonic() - start
 
     assert resp.status_code == 200, resp.text
-    # Inline (old) path would take >=5s; backgrounded path returns in well under.
-    assert elapsed < 2.0, f"response blocked on avatar generation ({elapsed:.1f}s)"
+    assert not avatar_finished, "response waited for avatar generation"
 
     # Tidy up any avatar task still sleeping so it can't leak into other tests.
     for tsk in list(character_routes._avatar_tasks):
@@ -260,6 +268,14 @@ def test_extract_story_does_not_block_response_on_slow_avatar(client):
             tsk.cancel()
         except Exception:  # noqa: BLE001
             pass
+
+
+async def test_background_avatars_skip_when_no_image_provider(monkeypatch):
+    monkeypatch.setattr(ConfigManager().pipeline, "image_provider", "none")
+    avatar = AsyncMock()
+    with patch("services.character_avatar.generate_character_avatar", new=avatar):
+        await character_routes._generate_avatars_bg([MagicMock()], None, None)
+    avatar.assert_not_called()
 
 
 def test_extract_story_parses_fenced_json_list(client):
@@ -369,7 +385,7 @@ def test_regenerate_avatar_returns_fresh_url(client):
 
 
 def test_regenerate_avatar_502_when_generation_unavailable(client):
-    # FlowKit disabled / upstream failure -> generate returns None -> 502, not a
+    # Provider failure -> generate returns None -> 502, not a
     # 200-with-null that the client would mistake for success.
     with patch(
         "services.character_avatar.generate_character_avatar",

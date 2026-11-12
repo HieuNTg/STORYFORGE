@@ -1,8 +1,6 @@
 """Rate limiting middleware for StoryForge.
 
-Supports two backends (auto-selected, implemented in _rate_limit_backends):
-  - Redis: used when REDIS_URL env var is set (production, multi-instance safe)
-  - In-memory: fallback when Redis unavailable (development, single-instance)
+Counts requests per IP in process memory (implemented in _rate_limit_backends).
 
 Policy (tuned for the single-user open-source local build):
   - Default API endpoints: 240 requests per minute per IP
@@ -34,12 +32,9 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from middleware._rate_limit_backends import (  # noqa: F401
     _LIMITS,
     _MAX_MEMORY_ENTRIES,
-    _REDIS_RATE_LIMIT_SCRIPT,
     _WINDOW_SECONDS,
     _check_rate_limit_memory,
-    _check_rate_limit_redis,
     _evict_expired_entries,
-    _get_redis,
     _lock,
     _state,
 )
@@ -96,7 +91,6 @@ def _get_tier(path: str, method: str = "POST") -> str:
 class RateLimitMiddleware(BaseHTTPMiddleware):
     """Starlette middleware that enforces per-IP rate limits.
 
-    Auto-selects Redis backend when REDIS_URL is set, otherwise in-memory.
     Only applies to /api/* paths. Health check (/api/health) is exempt.
     """
 
@@ -118,12 +112,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         ip = _get_ip(request)
         tier = _get_tier(path, request.method)
 
-        # Use Redis if available, otherwise in-memory
-        allowed = (
-            _check_rate_limit_redis(ip, tier)
-            if os.environ.get("REDIS_URL")
-            else _check_rate_limit_memory(ip, tier)
-        )
+        allowed = _check_rate_limit_memory(ip, tier)
 
         if not allowed:
             limit = _LIMITS[tier]

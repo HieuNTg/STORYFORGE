@@ -41,7 +41,6 @@ from models.schemas import (
     StoryDraft,
     WorldSetting,
 )
-from models.schemas import UserProfile
 
 
 # ============================================================================
@@ -188,29 +187,6 @@ def create_test_config(
     return cfg
 
 
-def create_test_user(
-    user_id: str = "test-user-001",
-    username: str = "testuser",
-    credits: int = 20,
-    tier: str = "free",
-    total_stories_created: int = 0,
-) -> UserProfile:
-    """
-    Return a UserProfile suitable for credit/auth tests.
-
-    Example
-    -------
-        user = create_test_user(credits=100, tier="pro")
-    """
-    return UserProfile(
-        user_id=user_id,
-        username=username,
-        credits=credits,
-        tier=tier,
-        total_stories_created=total_stories_created,
-    )
-
-
 def create_enhanced_story(
     base_story: Optional[StoryDraft] = None,
     drama_score: float = 0.75,
@@ -247,12 +223,6 @@ def mock_story() -> StoryDraft:
 def mock_chapter() -> Chapter:
     """Provide a single Chapter instance."""
     return build_chapter()
-
-
-@pytest.fixture
-def mock_user() -> UserProfile:
-    """Provide a default free-tier UserProfile."""
-    return create_test_user()
 
 
 @pytest.fixture

@@ -9,12 +9,15 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import HTMLResponse
 
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from services import metrics as m
 from services.onboarding_analytics import tracker
 
-router = APIRouter(prefix="/dashboard", tags=["dashboard"])
-_ACCESS_ANALYTICS = Depends(require_permission_if_enabled(Permission.ACCESS_ANALYTICS))
+router = APIRouter(
+    prefix="/dashboard",
+    tags=["dashboard"],
+    dependencies=[Depends(require_access)],
+)
 
 _DASHBOARD_PATH = Path(__file__).parent.parent / "web" / "dashboard.html"
 # Lock required: multiple concurrent requests may race on the first read of
@@ -55,7 +58,7 @@ def _label_val(key: str, label: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 
-@router.get("/summary", dependencies=[_ACCESS_ANALYTICS])
+@router.get("/summary")
 def dashboard_summary():
     raw = m.format_metrics()
     parsed = _parse_prometheus(raw)
@@ -107,7 +110,7 @@ def dashboard_summary():
 # ---------------------------------------------------------------------------
 
 
-@router.get("/test-timings", dependencies=[_ACCESS_ANALYTICS])
+@router.get("/test-timings")
 def get_test_timings(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
@@ -148,7 +151,7 @@ def get_test_timings(
 # ---------------------------------------------------------------------------
 
 
-@router.get("", response_class=HTMLResponse, dependencies=[_ACCESS_ANALYTICS])
+@router.get("", response_class=HTMLResponse)
 async def serve_dashboard():
     """Serve the analytics dashboard HTML."""
     global _DASHBOARD_CACHE

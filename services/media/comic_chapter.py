@@ -33,13 +33,13 @@ from typing import Any, Optional
 logger = logging.getLogger(__name__)
 
 #: Providers that can condition on a reference image (character consistency).
-REF_CAPABLE = {"flowkit", "codex", "seedream", "replicate", "qwen-local"}
+REF_CAPABLE = {"seedream", "replicate"}
 
 
 class ComicSettings:
     """The comic-related config, resolved once per run."""
 
-    def __init__(self, cfg: Any, provider: str = ""):
+    def __init__(self, cfg: Any):
         self.shot_list_enabled = bool(
             getattr(cfg, "comic_shot_list_enabled", False)
         )
@@ -52,16 +52,11 @@ class ComicSettings:
         self.canvas = getattr(cfg, "comic_page_canvas", None)
         self.font = getattr(cfg, "comic_font", None) or None
         self.layout_mode = getattr(cfg, "comic_layout_mode", "shot_list")
-        # Codex renders in-image Vietnamese text well, so it draws its own
-        # balloons and skips the vector compositor.
-        self.is_codex = str(provider or "").strip().lower() == "codex"
         self.cfg = cfg
 
     @property
     def compose_pages(self) -> bool:
-        return (
-            self.compositor_enabled and self.shot_list_enabled and not self.is_codex
-        )
+        return self.compositor_enabled and self.shot_list_enabled
 
 
 def make_shot_extractor(settings: ComicSettings):
@@ -206,16 +201,6 @@ def _thread_shot_list(prompts: list, shot_list, settings: ComicSettings, chapter
                 getattr(chapter, "chapter_number", "?"),
                 e,
             )
-
-    if settings.is_codex:
-        try:
-            from services.media.image_prompt_generator import (
-                bake_dialogue_into_prompts,
-            )
-
-            bake_dialogue_into_prompts(prompts)
-        except Exception as e:
-            logger.warning("Codex dialogue baking failed: %s", e)
 
 
 def _compose(

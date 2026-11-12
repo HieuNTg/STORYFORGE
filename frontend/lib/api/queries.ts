@@ -19,6 +19,8 @@ import {
   type InfiniteData,
   type QueryFunctionContext,
 } from "@tanstack/react-query";
+import { useTranslations } from "next-intl";
+import { toast } from "sonner";
 import { apiFetch } from "@/lib/api/client";
 import {
   configResponseSchema,
@@ -304,6 +306,12 @@ export function useConfig() {
   });
 }
 
+/** Save response; `key_cleared` is set when a provider-host change wiped a key. */
+interface SaveResponse {
+  status: string;
+  key_cleared?: boolean;
+}
+
 /**
  * PUT /api/config — partial update. Invalidates ['config'] on success so
  * the next render shows the freshly-masked secrets returned by the server.
@@ -314,61 +322,17 @@ export function useConfig() {
  */
 export function useUpdateConfig() {
   const qc = useQueryClient();
-  return useMutation<{ status: string }, Error, ConfigUpdate>({
+  const t = useTranslations("settings_panel");
+  return useMutation<SaveResponse, Error, ConfigUpdate>({
     mutationFn: (body) =>
-      apiFetch<{ status: string }>("/api/config", {
+      apiFetch<SaveResponse>("/api/config", {
         method: "PUT",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      if (res?.key_cleared) toast.warning(t("keyCleared"));
       void qc.invalidateQueries({ queryKey: ["config"] });
     },
-  });
-}
-
-// ---------- FlowKit (Settings → Provider=flowkit) ----------
-
-export interface FlowkitStatus {
-  connected: boolean;
-  last_token_age_s: number;
-  pending_ws_requests: number;
-  workers_current: number;
-  workers_max: number;
-}
-
-export function useFlowkitStatus(enabled: boolean) {
-  return useQuery<FlowkitStatus, Error>({
-    queryKey: ["flowkit", "status"],
-    queryFn: () => apiFetch<FlowkitStatus>("/api/flowkit/status"),
-    enabled,
-    refetchInterval: enabled ? 5_000 : false,
-    staleTime: 2_000,
-  });
-}
-
-// ---------- Qwen local proxy (Settings → Provider=qwen-local) ----------
-
-export interface QwenLocalStatus {
-  configured: boolean;
-  reachable: boolean;
-  qwen_ready: boolean;
-  base_url: string;
-  error: string;
-}
-
-/**
- * Probe the local Qwen proxy. Unlike the FlowKit badge this does NOT poll on a
- * timer — the proxy is a local process the user starts by hand, so a manual
- * re-check button is both enough and cheaper (each probe is an HTTP round-trip
- * from the backend to the proxy).
- */
-export function useQwenLocalStatus(enabled: boolean) {
-  return useQuery<QwenLocalStatus, Error>({
-    queryKey: ["qwen-local", "status"],
-    queryFn: () => apiFetch<QwenLocalStatus>("/api/config/qwen-local/status"),
-    enabled,
-    staleTime: 10_000,
-    retry: false,
   });
 }
 
@@ -452,13 +416,15 @@ export interface ProfileUpdate {
 
 export function useUpdateProfile() {
   const qc = useQueryClient();
-  return useMutation<{ status: string }, Error, ProfileUpdate>({
+  const t = useTranslations("settings_panel");
+  return useMutation<SaveResponse, Error, ProfileUpdate>({
     mutationFn: ({ index, ...body }) =>
-      apiFetch<{ status: string }>(`/api/config/profiles/${index}`, {
+      apiFetch<SaveResponse>(`/api/config/profiles/${index}`, {
         method: "PUT",
         body: JSON.stringify(body),
       }),
-    onSuccess: () => {
+    onSuccess: (res) => {
+      if (res?.key_cleared) toast.warning(t("keyCleared"));
       void qc.invalidateQueries({ queryKey: ["config"] });
     },
   });
@@ -495,7 +461,7 @@ export function useSessionUsage() {
       return sessionUsageSchema.parse(raw);
     },
     staleTime: 30_000,
-    // Usage endpoint is RBAC-gated in production; soft-fail to zero totals.
+    // No retries: a failed request (e.g. 401 before unlock) soft-fails to zero totals.
     retry: false,
   });
 }

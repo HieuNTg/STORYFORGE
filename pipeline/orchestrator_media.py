@@ -3,6 +3,7 @@
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from services.llm.run_context import submit_with_context
 from config import ConfigManager
 from services.media.image_provider import ImageProvider
 from services.safe_name import safe_character_name
@@ -189,7 +190,7 @@ class MediaProducer:
             _counts = {
                 ch.chapter_number: panels_for_chapter(ch, cfg) for ch in chapters
             }
-            comic_settings = ComicSettings(cfg, panel_provider)
+            comic_settings = ComicSettings(cfg)
             shot_extractor = make_shot_extractor(comic_settings)
             _log(
                 f"[MEDIA] Tạo {min(_counts.values())}-{max(_counts.values())} "
@@ -238,7 +239,8 @@ class MediaProducer:
             )
             with ThreadPoolExecutor(max_workers=_chapter_workers) as executor:
                 futures = {
-                    executor.submit(_panels_for_chapter, ch): ch for ch in chapters
+                    submit_with_context(executor, _panels_for_chapter, ch): ch
+                    for ch in chapters
                 }
                 for future in as_completed(futures):
                     completed += 1

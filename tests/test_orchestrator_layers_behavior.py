@@ -2,11 +2,11 @@
 
 Covers:
 - DB persist helpers (_persist_handoff_to_db, _persist_chapter_contract_to_db,
-  persist_chapter_semantic_findings, persist_outline_metrics) with real SQLite
+  persist_outline_metrics) with real SQLite
 - run_layer2_only signal extraction (conflict_web, foreshadowing_plan)
 - run_layer1_only delegation
 - _run_structural_rewrites cap math + concurrency
-- _get_sync_engine singleton + WAL pragmas
+- _get_sync_engine singleton + WAL pragmas (on STORYFORGE_DB_PATH)
 - Error paths: missing row, failing persist (non-fatal)
 """
 
@@ -77,7 +77,7 @@ def tmp_db(tmp_path):
 
 class TestGetSyncEngine:
     def test_returns_engine(self, tmp_db, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
+        monkeypatch.setenv("STORYFORGE_DB_PATH", tmp_db)
         # Reset module singleton before test
         import pipeline.orchestrator_layers as ol
 
@@ -86,7 +86,7 @@ class TestGetSyncEngine:
         assert eng is not None
 
     def test_singleton_same_object(self, tmp_db, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
+        monkeypatch.setenv("STORYFORGE_DB_PATH", tmp_db)
         import pipeline.orchestrator_layers as ol
 
         ol._sync_engine = None
@@ -94,8 +94,18 @@ class TestGetSyncEngine:
         e2 = ol._get_sync_engine()
         assert e1 is e2
 
+    def test_rebuilds_when_db_path_moves(self, tmp_path, monkeypatch):
+        import pipeline.orchestrator_layers as ol
+
+        monkeypatch.setenv("STORYFORGE_DB_PATH", str(tmp_path / "a.db"))
+        e1 = ol._get_sync_engine()
+        monkeypatch.setenv("STORYFORGE_DB_PATH", str(tmp_path / "b.db"))
+        e2 = ol._get_sync_engine()
+        assert e1 is not e2
+        assert str(e2.url).endswith("b.db")
+
     def test_wal_pragma_applied(self, tmp_db, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
+        monkeypatch.setenv("STORYFORGE_DB_PATH", tmp_db)
         import pipeline.orchestrator_layers as ol
 
         ol._sync_engine = None
@@ -106,7 +116,7 @@ class TestGetSyncEngine:
 
     def test_singleton_thread_safe(self, tmp_db, monkeypatch):
         """Two threads calling concurrently get the same engine."""
-        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
+        monkeypatch.setenv("STORYFORGE_DB_PATH", tmp_db)
         import pipeline.orchestrator_layers as ol
 
         ol._sync_engine = None
@@ -131,7 +141,7 @@ class TestGetSyncEngine:
 
 class TestPersistHandoffToDb:
     def _setup(self, tmp_db, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
+        monkeypatch.setenv("STORYFORGE_DB_PATH", tmp_db)
         import pipeline.orchestrator_layers as ol
 
         ol._sync_engine = None
@@ -211,7 +221,7 @@ class TestPersistHandoffToDb:
 
 class TestPersistChapterContractToDb:
     def _setup(self, tmp_db, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
+        monkeypatch.setenv("STORYFORGE_DB_PATH", tmp_db)
         import pipeline.orchestrator_layers as ol
 
         ol._sync_engine = None
@@ -251,69 +261,13 @@ class TestPersistChapterContractToDb:
 
 
 # ---------------------------------------------------------------------------
-# 4. persist_chapter_semantic_findings — non-fatal on error
-# ---------------------------------------------------------------------------
-
-
-class TestPersistChapterSemanticFindings:
-    def _setup(self, tmp_db, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
-        import pipeline.orchestrator_layers as ol
-
-        ol._sync_engine = None
-        eng = _make_engine(tmp_db)
-        return ol, eng
-
-    def test_writes_semantic_findings(self, tmp_db, monkeypatch):
-        ol, eng = self._setup(tmp_db, monkeypatch)
-        with Session(eng) as s:
-            sid, _ = _story_and_run(s)
-            _chapter_row(s, sid, chapter_number=2)
-
-        ol.persist_chapter_semantic_findings(
-            story_id=sid,
-            chapter_number=2,
-            findings_dict={"payoffs": ["found_payoff"]},
-        )
-
-        with Session(eng) as s:
-            ch = s.query(Chapter).filter_by(story_id=sid, chapter_number=2).one()
-            assert ch.semantic_findings == {"payoffs": ["found_payoff"]}
-
-    def test_non_fatal_on_bad_engine(self, monkeypatch, caplog):
-        """Persist failure must not raise — just logs warning."""
-        monkeypatch.setenv("DATABASE_URL", "sqlite:////nonexistent/path/test.db")
-        import pipeline.orchestrator_layers as ol
-
-        ol._sync_engine = None  # force re-init with bad path
-        import logging
-
-        with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator_layers"):
-            # Should not raise
-            ol.persist_chapter_semantic_findings("any-id", 1, {"x": 1})
-
-    def test_missing_chapter_logs_warning(self, tmp_db, monkeypatch, caplog):
-        ol, eng = self._setup(tmp_db, monkeypatch)
-        # DB exists but no chapter
-        import logging
-
-        with caplog.at_level(logging.WARNING, logger="pipeline.orchestrator_layers"):
-            ol.persist_chapter_semantic_findings(
-                story_id=str(uuid.uuid4()),
-                chapter_number=77,
-                findings_dict={},
-            )
-        assert "no chapter found" in caplog.text.lower()
-
-
-# ---------------------------------------------------------------------------
 # 5. persist_outline_metrics — non-fatal on error
 # ---------------------------------------------------------------------------
 
 
 class TestPersistOutlineMetrics:
     def _setup(self, tmp_db, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", f"sqlite:///{tmp_db}")
+        monkeypatch.setenv("STORYFORGE_DB_PATH", tmp_db)
         import pipeline.orchestrator_layers as ol
 
         ol._sync_engine = None
@@ -345,8 +299,10 @@ class TestPersistOutlineMetrics:
             )
         assert "no pipeline_run found" in caplog.text.lower()
 
-    def test_non_fatal_engine_error(self, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", "sqlite:////nonexistent/path/nope.db")
+    def test_non_fatal_engine_error(self, tmp_path, monkeypatch):
+        blocker = tmp_path / "not-a-dir"
+        blocker.write_text("x")  # a file where the DB directory should be
+        monkeypatch.setenv("STORYFORGE_DB_PATH", str(blocker / "nope.db"))
         import pipeline.orchestrator_layers as ol
 
         ol._sync_engine = None

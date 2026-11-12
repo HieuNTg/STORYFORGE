@@ -10,6 +10,7 @@ __all__ = [
     "InputSanitizationError",
     "ExportError",
     "StorageError",
+    "ApiKeyMissing",
 ]
 
 
@@ -63,3 +64,11 @@ class ExportError(StoryForgeError):
 class StorageError(StoryForgeError):
     def __init__(self, message: str):
         super().__init__(message, code="STORAGE_ERROR")
+
+
+class ApiKeyMissing(ConfigError):
+    """No usable LLM key and no local endpoint: generation cannot start."""
+
+    def __init__(self, message: str = "Set an API key in Settings → API Keys"):
+        super().__init__(message)
+        self.code = "api_key_missing"

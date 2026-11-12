@@ -14,15 +14,18 @@ from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from api.pipeline_routes import _orchestrators
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from services.output_paths import (
     OUTPUT_ROOT as _OUTPUT_ROOT,
     exports_dir as _exports_dir,
 )
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/export", tags=["export"])
-_READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
+router = APIRouter(
+    prefix="/export",
+    tags=["export"],
+    dependencies=[Depends(require_access)],
+)
 
 # Directories that export files may legally reside in
 _PROJECT_ROOT = pathlib.Path(
@@ -108,8 +111,6 @@ async def _load_story_from_db(story_id: str) -> Optional["_DBStoryWrapper"]:
         from sqlalchemy.orm import selectinload
 
         async with get_session() as session:
-            if session is None:
-                return None
             result = await session.execute(
                 select(Story)
                 .options(selectinload(Story.chapters))
@@ -174,7 +175,7 @@ async def _get_story_data(session_id: str):
     return await _load_story_from_db(session_id)
 
 
-@router.post("/files/{session_id}", dependencies=[_READ_STORIES])
+@router.post("/files/{session_id}")
 async def export_files(
     session_id: str, formats: list[str] = ["TXT", "Markdown", "JSON"]
 ):
@@ -198,7 +199,7 @@ async def export_files(
     return {"files": safe_files}
 
 
-@router.post("/zip/{session_id}", dependencies=[_READ_STORIES])
+@router.post("/zip/{session_id}")
 async def export_zip(session_id: str):
     """Export all files as ZIP."""
     orch = await _get_story_data(session_id)
@@ -215,7 +216,7 @@ async def export_zip(session_id: str):
     return JSONResponse({"error": "Không có file"}, status_code=500)
 
 
-@router.post("/pdf/{session_id}", dependencies=[_READ_STORIES])
+@router.post("/pdf/{session_id}")
 async def export_pdf(session_id: str):
     """Export story as PDF."""
     orch = await _get_story_data(session_id)
@@ -230,7 +231,7 @@ async def export_pdf(session_id: str):
     return JSONResponse({"error": "Xuất PDF thất bại"}, status_code=500)
 
 
-@router.post("/epub/{session_id}", dependencies=[_READ_STORIES])
+@router.post("/epub/{session_id}")
 async def export_epub(session_id: str):
     """Export story as EPUB."""
     orch = await _get_story_data(session_id)
@@ -337,7 +338,7 @@ def _serve_library_file(path: str, download_name: str):
     return FileResponse(str(resolved), filename=pathlib.Path(download_name).name)
 
 
-@router.post("/library/{fmt}", dependencies=[_READ_STORIES])
+@router.post("/library/{fmt}")
 async def export_library_story(fmt: str, story: _LibraryStoryPayload = Body(...)):
     """Export a frontend-library story (localStorage shape) as docx | pdf | epub.
 

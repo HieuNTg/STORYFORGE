@@ -12,10 +12,13 @@ and anything that RESOLVES to a private or link-local address (cloud metadata
 at 169.254.169.254 included) — resolution matters, otherwise `evil.example`
 pointing at 127.0.0.1 walks straight through a hostname-only check.
 
-Two deliberate exceptions:
-  * Loopback typed explicitly (localhost / 127.0.0.1 / ::1) is allowed — local
-    bridges are a supported provider (see config/presets.py, the Gemini Web
-    card at localhost:8000).
+Three deliberate exceptions:
+  * Loopback typed explicitly (localhost / 127.0.0.1 / ::1) is allowed — a
+    local OpenAI-compatible server (Ollama, vLLM, LM Studio) is a supported
+    provider.
+  * `host.docker.internal`, by exact name and without resolving it, so the
+    container can reach an Ollama running on the host machine (in Docker it
+    resolves to a private gateway address). No other private name is exempt.
   * STORYFORGE_ALLOW_PRIVATE_BASE_URL=1 lifts the private-range block for the
     LAN case (an Ollama/vLLM box at 192.168.x.x). Opt-in, off by default.
 """
@@ -30,6 +33,10 @@ from fastapi import HTTPException
 # Typed-by-hand loopback. Allowed because running a local OpenAI-compatible
 # bridge is a first-class feature here, not an SSRF bypass we forgot to close.
 _LOOPBACK_HOSTS = {"localhost", "127.0.0.1", "::1"}
+
+# The host machine as seen from a container (compose maps it with
+# extra_hosts). Matched by exact name before any DNS lookup.
+_DOCKER_HOST_GATEWAY = "host.docker.internal"
 
 _BLOCKED_NETWORKS = [
     ipaddress.ip_network("10.0.0.0/8"),
@@ -93,7 +100,7 @@ def validate_base_url(url: str) -> None:
     if not host:
         raise HTTPException(status_code=400, detail="base_url missing host")
 
-    if host in _LOOPBACK_HOSTS or _allow_private():
+    if host in _LOOPBACK_HOSTS or host == _DOCKER_HOST_GATEWAY or _allow_private():
         return
 
     # A bare IP needs no DNS round-trip.

@@ -39,7 +39,6 @@ from pipeline.orchestrator_layers import (
     _persist_chapter_contract_to_db,
     _persist_handoff_to_db,
 )
-from services import diagnostics_service
 
 
 _FIXTURE = Path(__file__).parent / "fixtures" / "sprint1_e2e_llm_responses.json"
@@ -88,9 +87,8 @@ def temp_db(tmp_path, monkeypatch):
     """Spin up an isolated SQLite DB with the full schema applied."""
     db_path = tmp_path / "sprint1_e2e.db"
     db_url = f"sqlite:///{db_path}"
-    monkeypatch.setenv("DATABASE_URL", db_url)
-    # diagnostics_service caches _DB_URL at import time → patch the module global
-    monkeypatch.setattr(diagnostics_service, "_DB_URL", db_url)
+    # Every sync engine (orchestrator_layers, diagnostics_service) reads it per call.
+    monkeypatch.setenv("STORYFORGE_DB_PATH", str(db_path))
 
     engine = create_engine(db_url, connect_args={"check_same_thread": False})
     # Only the three tables Sprint 1 touches — full Base.metadata.create_all

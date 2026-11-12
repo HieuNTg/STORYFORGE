@@ -7,8 +7,7 @@ Endpoints
 
 Both endpoints:
 - Return 404 when ``PipelineConfig.enable_sentence_forge`` is False.
-- Are rate-limited 5 req/min/IP using the existing rate limiter backend
-  (Redis if ``REDIS_URL`` is set, in-memory fallback otherwise).
+- Are rate-limited 5 req/min/IP with an in-memory sliding window.
 - Read the LLM via :class:`services.llm.client.LLMClient` singleton.
 """
 
@@ -25,12 +24,18 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from config import ConfigManager
+from middleware.access import require_access
 from models.schemas import ForgeRequest, ForgeResponse
 from services.forge_service import forge_from_sentence
+from services.llm.provider_config_keys import ensure_llm_key
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/forge", tags=["forge"])
+router = APIRouter(
+    prefix="/forge",
+    tags=["forge"],
+    dependencies=[Depends(require_access)],
+)
 
 
 # ---------------------------------------------------------------------------
@@ -40,7 +45,7 @@ router = APIRouter(prefix="/forge", tags=["forge"])
 FORGE_LIMIT_PER_MIN = int(os.environ.get("STORYFORGE_FORGE_RATE_LIMIT", "5"))
 _FORGE_WINDOW = 60.0
 
-# In-memory fallback (per-process). Redis path mirrors middleware/rate_limiter.
+# In-memory sliding window (per-process).
 _forge_lock = threading.Lock()
 _forge_state: dict[str, list[float]] = {}
 
@@ -62,21 +67,6 @@ def _client_ip(request: Request) -> str:
 
 def _check_forge_rate(ip: str) -> bool:
     """True if request is allowed under 5/min/IP. Sliding window per IP."""
-    # Try Redis backend first (reuse env var REDIS_URL).
-    if os.environ.get("REDIS_URL"):
-        try:
-            from middleware.rate_limiter import _get_redis  # type: ignore
-
-            r = _get_redis()
-            if r is not None:
-                key = f"sf:ratelimit:forge:{ip}"
-                count = r.incr(key)
-                if count == 1:
-                    r.expire(key, int(_FORGE_WINDOW))
-                return int(count) <= FORGE_LIMIT_PER_MIN
-        except Exception as e:  # noqa: BLE001 — fall through to memory
-            logger.debug("forge rate redis path failed: %s", e)
-
     now = time.monotonic()
     with _forge_lock:
         bucket = _forge_state.setdefault(ip, [])
@@ -137,6 +127,7 @@ def _resolve_model() -> str | None:
 async def forge_sentence(
     req: ForgeRequest,
     _enabled: None = Depends(_ensure_enabled),
+    _key: None = Depends(ensure_llm_key),
 ) -> ForgeResponse:
     """Synchronous forge. Runs the (sync) LLM call in a threadpool."""
     llm = _get_llm()
@@ -171,6 +162,7 @@ def _sse(event: str, data: dict | str) -> bytes:
 async def forge_sentence_stream(
     req: ForgeRequest,
     _enabled: None = Depends(_ensure_enabled),
+    _key: None = Depends(ensure_llm_key),
 ) -> StreamingResponse:
     """SSE wrapper around the sync forge. Emits coarse progress stages, then
     a single ``final`` event with the validated ForgeResponse JSON.

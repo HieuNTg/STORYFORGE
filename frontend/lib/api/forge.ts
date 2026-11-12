@@ -10,7 +10,7 @@ import {
   type ForgeRequest,
   type ForgeResponse,
 } from "@/types/story";
-import { apiFetch } from "./client";
+import { apiFetch, normalizeError } from "./client";
 
 export async function forgeFromSentence(req: ForgeRequest): Promise<ForgeResponse> {
   const raw = await apiFetch<unknown>("/api/forge/sentence", {
@@ -64,12 +64,16 @@ export function forgeFromSentenceStream(
       openWhenHidden: true,
       onopen: async (res) => {
         if (!res.ok) {
-          const err = new Error(`forge stream failed: HTTP ${res.status}`);
+          const err = await normalizeError(
+            res,
+            `forge stream failed: HTTP ${res.status}`,
+          );
           if (!settled) {
             settled = true;
             handlers.onError?.(err);
             reject(err);
           }
+          throw err; // stop fetchEventSource from retrying
         }
       },
       onmessage: (msg) => {
@@ -96,14 +100,26 @@ export function forgeFromSentenceStream(
           reject(err);
         }
       },
+      onclose: () => {
+        const e = new Error("forge stream closed before completion");
+        if (!settled) {
+          settled = true;
+          handlers.onError?.(e);
+          reject(e);
+        }
+        throw e; // never reconnect (would re-POST)
+      },
       onerror: (err) => {
-        if (settled) return;
-        settled = true;
         const e = err instanceof Error ? err : new Error(String(err));
-        handlers.onError?.(e);
-        reject(e);
+        if (!settled) {
+          settled = true;
+          handlers.onError?.(e);
+          reject(e);
+        }
         throw e; // stop retries
       },
+    }).catch(() => {
+      // Settlement is handled via the callbacks above.
     });
   });
 }

@@ -1,7 +1,9 @@
-"""Database connection manager for PostgreSQL.
+"""Async database manager for the local SQLite store.
 
-Async SQLAlchemy 2.0+ engine and session management.
-All functions degrade gracefully when DATABASE_URL is not set.
+Async SQLAlchemy 2.0+ engine and session management on ``aiosqlite``. The
+database file is located by :mod:`services.infra.db_paths`
+(``STORYFORGE_DB_PATH`` or ``data/storyforge.db``), so an engine is always
+available.
 """
 
 from __future__ import annotations
@@ -12,39 +14,30 @@ import threading
 from contextlib import asynccontextmanager
 from typing import AsyncIterator, Optional
 
+from sqlalchemy.ext.asyncio import (
+    AsyncEngine,
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
+
+from services.infra.db_paths import async_url, ensure_db_dir
+
 logger = logging.getLogger(__name__)
-
-# ---------------------------------------------------------------------------
-# Lazy imports — only pulled in when DATABASE_URL is actually set
-# ---------------------------------------------------------------------------
-try:
-    from sqlalchemy.ext.asyncio import (
-        AsyncEngine,
-        AsyncSession,
-        async_sessionmaker,
-        create_async_engine,
-    )
-
-    _SQLA_AVAILABLE = True
-except ImportError:
-    _SQLA_AVAILABLE = False
-    AsyncEngine = None  # type: ignore[assignment,misc]
-    AsyncSession = None  # type: ignore[assignment,misc]
 
 # ---------------------------------------------------------------------------
 # Thread-safe singleton state
 # ---------------------------------------------------------------------------
 _lock = threading.Lock()
-_engine: Optional["AsyncEngine"] = None  # noqa: F821
-_session_factory: Optional["async_sessionmaker[AsyncSession]"] = None  # noqa: F821
+_engine: Optional[AsyncEngine] = None
+_engine_url: Optional[str] = None
+_session_factory: Optional["async_sessionmaker[AsyncSession]"] = None
 
 # Stateless engine-setup helpers live in _database_setup; re-imported here so
 # existing services.infra.database.<name> references and patch targets work.
 from services.infra._database_setup import (  # noqa: E402
-    _get_database_url,
     _setup_pool_metrics,
     _setup_sqlite_pragmas,
-    _warn_no_db,
 )
 
 
@@ -53,76 +46,50 @@ from services.infra._database_setup import (  # noqa: E402
 # ---------------------------------------------------------------------------
 
 
-def get_engine() -> Optional["AsyncEngine"]:  # noqa: F821
+def get_engine() -> AsyncEngine:
     """Return (or lazily create) the async engine singleton.
 
-    Returns None if DATABASE_URL is not configured.
+    The engine is rebuilt when ``STORYFORGE_DB_PATH`` points somewhere new, so
+    a redirected path never keeps writing to the previous file.
     """
-    global _engine, _session_factory
+    global _engine, _engine_url, _session_factory
 
-    url = _get_database_url()
-    if not url:
-        _warn_no_db()
-        return None
-
-    if not _SQLA_AVAILABLE:
-        logger.error("sqlalchemy[asyncio] not installed — cannot create engine.")
-        return None
-
-    if _engine is None:
+    url = async_url()
+    if _engine is None or _engine_url != url:
         with _lock:
             # Double-checked locking
-            if _engine is None:
-                logger.info("Creating async SQLAlchemy engine for PostgreSQL.")
-                try:
-                    _engine = create_async_engine(
-                        url,
-                        echo=os.environ.get("DB_ECHO", "").lower() in ("1", "true"),
-                        pool_size=int(os.environ.get("DB_POOL_SIZE", "5")),
-                        max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "10")),
-                        pool_pre_ping=True,
-                    )
-                except Exception as exc:
-                    # A sync driver URL (sqlite:// rather than sqlite+aiosqlite://)
-                    # raises here. This used to sit outside the try, so a
-                    # DATABASE_URL of exactly the shape the repo's own .env ships
-                    # aborted startup instead of degrading to no-database.
-                    logger.error(
-                        "Cannot create async engine for DATABASE_URL (%s). "
-                        "An async driver is required, e.g. "
-                        "postgresql+asyncpg:// or sqlite+aiosqlite://. "
-                        "Continuing without a database.",
-                        exc,
-                    )
-                    return None
-                _setup_sqlite_pragmas(_engine)
-                _setup_pool_metrics(_engine)
+            if _engine is None or _engine_url != url:
+                logger.info("Creating async SQLAlchemy engine for %s", url)
+                ensure_db_dir()
+                engine = create_async_engine(
+                    url,
+                    echo=os.environ.get("DB_ECHO", "").lower() in ("1", "true"),
+                    pool_pre_ping=True,
+                )
+                _setup_sqlite_pragmas(engine)
+                _setup_pool_metrics(engine)
                 _session_factory = async_sessionmaker(
-                    _engine,
+                    engine,
                     class_=AsyncSession,
                     expire_on_commit=False,
                 )
+                _engine = engine
+                _engine_url = url
     return _engine
 
 
 @asynccontextmanager
-async def get_session() -> AsyncIterator[Optional["AsyncSession"]]:  # noqa: F821
+async def get_session() -> AsyncIterator[AsyncSession]:
     """Async context manager yielding an AsyncSession.
 
-    Yields None if DATABASE_URL is not configured or engine unavailable.
+    Commits on clean exit and rolls back on error.
 
     Usage::
 
         async with get_session() as session:
-            if session is None:
-                return  # DB not available
             result = await session.execute(...)
     """
-    engine = get_engine()
-    if engine is None or _session_factory is None:
-        yield None
-        return
-
+    get_engine()
     async with _session_factory() as session:
         try:
             yield session
@@ -133,29 +100,20 @@ async def get_session() -> AsyncIterator[Optional["AsyncSession"]]:  # noqa: F82
 
 
 @asynccontextmanager
-async def transaction() -> AsyncIterator[Optional["AsyncSession"]]:  # noqa: F821
+async def transaction() -> AsyncIterator[AsyncSession]:
     """Async context manager yielding an AsyncSession with an explicit transaction.
 
     Guarantees atomicity for multi-step write operations: all statements either
     commit together or roll back entirely on any exception, preventing orphaned
     records from partial writes (e.g. story creation followed by chapter inserts).
 
-    Yields None if DATABASE_URL is not configured or the engine is unavailable,
-    so callers can gracefully degrade without extra guards.
-
     Usage::
 
         async with transaction() as session:
-            if session is None:
-                return  # DB not available
             session.add(story)
             session.add(chapter)   # both commit or both roll back
     """
-    engine = get_engine()
-    if engine is None or _session_factory is None:
-        yield None
-        return
-
+    get_engine()
     async with _session_factory() as session:
         async with session.begin():
             try:
@@ -168,14 +126,10 @@ async def transaction() -> AsyncIterator[Optional["AsyncSession"]]:  # noqa: F82
 async def init_db() -> bool:
     """Create all tables defined in db_models if they don't exist.
 
-    Returns True on success, False if DATABASE_URL is not set or error occurs.
+    Returns True on success, False if an error occurs.
     """
-    engine = get_engine()
-    if engine is None:
-        logger.warning("init_db: DATABASE_URL not set — skipping table creation.")
-        return False
-
     try:
+        engine = get_engine()
         # Import here to avoid circular imports at module load time
         from models.db_models import Base  # noqa: PLC0415
 
@@ -191,15 +145,16 @@ async def init_db() -> bool:
 async def close_db() -> None:
     """Dispose the engine and reset singleton state.
 
-    Safe to call even if DATABASE_URL was never set.
+    Safe to call even if no engine was ever created.
     """
-    global _engine, _session_factory
+    global _engine, _engine_url, _session_factory
 
     engine_to_dispose = None
     with _lock:
         if _engine is not None:
             engine_to_dispose = _engine
             _engine = None
+            _engine_url = None
             _session_factory = None
 
     if engine_to_dispose is not None:

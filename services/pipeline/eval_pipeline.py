@@ -12,8 +12,12 @@ import statistics
 from datetime import datetime, timezone
 from typing import Optional
 
+from services.infra.bundled_data import bundled_data_dir
+
 logger = logging.getLogger(__name__)
 
+# Human evals are user data and are written here; the golden dataset ships with
+# the code and is read from the bundled data dir.
 _EVALS_DIR = "data/evals"
 
 # Vietnamese unicode ranges: Basic Latin + Vietnamese extended blocks
@@ -27,7 +31,8 @@ _VIET_PATTERN = re.compile(
 )
 
 
-_GOLDEN_DATASET = os.path.join(_EVALS_DIR, "golden_dataset.json")
+def _golden_dataset_path() -> str:
+    return str(bundled_data_dir() / "evals" / "golden_dataset.json")
 
 
 class EvalPipeline:
@@ -278,12 +283,14 @@ class EvalPipeline:
     # Golden dataset regression testing
     # ------------------------------------------------------------------
 
-    def run_golden_eval(self, dataset_path: str = _GOLDEN_DATASET) -> dict:
+    def run_golden_eval(self, dataset_path: str | None = None) -> dict:
         """Run automated scoring against the golden dataset.
 
         Compares actual auto_score results against expected baselines.
         Returns pass/fail for each entry with deviation details.
         """
+        if dataset_path is None:
+            dataset_path = _golden_dataset_path()
         if not os.path.exists(dataset_path):
             return {"error": "Golden dataset not found", "path": dataset_path}
 

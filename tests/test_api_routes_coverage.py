@@ -36,10 +36,6 @@ class TestHealthRoutes:
         with (
             patch("api.health_routes._check_database", return_value={"status": "ok"}),
             patch(
-                "api.health_routes._check_redis",
-                return_value={"status": "not_configured"},
-            ),
-            patch(
                 "api.health_routes._check_disk",
                 return_value={
                     "status": "ok",
@@ -76,10 +72,6 @@ class TestHealthRoutes:
                 return_value={"status": "error", "detail": "conn failed"},
             ),
             patch(
-                "api.health_routes._check_redis",
-                return_value={"status": "not_configured"},
-            ),
-            patch(
                 "api.health_routes._check_disk",
                 return_value={
                     "status": "ok",
@@ -112,32 +104,15 @@ class TestHealthRoutes:
         result = _check_memory()
         assert "status" in result
 
-    def test_check_redis_not_configured(self):
-        """_check_redis returns not_configured when REDIS_URL absent."""
-        from api.health_routes import _check_redis
-
-        original = os.environ.pop("REDIS_URL", None)
-        try:
-            result = _check_redis()
-            assert result["status"] == "not_configured"
-        finally:
-            if original:
-                os.environ["REDIS_URL"] = original
-
-    def test_check_database_sqlite(self):
-        """_check_database works with SQLite."""
+    def test_check_database_sqlite(self, tmp_path):
+        """_check_database answers ok on the SQLite file at STORYFORGE_DB_PATH."""
         from api.health_routes import _check_database
-        import api.health_routes as hr
 
-        # Reset engine so it gets created fresh
-        orig = hr._health_engine
-        hr._health_engine = None
-        try:
-            with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///:memory:"}):
-                result = _check_database()
-            assert result["status"] in ("ok", "error")
-        finally:
-            hr._health_engine = orig
+        db_file = tmp_path / "health.db"
+        with patch.dict(os.environ, {"STORYFORGE_DB_PATH": str(db_file)}):
+            result = _check_database()
+        assert result["status"] == "ok"
+        assert db_file.exists()
 
     def test_check_llm_unreachable(self):
         """_check_llm returns unreachable for bogus URL."""
@@ -169,7 +144,7 @@ class TestConfigRoutes:
         resp = self._client.get("/config")
         assert resp.status_code == 200
         data = resp.json()
-        assert "llm" in data or "pipeline" in data or isinstance(data, dict)
+        assert "llm" in data and "pipeline" in data
 
     def test_get_config_masks_api_key(self):
         """GET /config masks the API key."""
@@ -182,7 +157,8 @@ class TestConfigRoutes:
         data = resp.json()
         # The key should be masked (contains ***)
         masked = data.get("llm", {}).get("api_key_masked", "")
-        assert "***" in masked or data  # either masked or empty
+        assert "***" in masked
+        assert "sk-testapikey1234" not in resp.text
 
     def test_put_config_updates_model(self):
         """PUT /config updates the model field."""
@@ -210,7 +186,7 @@ class TestConfigRoutes:
             mock_cm.save.return_value = []
             MockCM.return_value = mock_cm
             resp = self._client.put("/config", json=payload)
-        assert resp.status_code in (200, 422, 500)
+        assert resp.status_code == 200, resp.text
 
     def test_get_presets_returns_list(self):
         """GET /config/presets returns pipeline presets."""
@@ -244,7 +220,7 @@ class TestPipelineRoutes:
         resp = self._client.get("/pipeline/genres")
         assert resp.status_code == 200
         data = resp.json()
-        assert "genres" in data or isinstance(data, dict)
+        assert "genres" in data
 
     def test_get_templates_returns_200(self):
         """GET /pipeline/templates returns story templates."""
@@ -264,19 +240,6 @@ class TestPipelineRoutes:
         """GET /pipeline/status/{session_id} returns 404 for unknown session."""
         resp = self._client.get("/pipeline/status/nonexistent-session")
         assert resp.status_code in (200, 404)
-
-    def test_pipeline_sanitize_summary(self):
-        """_sanitize_summary handles chapters with HTML content."""
-        from api.pipeline_routes import _sanitize_summary
-        from services.text_utils import _HAS_NH3
-
-        if not _HAS_NH3:
-            pytest.skip("nh3 not installed")
-        summary = {
-            "draft": {"chapters": [{"content": "<script>alert(1)</script>Hello"}]}
-        }
-        result = _sanitize_summary(summary)
-        assert isinstance(result, dict)
 
     def test_pipeline_sanitize_summary_empty(self):
         """_sanitize_summary handles empty input."""

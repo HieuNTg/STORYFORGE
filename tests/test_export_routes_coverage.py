@@ -119,7 +119,8 @@ class TestExportPDF:
                 ),
             ):
                 resp = self.client.post("/export/pdf/sess")
-            assert resp.status_code in (200, 404, 500)  # 200 = file served
+            assert resp.status_code == 200, resp.text
+            assert resp.content == b"%PDF-1.4 test"
         finally:
             pathlib.Path(pdf_path).unlink(missing_ok=True)
 
@@ -163,7 +164,8 @@ class TestExportEPUB:
                 ),
             ):
                 resp = self.client.post("/export/epub/sess")
-            assert resp.status_code in (200, 404, 500)
+            assert resp.status_code == 200, resp.text
+            assert resp.content == b"PK epub content"
         finally:
             pathlib.Path(epub_path).unlink(missing_ok=True)
 

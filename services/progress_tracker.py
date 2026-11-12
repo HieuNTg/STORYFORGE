@@ -1,11 +1,9 @@
 """Structured progress tracking for pipeline steps.
 
 Emits typed progress events that UI can render as visual indicators.
-Events are persisted in Redis when a session_id is provided.
+Events are kept in memory for the life of the tracker.
 """
 
-import json
-import os
 import logging
 
 # Stable import surface: consumers (pipeline, tests) import ProgressEvent
@@ -14,54 +12,18 @@ from services._progress_event import ProgressEvent  # noqa: F401
 
 logger = logging.getLogger(__name__)
 
-_SESSION_TTL = 86400  # 24 hours
-
-
-def _session_key(session_id: str, namespace: str) -> str:
-    return f"storyforge:session:{session_id}:{namespace}"
-
-
-def _make_redis_client():
-    """Create a Redis client from REDIS_URL env var. Raises if unavailable."""
-    redis_url = os.environ.get("REDIS_URL", "").strip()
-    if not redis_url:
-        raise RuntimeError(
-            "REDIS_URL is not set. Redis is required for session state. "
-            "Start Redis via docker-compose and set REDIS_URL."
-        )
-    try:
-        import redis as _redis_lib
-    except ImportError as exc:
-        raise RuntimeError(
-            "redis package is not installed. Run: pip install redis"
-        ) from exc
-    client = _redis_lib.from_url(redis_url, decode_responses=True)
-    client.ping()
-    return client
-
 
 class ProgressTracker:
     """Track pipeline progress with structured events.
 
-    When session_id is provided, events are persisted in Redis.
-    Without session_id, events accumulate in memory only (backward compat).
+    Events accumulate in memory. ``session_id`` is kept for callers that tag
+    a tracker with the pipeline session it belongs to.
     """
 
     def __init__(self, callback=None, session_id: str = ""):
         self._callback = callback
         self._session_id = session_id
-        self._redis = None
         self._local_events: list[ProgressEvent] = []
-
-        if session_id:
-            try:
-                self._redis = _make_redis_client()
-                logger.debug(
-                    "ProgressTracker: Redis connected for session %s", session_id
-                )
-            except Exception as exc:
-                logger.error("ProgressTracker: Redis init failed: %s", exc)
-                raise
 
     def emit(
         self,
@@ -80,16 +42,7 @@ class ProgressTracker:
             progress=progress,
         )
 
-        if self._redis and self._session_id:
-            key = _session_key(self._session_id, "progress")
-            try:
-                self._redis.rpush(key, json.dumps(event.to_dict()))
-                self._redis.expire(key, _SESSION_TTL)
-            except Exception as exc:
-                logger.warning("ProgressTracker: Redis write error: %s", exc)
-                self._local_events.append(event)
-        else:
-            self._local_events.append(event)
+        self._local_events.append(event)
 
         if self._callback:
             log_msg = f"{event.to_log_prefix()} {message}"
@@ -170,14 +123,6 @@ class ProgressTracker:
 
     @property
     def events(self) -> list[ProgressEvent]:
-        if self._redis and self._session_id:
-            key = _session_key(self._session_id, "progress")
-            try:
-                self._redis.expire(key, _SESSION_TTL)
-                raw = self._redis.lrange(key, 0, -1)
-                return [ProgressEvent.from_dict(json.loads(r)) for r in raw]
-            except Exception as exc:
-                logger.warning("ProgressTracker: Redis read error: %s", exc)
         return list(self._local_events)
 
     @property

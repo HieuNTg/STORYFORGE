@@ -65,12 +65,6 @@ class TestPipelineConfigDefaults:
         cfg = PipelineConfig()
         assert cfg.image_provider == "none"
 
-    def test_pipeline_config_sub_genres_empty(self):
-        from config.defaults import PipelineConfig
-
-        cfg = PipelineConfig()
-        assert isinstance(cfg.sub_genres, list)
-
 
 class TestConfigValidation:
     """Tests for config validation logic."""
@@ -113,22 +107,6 @@ class TestConfigValidation:
         errors = validate_config(llm, pipeline)
         assert any("từ" in e for e in errors)
 
-    def test_validate_openrouter_model_format(self):
-        from config.defaults import LLMConfig, PipelineConfig
-        from config.validation import validate_config
-
-        llm = LLMConfig(
-            api_key="sk-test",
-            base_url="https://openrouter.ai/api/v1",
-            model="bad-model",
-        )
-        pipeline = PipelineConfig()
-        errors = validate_config(llm, pipeline)
-        # Should warn about OpenRouter model format
-        [e for e in errors if "OpenRouter" in e or "openrouter" in e.lower()]
-        # May or may not have errors depending on model format
-        assert isinstance(errors, list)
-
 
 class TestConfigPersistence:
     """Tests for config load/save."""
@@ -161,7 +139,7 @@ class TestConfigPersistence:
                 pipeline2 = PipelineConfig()
                 load_config(llm2, pipeline2)
 
-    def test_save_config_includes_api_key(self):
+    def test_save_config_encrypts_api_key_without_env_key(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config
 
@@ -176,11 +154,12 @@ class TestConfigPersistence:
                 save_config(llm, pipeline)
                 with open(config_file) as f:
                     data = json.load(f)
-                assert data["llm"]["api_key"] == "sk-test-key"
+                assert data["llm"]["api_key"].startswith("ENC:")
 
     def test_save_config_encrypts_sensitive_fields_when_secret_set(self):
         from config.defaults import LLMConfig, PipelineConfig
         from config.persistence import save_config, load_config
+        from cryptography.fernet import Fernet
 
         with tempfile.TemporaryDirectory() as tmpdir:
             config_file = os.path.join(tmpdir, "config.json")
@@ -192,7 +171,7 @@ class TestConfigPersistence:
                 ),
                 patch.dict(
                     os.environ,
-                    {"STORYFORGE_SECRET_KEY": "unit-test-secret"},
+                    {"STORYFORGE_SECRET_KEY": Fernet.generate_key().decode()},
                     clear=False,
                 ),
             ):
@@ -375,39 +354,21 @@ class TestConfigManagerSingleton:
         cm2 = ConfigManager()
         assert cm1 is cm2
 
-    def test_config_manager_has_llm(self):
-        from config import ConfigManager
-
-        cm = ConfigManager()
-        assert hasattr(cm, "llm")
-        assert hasattr(cm.llm, "api_key")
-
-    def test_config_manager_has_pipeline(self):
-        from config import ConfigManager
-
-        cm = ConfigManager()
-        assert hasattr(cm, "pipeline")
-        assert hasattr(cm.pipeline, "num_chapters")
-
     def test_config_manager_load_returns_self(self):
         from config import ConfigManager
 
         cm = ConfigManager()
         assert cm.load() is cm
 
-    def test_config_manager_validate_returns_list(self):
-        from config import ConfigManager
-
-        cm = ConfigManager()
-        result = cm.validate()
-        assert isinstance(result, list)
-
     def test_config_manager_save_raises_on_critical(self):
+        # A missing API key is only a warning (a host change clears the key and
+        # must still save); an out-of-range pipeline value is still critical.
         from config import ConfigManager
 
         cm = ConfigManager()
         original_key = cm.llm.api_key
         original_fallbacks = cm.llm.fallback_models
+        original_chapters = cm.pipeline.num_chapters
         # Patch CONFIG_FILE so a regression here (save NOT raising) can never
         # clobber the developer's real data/config.json with the gutted
         # singleton state.
@@ -418,8 +379,11 @@ class TestConfigManagerSingleton:
                 try:
                     cm.llm.api_key = ""
                     cm.llm.fallback_models = []
+                    assert any("No LLM API key" in w for w in cm.save())
+                    cm.pipeline.num_chapters = 0
                     with pytest.raises(ValueError):
                         cm.save()
                 finally:
+                    cm.pipeline.num_chapters = original_chapters
                     cm.llm.api_key = original_key
                     cm.llm.fallback_models = original_fallbacks

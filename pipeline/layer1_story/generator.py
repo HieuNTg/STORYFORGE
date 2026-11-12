@@ -489,7 +489,6 @@ class StoryGenerator:
         progress_callback=None,
         stream_callback=None,
         batch_checkpoint_callback=None,
-        chapter_complete_callback=None,
         resume_from_batch=0,
     ) -> StoryDraft:
         """Generate complete story from start to finish."""
@@ -789,6 +788,8 @@ class StoryGenerator:
         # Bug #3: Parallelize conflict_web + arc_milestones, then foreshadowing (depends on conflict_web)
         from concurrent.futures import ThreadPoolExecutor, as_completed
 
+        from services.llm.run_context import submit_with_context
+
         conflict_web = []
         arc_milestones = []
 
@@ -828,8 +829,8 @@ class StoryGenerator:
         _log("Đang xây dựng mạng lưới xung đột + arc milestones (song song)...")
         with ThreadPoolExecutor(max_workers=2) as executor:
             futures = {
-                executor.submit(_gen_conflict_web): "conflict_web",
-                executor.submit(_gen_arc_milestones): "arc_milestones",
+                submit_with_context(executor, _gen_conflict_web): "conflict_web",
+                submit_with_context(executor, _gen_arc_milestones): "arc_milestones",
             }
             for future in as_completed(futures):
                 task_name = futures[future]
@@ -958,7 +959,6 @@ class StoryGenerator:
             premise=premise,
             voice_profiles=voice_profiles,
             batch_checkpoint_callback=batch_checkpoint_callback,
-            chapter_complete_callback=chapter_complete_callback,
             resume_from_batch=resume_from_batch,
             idea=idea or "",
             idea_summary=idea_summary_for_chapters,
@@ -1025,15 +1025,6 @@ class StoryGenerator:
             logger.warning("L1 handoff envelope build failed (non-fatal): %s", e)
 
         _log("Layer 1 hoàn tất - Bản thảo truyện đã sẵn sàng!")
-        logger.info("[PROBE-G1] generator: about to return draft from worker thread")
-        import threading as _t_probe
-
-        logger.info(
-            "[PROBE-G2] generator: worker tid=%s daemon=%s draft_id=%s",
-            _t_probe.get_ident(),
-            _t_probe.current_thread().daemon,
-            id(draft),
-        )
         return draft
 
     def rebuild_context(self, draft: StoryDraft) -> StoryContext:

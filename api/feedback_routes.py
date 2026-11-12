@@ -11,10 +11,14 @@ from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 
-from middleware.auth_middleware import get_current_user
+from middleware.access import require_access
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/feedback", tags=["feedback"])
+router = APIRouter(
+    prefix="/feedback",
+    tags=["feedback"],
+    dependencies=[Depends(require_access)],
+)
 
 # In-memory store: story_id -> list of FeedbackEntry dicts
 _store: dict[str, list] = {}
@@ -74,9 +78,8 @@ async def get_feedback(
     story_id: str,
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
-    _user: dict = Depends(get_current_user),
 ) -> FeedbackListResponse:
-    """Return feedback entries for a story with pagination (auth required)."""
+    """Return feedback entries for a story with pagination (access token required when one is configured)."""
     entries_raw = _store.get(story_id, [])
     if not entries_raw:
         raise HTTPException(

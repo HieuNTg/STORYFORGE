@@ -24,6 +24,7 @@ from pipeline.layer2_enhance.drama_patterns import (
     get_genre_escalation_prompt,
     get_tension_modifier,
 )
+from services.llm.run_context import run_in_thread
 
 try:
     from pipeline.layer2_enhance.psychology_engine import PsychologyEngine
@@ -301,14 +302,10 @@ class DramaSimulator:
         if engine is None:
             return
 
-        loop = asyncio.get_running_loop()
-
         async def _one(character: Character):
             try:
                 return character.name, await asyncio.wait_for(
-                    loop.run_in_executor(
-                        None, engine.extract_psychology, character, characters
-                    ),
+                    run_in_thread(engine.extract_psychology, character, characters),
                     timeout=60,
                 )
             except Exception as e:
@@ -629,7 +626,6 @@ class DramaSimulator:
     ) -> list[AgentPost]:
         """Async core: generate reactions from targeted characters concurrently."""
         targeted = {p.target: p for p in posts if p.target and p.target in self.agents}
-        loop = asyncio.get_running_loop()
 
         async def _one(
             target_name: str, triggering_post: AgentPost
@@ -639,8 +635,7 @@ class DramaSimulator:
             agent = self.agents[target_name]
             try:
                 return await asyncio.wait_for(
-                    loop.run_in_executor(
-                        None,
+                    run_in_thread(
                         self._run_reaction,
                         agent,
                         triggering_post,
@@ -746,13 +741,12 @@ class DramaSimulator:
         genre_hint = get_genre_escalation_prompt(context, round_number, total_rounds)
         round_context = f"{context} {genre_hint}".strip() if genre_hint else context
         agent_names = list(self.agents.keys())
-        loop = asyncio.get_running_loop()
 
         async def _one(name: str) -> tuple[str, "AgentPost | None", dict]:
             try:
                 post, metadata = await asyncio.wait_for(
-                    loop.run_in_executor(
-                        None, self._run_single_agent, name, round_number, round_context
+                    run_in_thread(
+                        self._run_single_agent, name, round_number, round_context
                     ),
                     timeout=120,
                 )
@@ -1112,7 +1106,7 @@ class DramaSimulator:
         )
         # setup_agents defers psychology extraction when a loop is running
         # (the sync wrapper would raise RuntimeError). Run it here — its LLM
-        # calls are executor-offloaded internally (run_in_executor), so the
+        # calls are executor-offloaded internally (run_in_thread), so the
         # uvicorn event loop stays responsive.
         if self._psychology_engine:
             try:

@@ -16,26 +16,33 @@ _COOKIE_NAME = "csrf_token"
 _HEADER_NAME = "x-csrf-token"
 
 _EXEMPT_PREFIXES = (
+    "/api/health",
+    "/mcp/",
+)
+
+# API docs routes exist only under STORYFORGE_DEBUG=1; exempt them only then.
+_DOCS_PREFIXES = (
     "/docs",
     "/redoc",
     "/openapi.json",
-    "/api/health",
-    "/mcp/",
-    # The Chrome extension has no session and therefore no csrf_token cookie,
-    # so every HTTP-fallback callback was rejected here before its signature was
-    # ever checked. Exempt — the route authenticates with an HMAC over the body
-    # instead (flowkit_callback_hmac_required, on by default).
-    "/api/ext/callback",
 )
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
-    """Double-submit cookie CSRF protection."""
+    """Double-submit cookie CSRF protection.
+
+    ``exempt_docs`` adds the API docs routes to the exempt list; ``create_app``
+    sets it when docs are enabled.
+    """
+
+    def __init__(self, app, exempt_docs: bool = False):
+        super().__init__(app)
+        self.exempt_prefixes = _EXEMPT_PREFIXES + (_DOCS_PREFIXES if exempt_docs else ())
 
     async def dispatch(self, request: Request, call_next):
         if request.method not in _SAFE_METHODS:
             path = request.url.path
-            if not any(path.startswith(p) for p in _EXEMPT_PREFIXES):
+            if not path.startswith(self.exempt_prefixes):
                 cookie_token = request.cookies.get(_COOKIE_NAME, "")
                 header_token = request.headers.get(_HEADER_NAME, "")
                 if not cookie_token or not header_token or cookie_token != header_token:

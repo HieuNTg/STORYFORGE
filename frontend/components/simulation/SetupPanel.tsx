@@ -30,17 +30,18 @@ export function SetupPanel({ climaxUnlocked = false }: SetupPanelProps) {
   const loadFromSession = useSimulationStore((s) => s.loadFromSession);
   const sessionId = useSimulationStore((s) => s.sessionId);
 
-  const [storyId, setStoryId] = React.useState("");
+  const [pickedStoryId, setStoryId] = React.useState("");
   const [sessionInput, setSessionInput] = React.useState("");
 
-  React.useEffect(() => {
-    if (!hydrated || storyId) return;
-    if (selectedId && stories.some((s) => s.id === selectedId)) {
-      setStoryId(selectedId);
-      return;
-    }
-    if (stories.length > 0) setStoryId(stories[0].id);
-  }, [hydrated, selectedId, stories, storyId]);
+  // Derived: the user's pick, else (once hydrated) the library's selected
+  // story, else the first story.
+  const storyId =
+    pickedStoryId ||
+    (!hydrated
+      ? ""
+      : selectedId && stories.some((s) => s.id === selectedId)
+        ? selectedId
+        : (stories[0]?.id ?? ""));
 
   const activeStory = React.useMemo(
     () => stories.find((s) => s.id === storyId) ?? null,

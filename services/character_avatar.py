@@ -1,12 +1,14 @@
-"""Auto-generate a character portrait via FlowKit after extraction.
+"""Generate a character portrait with the configured image provider.
 
-Called from `POST /api/characters/extract-story`. Failures are swallowed so a
-flaky image provider can never break the LLM-extracted character payload.
+Called from `POST /api/characters/extract-story` (in the background) and from
+the explicit regenerate endpoints. Provider failures are swallowed so a flaky
+image provider can never break the LLM-extracted character payload; only a
+missing provider is raised, so an explicit request can say why nothing happens.
 """
 
 from __future__ import annotations
 
-import hashlib
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -19,10 +21,8 @@ from services.safe_name import safe_character_name
 logger = logging.getLogger(__name__)
 
 _AVATAR_SUBDIR = "avatars"
-_AVATAR_ASPECT = (
-    "1:1"  # square frame composes cleanly into both portrait & landscape scenes
-)
-_SEED_MOD = 2_147_483_647
+# Square frame composes cleanly into both portrait & landscape scenes.
+_AVATAR_SIZE = "1024x1024"
 
 # Genre-specific style anchors. Layered on top of the anime baseline so the
 # avatar fits the story's visual world without re-describing the character.
@@ -55,17 +55,6 @@ def _safe_name(name: str) -> str:
     importing ``safe_character_name`` directly.
     """
     return safe_character_name(name)
-
-
-def _seed_for(name: str) -> int:
-    """Deterministic seed derived from the character name.
-
-    Re-extracting the same story should produce the same face. A random seed
-    per call would mean every re-extract drifts the portrait, breaking visual
-    continuity for the user. Hash → int gives a stable 31-bit positive seed.
-    """
-    digest = hashlib.sha1((name or "unnamed").encode("utf-8")).digest()
-    return int.from_bytes(digest[:4], "big") % _SEED_MOD
 
 
 def _style_anchor_for(genre: Optional[str]) -> str:
@@ -158,11 +147,12 @@ async def generate_character_avatar(
     story_id: Optional[str] = None,
     genre: Optional[str] = None,
 ) -> Optional[str]:
-    """Generate one portrait via FlowKit. Returns `/media/...` URL or None.
+    """Generate one portrait. Returns `/media/...` URL or None.
 
-    Silently returns None when FlowKit is disabled, project_id is unset, or
-    the upstream call fails. Avatar generation is a nice-to-have layered on
-    top of text extraction and must never raise.
+    Raises ``ImageProviderNotConfigured`` when ``image_provider`` is "none", so
+    an explicit request can tell the user to pick a provider. Every other
+    failure returns None: avatar generation is a nice-to-have layered on top
+    of text extraction.
 
     ``story_id`` scopes the output path so two stories with characters of
     the same name don't collide. Defaults to the legacy unscoped location
@@ -175,79 +165,47 @@ async def generate_character_avatar(
         logger.info("avatar skip: empty character name")
         return None
 
-    cfg = ConfigManager().pipeline
-    if not getattr(cfg, "flowkit_enabled", False):
-        # Surface why no avatars ever appear in dev — silent return was making
-        # it look like the upstream call was failing when in fact the feature
-        # flag was off.
-        logger.info(
-            "avatar skip: flowkit_enabled=false (char=%s, story_id=%s)",
-            char.name,
-            story_id,
-        )
-        return None
-    if not (getattr(cfg, "flowkit_project_id", "") or "").strip():
-        logger.info(
-            "avatar skip: flowkit_project_id empty (char=%s, story_id=%s)",
-            char.name,
-            story_id,
-        )
-        return None
+    from services.media.image_generator import (
+        ImageGenerator,
+        ImageProviderNotConfigured,
+    )
+
+    provider = (ConfigManager().pipeline.image_provider or "none").strip()
+    if provider == "none":
+        raise ImageProviderNotConfigured("image_provider is 'none'")
 
     base_dir, url_prefix = _avatar_dirs(story_id)
     os.makedirs(base_dir, exist_ok=True)
     safe = _safe_name(char.name)
     filename = f"{safe}.png"
 
-    from services.media.flow_service import FlowService
-
     prompt = _build_avatar_prompt(char, genre=genre)
-    seed = _seed_for(safe)
-    # One retry — FlowKit occasionally drops the connection mid-handshake under
-    # parallel load (5 concurrent extracts vs workers_max=4). The second
-    # attempt almost always succeeds because by then the worker slot freed up.
-    last_exc: Optional[Exception] = None
-    for attempt in (1, 2):
-        try:
-            path = await FlowService().request_image(
-                prompt=prompt,
-                char_refs=None,
-                style_ref=None,
-                output_dir=base_dir,
-                filename=filename,
-                aspect_override=_AVATAR_ASPECT,
-                seed_override=seed,
-            )
-            if not path:
-                # Distinguish "FlowService returned empty path" from "exception
-                # was raised" — the empty-path branch is the silent failure
-                # mode that historically left no trace in the logs.
-                logger.warning(
-                    "avatar attempt %d returned empty path for %s",
-                    attempt,
-                    char.name,
-                )
-                if attempt == 2:
-                    return None
-                continue
-            return f"/media/{url_prefix}/{filename}"
-        except Exception as exc:  # noqa: BLE001
-            last_exc = exc
-            logger.warning(
-                "avatar attempt %d failed for %s: %s", attempt, char.name, exc
-            )
-    logger.warning("avatar generation gave up for %s: %s", char.name, last_exc)
-    return None
+    gen = ImageGenerator(provider=provider)
+    gen.output_dir = base_dir
+    try:
+        # ImageGenerator is synchronous (requests); keep it off the event loop.
+        path = await asyncio.to_thread(gen.generate, prompt, filename, _AVATAR_SIZE)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("avatar generation failed for %s: %s", char.name, exc)
+        return None
+    if not path:
+        logger.warning(
+            "avatar generation returned no image for %s (provider=%s)",
+            char.name,
+            provider,
+        )
+        return None
+    return f"/media/{url_prefix}/{filename}"
 
 
 def find_existing_avatar(name: str, story_id: Optional[str] = None) -> Optional[str]:
     """Return absolute path to a previously generated avatar, or None.
 
-    The comic / chapter-illustration pipeline calls this BEFORE asking Seedream
-    or FlowKit to generate a fresh reference image — if the extract endpoint
+    The comic / chapter-illustration pipeline calls this BEFORE asking the
+    image provider to generate a fresh reference image — if the extract endpoint
     already produced an avatar for this character, that avatar is the source
     of truth and downstream panels should be conditioned on it for consistency.
-    A zero-byte file (FlowService crashed mid-write) is treated as missing so
+    A zero-byte file (a writer crashed mid-write) is treated as missing so
     downstream callers get a chance to regenerate instead of feeding the
     image model a corrupt reference.
 

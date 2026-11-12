@@ -13,7 +13,7 @@ Three separate ways a single generate() could misbehave:
 """
 
 import time
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 from config.defaults import LLMConfig
 from services.llm.client import LLMClient

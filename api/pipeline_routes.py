@@ -16,42 +16,32 @@ from pydantic import BaseModel, Field, field_validator
 
 from models.schemas import normalize_drama as _normalize_drama
 
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from services.i18n import I18n
+from services.llm.provider_config_keys import ensure_llm_key
 from services.text_utils import sanitize_story_html
 from pipeline.orchestrator import PipelineOrchestrator
 from api import pipeline_job_registry as _jobs
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/pipeline", tags=["pipeline"])
-_READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
-_CREATE_STORIES = Depends(require_permission_if_enabled(Permission.CREATE_STORIES))
-_DELETE_ANY_STORIES = Depends(
-    require_permission_if_enabled(Permission.DELETE_ANY_STORIES)
+router = APIRouter(
+    prefix="/pipeline",
+    tags=["pipeline"],
+    dependencies=[Depends(require_access)],
 )
 
 
-def _apply_run_overrides(pipeline_cfg, overrides: dict) -> dict:
-    """Apply per-run flags to the shared config; return the previous values.
+def _apply_run_overrides(pipeline_cfg, overrides: dict) -> None:
+    """Apply per-run flags to one run's config snapshot.
 
-    Pass the result to `_restore_run_overrides` when the run ends. Concurrent
-    runs still share this config — 26 modules read the ConfigManager singleton
-    directly — so overlapping runs with different flags remain last-writer-wins.
-    Restoring at least keeps a finished run from dictating the next one, and
-    keeps its ad-hoc flags out of the next Settings save.
+    ``pipeline_cfg`` is ``orch.config.pipeline`` — the orchestrator's private
+    snapshot (Task 13), which the run reads through ``run_scope``. The flags
+    never touch the live settings, so concurrent runs cannot overwrite each
+    other, nothing has to be restored when the run ends, and a later Settings
+    save cannot persist them.
     """
-    previous = {key: getattr(pipeline_cfg, key) for key in overrides}
     for key, value in overrides.items():
         setattr(pipeline_cfg, key, value)
-    return previous
-
-
-def _restore_run_overrides(pipeline_cfg, previous: dict) -> None:
-    for key, value in (previous or {}).items():
-        try:
-            setattr(pipeline_cfg, key, value)
-        except Exception as exc:  # pragma: no cover — defensive
-            logger.warning("Could not restore config field %s: %s", key, exc)
 
 
 def _sanitize_summary(summary: dict) -> dict:
@@ -581,12 +571,9 @@ def get_genres():
 @router.get("/templates")
 def get_templates():
     """Return story templates grouped by genre."""
-    templates_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-        "data",
-        "templates",
-        "story_templates.json",
-    )
+    from services.infra.bundled_data import bundled_data_dir
+
+    templates_path = bundled_data_dir() / "templates" / "story_templates.json"
     if os.path.exists(templates_path):
         try:
             with open(templates_path, "r", encoding="utf-8") as f:
@@ -596,7 +583,7 @@ def get_templates():
     return {}
 
 
-@router.get("/checkpoints", dependencies=[_READ_STORIES])
+@router.get("/checkpoints")
 def get_checkpoints():
     """List available checkpoints with metadata for library."""
     from pipeline.orchestrator import PipelineOrchestrator
@@ -629,7 +616,7 @@ def get_checkpoints():
     return {"checkpoints": items}
 
 
-@router.get("/checkpoints/{filename}", dependencies=[_READ_STORIES])
+@router.get("/checkpoints/{filename}")
 def get_checkpoint(filename: str):
     """Load a single checkpoint and return formatted data for the reader."""
     import pathlib
@@ -668,7 +655,7 @@ def get_checkpoint(filename: str):
         raise HTTPException(status_code=500, detail="Failed to load checkpoint")
 
 
-@router.delete("/checkpoints/{filename}", dependencies=[_DELETE_ANY_STORIES])
+@router.delete("/checkpoints/{filename}")
 def delete_checkpoint(filename: str):
     """Delete a checkpoint file."""
     import pathlib
@@ -691,7 +678,7 @@ def delete_checkpoint(filename: str):
         raise HTTPException(status_code=500, detail="Failed to delete checkpoint")
 
 
-@router.get("/stories", dependencies=[_READ_STORIES])
+@router.get("/stories")
 def list_stories(limit: int = 20, offset: int = 0, enhanced_only: bool = True):
     """List saved stories (checkpoints) with pagination.
 
@@ -724,7 +711,7 @@ def list_stories(limit: int = 20, offset: int = 0, enhanced_only: bool = True):
     return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
-@router.post("/run", dependencies=[_CREATE_STORIES])
+@router.post("/run", dependencies=[Depends(ensure_llm_key)])
 async def run_pipeline(request: Request, body: PipelineRequest):
     """Run the full pipeline, streaming progress via SSE."""
     # Validate input
@@ -781,11 +768,10 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
                 last_stream_time[0] = now
 
-        # Per-run flags. These are applied to the process-wide ConfigManager
-        # singleton — 26 modules read it directly, so there is nowhere else to
-        # put them today — and restored in the `finally` below once the run
-        # ends. Without that restore they leaked into every later run in the
-        # process and the next Settings save persisted them to config.json.
+        # Per-run flags. They go onto this orchestrator's config snapshot
+        # (orch.config), which run_full_pipeline enters via run_scope — every
+        # ConfigManager() inside the run reads it. The live settings, other
+        # runs and the next Settings save never see them.
         _l1_master = body.enable_l1_consistency
         _run_overrides: dict = {
             # A master toggle turns the whole group on; otherwise each flag
@@ -821,9 +807,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         ):
             _run_overrides["debate_mode"] = "lite"
 
-        _config_snapshot = _apply_run_overrides(
-            orch.config.pipeline, _run_overrides
-        )
+        _apply_run_overrides(orch.config.pipeline, _run_overrides)
 
         # Auto-generate title from idea if not provided
         story_title = body.title.strip() if body.title else ""
@@ -926,10 +910,6 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 caught_error[0] = "An unexpected error occurred. Please try again."
                 progress_queue.put_nowait(("error", caught_error[0]))
             finally:
-                # Hand the shared config back before anything else — a later
-                # Settings save must not persist this run's ad-hoc flags.
-                _restore_run_overrides(orch.config.pipeline, _config_snapshot)
-
                 # Persist final state into the registry so FE can recover via
                 # GET /api/pipeline/run/{session_id} even if SSE was lost.
                 final_summary = None
@@ -1095,7 +1075,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
     )
 
 
-@router.get("/run/{session_id}", dependencies=[_READ_STORIES])
+@router.get("/run/{session_id}")
 async def get_run_status(session_id: str, since: int = 0):
     """Poll a pipeline job's current status + progress logs + final summary.
 
@@ -1138,7 +1118,7 @@ async def get_run_status(session_id: str, since: int = 0):
     return payload
 
 
-@router.post("/resume", dependencies=[_CREATE_STORIES])
+@router.post("/resume")
 async def resume_pipeline(request: Request, body: ResumeRequest):
     """Resume pipeline from a checkpoint, streaming progress via SSE."""
     # Resolve checkpoint safely — accept filename only, prevent path traversal

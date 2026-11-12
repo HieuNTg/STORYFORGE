@@ -6,8 +6,8 @@ rather than implementation details.
 """
 
 import asyncio
+import contextlib
 import logging
-import os as _os
 import threading as _threading
 import time
 import uuid
@@ -34,33 +34,26 @@ logger = logging.getLogger(__name__)
 # P6: DB persistence helpers
 # ---------------------------------------------------------------------------
 # Module-level sync engine singleton — avoids create_engine/dispose per call.
+# Rebuilt when STORYFORGE_DB_PATH moves, so a redirected path never keeps
+# writing to the previous file.
 _sync_engine = None
+_sync_engine_url = None
 _sync_engine_lock = _threading.Lock()
 
 
 def _get_sync_engine():
     """Return (or lazily create) a module-level sync SQLAlchemy engine."""
-    global _sync_engine
-    if _sync_engine is None:
+    global _sync_engine, _sync_engine_url
+    from services.infra.db_paths import make_sync_engine, sync_url
+
+    url = sync_url()
+    if _sync_engine is None or _sync_engine_url != url:
         with _sync_engine_lock:
-            if _sync_engine is None:
-                from sqlalchemy import create_engine, event as _sa_event
-
-                db_url = _os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
-                connect_args = (
-                    {"check_same_thread": False} if "sqlite" in db_url else {}
-                )
-                _sync_engine = create_engine(db_url, connect_args=connect_args)
-
-                if "sqlite" in db_url:
-
-                    @_sa_event.listens_for(_sync_engine, "connect")
-                    def _set_pragmas(dbapi_conn, _conn_rec):
-                        cur = dbapi_conn.cursor()
-                        cur.execute("PRAGMA journal_mode=WAL")
-                        cur.execute("PRAGMA synchronous=NORMAL")
-                        cur.execute("PRAGMA busy_timeout=5000")
-                        cur.close()
+            if _sync_engine is None or _sync_engine_url != url:
+                if _sync_engine is not None:
+                    _sync_engine.dispose()
+                _sync_engine = make_sync_engine()
+                _sync_engine_url = url
 
     return _sync_engine
 
@@ -212,53 +205,6 @@ def _persist_chapter_contract_to_db(
             "Chapter contract persisted story_id=%s chapter_number=%d",
             story_id,
             chapter_number,
-        )
-
-
-def persist_chapter_semantic_findings(
-    story_id: str,
-    chapter_number: int,
-    findings_dict: dict,
-) -> None:
-    """Write semantic_findings JSON to chapters row (Sprint 2 P3).
-
-    Uses ORM — not raw SQL — so SQLAlchemy's type adapters handle SQLite correctly.
-    Non-fatal on missing column (pre-migration DB).
-    """
-    from sqlalchemy.orm import Session
-    from models.db_models import Chapter
-
-    try:
-        engine = _get_sync_engine()
-        with Session(engine) as session:
-            chapter = (
-                session.query(Chapter)
-                .filter(
-                    Chapter.story_id == story_id,
-                    Chapter.chapter_number == chapter_number,
-                )
-                .first()
-            )
-            if chapter is None:
-                logger.warning(
-                    "Semantic findings persist: no chapter found story_id=%s chapter_number=%d",
-                    story_id,
-                    chapter_number,
-                )
-                return
-            chapter.semantic_findings = findings_dict
-            session.commit()
-            logger.debug(
-                "Semantic findings persisted story_id=%s chapter_number=%d",
-                story_id,
-                chapter_number,
-            )
-    except Exception as exc:
-        logger.warning(
-            "Semantic findings persist failed (non-fatal) story_id=%s ch=%d: %s",
-            story_id,
-            chapter_number,
-            exc,
         )
 
 
@@ -491,6 +437,62 @@ async def run_full_pipeline(
     enable_media: bool = False,
     target_total_chapters: int | None = None,
 ) -> PipelineOutput:
+    """Chạy toàn bộ pipeline 2 lớp, with a per-run LLM wallet around it.
+
+    P0-8 / Task 12: bind the ambient run_id and open this run's wallet, then
+    always close it — a finished (or crashed) run must not leave its counters
+    behind. ``current_run_id`` is a contextvar: awaits and ``asyncio.gather``
+    inherit it, and thread hops go through ``services.llm.run_context``.
+
+    Task 13: the run also enters ``run_scope(self.config)`` — the snapshot
+    the orchestrator took at construction — so every ``ConfigManager()`` in
+    the run reads it, not the live settings ``PUT /api/config`` may change.
+    """
+    from config.config import ConfigManager, run_scope
+    from services.llm.run_context import run_wallet_scope
+
+    _run_id = getattr(self, "session_id", "") or uuid.uuid4().hex[:8]
+    _cfg = getattr(self, "config", None)
+    _cfg_scope = (
+        run_scope(_cfg) if isinstance(_cfg, ConfigManager) else contextlib.nullcontext()
+    )
+    with _cfg_scope, run_wallet_scope(_run_id):
+        return await _run_full_pipeline_body(
+            self,
+            title=title,
+            genre=genre,
+            idea=idea,
+            style=style,
+            num_chapters=num_chapters,
+            num_characters=num_characters,
+            word_count=word_count,
+            num_sim_rounds=num_sim_rounds,
+            progress_callback=progress_callback,
+            stream_callback=stream_callback,
+            enable_agents=enable_agents,
+            enable_scoring=enable_scoring,
+            enable_media=enable_media,
+            target_total_chapters=target_total_chapters,
+        )
+
+
+async def _run_full_pipeline_body(
+    self: "PipelineOrchestrator",
+    title: str,
+    genre: str,
+    idea: str,
+    style: str = "Miêu tả chi tiết",
+    num_chapters: int = 10,
+    num_characters: int = 5,
+    word_count: int = 2000,
+    num_sim_rounds: int = 5,
+    progress_callback=None,
+    stream_callback=None,
+    enable_agents: bool = True,
+    enable_scoring: bool = True,
+    enable_media: bool = False,
+    target_total_chapters: int | None = None,
+) -> PipelineOutput:
     """Chạy toàn bộ pipeline 2 lớp (story gen → drama sim).
 
     Async: all blocking LLM/IO calls are offloaded via asyncio.to_thread()
@@ -520,15 +522,6 @@ async def run_full_pipeline(
     draft = None
     enhanced = None
     pipeline_start = time.time()
-
-    # P0-8: bind ambient run_id + reset wallet for this run.
-    # current_run_id is a contextvar — child tasks (asyncio.gather, to_thread)
-    # inherit the current value automatically.
-    from services.llm.client import LLMClient, current_run_id as _current_run_id
-
-    _run_id = getattr(self, "session_id", "") or uuid.uuid4().hex[:8]
-    _current_run_id.set(_run_id)
-    LLMClient.reset_wallet(_run_id)
 
     # Trace instrumentation (Sprint 1 Task 2)
     trace = PipelineTrace(
@@ -593,10 +586,15 @@ async def run_full_pipeline(
             _keep = getattr(self.config.pipeline, "chapter_checkpoint_keep_last", 5)
             self.checkpoint._chapter_keep_last = _keep
 
-            def _l1_chkpt_cb(batch_done, total_batches):
+            def _l1_chkpt_cb(batch_done, total_batches, partial_draft=None):
                 if batch_done % _every != 0 and batch_done != total_batches:
                     return
                 last_ch = min(batch_done * _bs, num_chapters)
+                # output.story_draft is only set once L1 returns; publish the
+                # live partial draft so the checkpoint can resume after it.
+                if partial_draft is not None:
+                    with self._lock:
+                        self.output.story_draft = partial_draft
                 try:
                     self.checkpoint.save_chapter(
                         chapter_number=last_ch, layer=1, background=True
@@ -604,34 +602,6 @@ async def run_full_pipeline(
                 except Exception as e:
                     logger.warning(f"Chapter checkpoint save failed (non-fatal): {e}")
 
-        # Live per-chapter agent review hook — when the user enables the
-        # "Hội thoại tác giả" debate, fire a single-iteration review on the
-        # partial draft right after each chapter is written so [AGENTS] log
-        # lines stream into the SSE while L1 is still in progress (the post-L1
-        # cycle below still runs the full review).
-        _l1_chapter_review_cb = None
-        if (
-            enable_agents
-            and AgentRegistry is not None
-            and getattr(self.config.pipeline, "enable_agent_debate", False)
-        ):
-            _registry = AgentRegistry()
-
-            def _l1_chapter_review_cb(_chapter, partial_draft, _total):
-                try:
-                    self.output.story_draft = partial_draft
-                    _registry.run_review_cycle(
-                        self.output,
-                        layer=1,
-                        max_iterations=1,
-                        progress_callback=lambda m: _log(f"[L1] {m}"),
-                    )
-                except Exception as e:
-                    logger.warning(f"Per-chapter agent review failed (non-fatal): {e}")
-
-        logger.info(
-            "[PROBE-O1] orchestrator: about to await to_thread(generate_full_story)"
-        )
         draft = await asyncio.to_thread(
             self.story_gen.generate_full_story,
             title=title,
@@ -644,18 +614,8 @@ async def run_full_pipeline(
             progress_callback=lambda m: _log(f"[L1] {m}"),
             stream_callback=stream_callback,
             batch_checkpoint_callback=_l1_chkpt_cb,
-            chapter_complete_callback=_l1_chapter_review_cb,
         )
-        logger.info(
-            "[PROBE-O2] orchestrator: to_thread returned, draft type=%s chapters=%d",
-            type(draft).__name__,
-            len(getattr(draft, "chapters", []) or []),
-        )
-        logger.info("[PROBE-O3] orchestrator: about to acquire self._lock")
         with self._lock:
-            logger.info(
-                "[PROBE-O4] orchestrator: inside self._lock, assigning story_draft"
-            )
             self.output.story_draft = draft
             try:
                 draft.target_total_chapters = (
@@ -664,13 +624,7 @@ async def run_full_pipeline(
             except Exception:
                 pass
             self.output.progress = 0.33
-        logger.info(
-            "[PROBE-O5] orchestrator: released self._lock, about to _log Layer 1 hoàn tất trong"
-        )
         _log(f"Layer 1 hoàn tất trong {time.time() - layer_start:.1f}s")
-        logger.info(
-            "[PROBE-O6] orchestrator: post-_log returned, entering context-health block"
-        )
 
         # Surface context health (Sprint 1 Task 1)
         try:

@@ -14,7 +14,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 from api.pipeline_output_builder import build_output_summary
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from models.schemas import ArcDirective, ChapterOutline
 from api import pipeline_job_registry as _jobs
 from api.pipeline_routes import (
@@ -40,7 +40,7 @@ logger = logging.getLogger(__name__)
 router = APIRouter(
     prefix="/pipeline",
     tags=["continuation"],
-    dependencies=[Depends(require_permission_if_enabled(Permission.CREATE_STORIES))],
+    dependencies=[Depends(require_access)],
 )
 
 
@@ -1006,7 +1006,9 @@ async def generate_continuation_paths(body: MultiPathRequest):
         )
 
     orch = PipelineOrchestrator()
-    draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+    # Orchestrator wrappers, not orch.continuation: they keep orch.output in
+    # sync and run the LLM work inside the run's cost wallet.
+    draft = orch.load_from_checkpoint(str(checkpoint_path))
     if not draft:
         return JSONResponse(
             status_code=500,
@@ -1015,7 +1017,7 @@ async def generate_continuation_paths(body: MultiPathRequest):
 
     try:
         paths = await asyncio.to_thread(
-            orch.continuation.generate_continuation_paths,
+            orch.generate_continuation_paths,
             additional_chapters=body.additional_chapters,
             num_paths=body.num_paths,
             arc_directives=body.arc_directives,
@@ -1049,7 +1051,10 @@ async def select_path_and_write(request: Request, body: SelectPathRequest):
             return
 
         orch = PipelineOrchestrator()
-        draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+        # Orchestrator wrappers, not orch.continuation: load_from_checkpoint
+        # syncs orch.output (read back below as the result), and
+        # write_from_outlines runs inside the run's cost wallet.
+        draft = orch.load_from_checkpoint(str(checkpoint_path))
         if not draft:
             yield f"data: {json.dumps({'type': 'error', 'data': 'Failed to load checkpoint'})}\n\n"
             return
@@ -1076,7 +1081,7 @@ async def select_path_and_write(request: Request, body: SelectPathRequest):
         async def run_write():
             try:
                 await asyncio.to_thread(
-                    orch.continuation.write_from_outlines,
+                    orch.write_from_outlines,
                     outlines=outlines,
                     word_count=body.word_count,
                     style=body.style,
@@ -1164,12 +1169,13 @@ async def collaborative_chapter(body: CollaborativeChapterRequest):
         raise HTTPException(status_code=404, detail="Checkpoint not found")
 
     orch = PipelineOrchestrator()
-    draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+    # Orchestrator wrappers, not orch.continuation: polish_chapter runs inside
+    # the run's cost wallet.
+    draft = orch.load_from_checkpoint(str(checkpoint_path))
     if draft is None:
         raise HTTPException(status_code=404, detail="Failed to load checkpoint")
 
     session_id = str(uuid.uuid4())
-    cont = orch.continuation
 
     if body.polish_level not in ("light", "medium", "heavy"):
         raise HTTPException(
@@ -1186,7 +1192,7 @@ async def collaborative_chapter(body: CollaborativeChapterRequest):
 
     def run_polish():
         try:
-            draft = cont.polish_chapter(
+            draft = orch.polish_chapter(
                 chapter_number=body.chapter_number,
                 user_text=body.user_text,
                 title=body.title,
@@ -1289,12 +1295,13 @@ async def check_consistency(body: ConsistencyCheckRequest):
         raise HTTPException(status_code=404, detail="Checkpoint not found")
 
     orch = PipelineOrchestrator()
-    draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+    # Orchestrator wrappers, not orch.continuation: the check calls the LLM
+    # and runs inside the run's cost wallet.
+    draft = orch.load_from_checkpoint(str(checkpoint_path))
     if draft is None:
         raise HTTPException(status_code=404, detail="Failed to load checkpoint")
 
     session_id = str(uuid.uuid4())
-    cont = orch.continuation
 
     msg_queue: _queue.Queue = _queue.Queue()
 
@@ -1306,7 +1313,7 @@ async def check_consistency(body: ConsistencyCheckRequest):
     def run_check():
         try:
             chapters_to_check = body.chapter_numbers if body.chapter_numbers else None
-            report = cont.check_consistency(
+            report = orch.check_consistency(
                 chapter_numbers=chapters_to_check,
                 progress_callback=progress_cb,
             )

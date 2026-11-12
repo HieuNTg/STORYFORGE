@@ -1,4 +1,4 @@
-"""Auto-generate ONE cover image for a Library story via FlowKit.
+"""Auto-generate ONE cover image for a Library story with the configured provider.
 
 Called from `POST /api/images/library/generate-cover` right after the frontend
 saves a story into the localStorage Library, so the bookshelf card shows art
@@ -9,7 +9,7 @@ or fail the save itself.
 
 from __future__ import annotations
 
-import hashlib
+import asyncio
 import logging
 import os
 from typing import Optional
@@ -20,22 +20,10 @@ from services.character_avatar import _style_anchor_for
 
 logger = logging.getLogger(__name__)
 
-_COVER_ASPECT = "3:4"  # matches StoryCard's aspect-[3/4] bookshelf frame
+_COVER_SIZE = "768x1024"  # 3:4, matches StoryCard's aspect-[3/4] bookshelf frame
 _COVER_FILENAME = "cover.png"
-_SEED_MOD = 2_147_483_647
 
 _MAX_SYNOPSIS_CHARS = 400
-
-
-def _seed_for(key: str) -> int:
-    """Deterministic seed derived from the story identity.
-
-    Re-requesting the cover for the same story should produce the same art —
-    a random seed would drift the cover on every retry, which reads as the
-    bookshelf "changing its mind" about a book's face.
-    """
-    digest = hashlib.sha1((key or "untitled").encode("utf-8")).digest()
-    return int.from_bytes(digest[:4], "big") % _SEED_MOD
 
 
 def _build_cover_prompt(
@@ -80,13 +68,14 @@ async def generate_story_cover(
     synopsis: Optional[str] = None,
     story_id: Optional[str] = None,
 ) -> Optional[str]:
-    """Generate one cover via FlowKit. Returns `/media/...` URL or None.
+    """Generate one cover. Returns `/media/...` URL or None.
 
-    Silently returns None when the feature flag is off, FlowKit is disabled,
-    project_id is unset, or the upstream call fails — the bookshelf card then
-    keeps its gradient placeholder. ``story_id`` (the localStorage id) scopes
-    the output folder so two stories with the same title don't share a cover;
-    it also seeds generation so retries are idempotent.
+    Silently returns None when the feature flag is off, no image provider is
+    configured, or the provider call fails — the bookshelf card then keeps its
+    gradient placeholder. Covers are an automatic side feature, so a missing
+    provider is logged rather than raised. ``story_id`` (the localStorage id)
+    scopes the output folder so two stories with the same title don't share a
+    cover.
     """
     if not (title and title.strip()):
         logger.info("cover skip: empty story title")
@@ -96,57 +85,41 @@ async def generate_story_cover(
     if not getattr(cfg, "cover_image_enabled", True):
         logger.info("cover skip: cover_image_enabled=false (title=%s)", title)
         return None
-    if not getattr(cfg, "flowkit_enabled", False):
-        logger.info("cover skip: flowkit_enabled=false (title=%s)", title)
-        return None
-    if not (getattr(cfg, "flowkit_project_id", "") or "").strip():
-        logger.info("cover skip: flowkit_project_id empty (title=%s)", title)
+    provider = (cfg.image_provider or "none").strip()
+    if provider == "none":
+        logger.info("cover skip: no image provider configured (title=%s)", title)
         return None
 
-    from services.output_paths import images_dir, media_url
+    from services import output_paths
+    from services.media.image_generator import ImageGenerator
 
-    base_dir = images_dir(title, story_id=story_id)
+    base_dir = output_paths.images_dir(title, story_id=story_id)
     os.makedirs(base_dir, exist_ok=True)
 
-    from services.media.flow_service import FlowService
-
     prompt = _build_cover_prompt(title, genre, synopsis)
-    seed = _seed_for(story_id or title)
-    # One retry — same rationale as avatars: FlowKit occasionally drops the
-    # connection mid-handshake under parallel load and the second attempt
-    # almost always succeeds once a worker slot frees up.
-    last_exc: Optional[Exception] = None
-    for attempt in (1, 2):
-        try:
-            path = await FlowService().request_image(
-                prompt=prompt,
-                char_refs=None,
-                style_ref=None,
-                output_dir=base_dir,
-                filename=_COVER_FILENAME,
-                aspect_override=_COVER_ASPECT,
-                seed_override=seed,
-            )
-            if not path:
-                logger.warning(
-                    "cover attempt %d returned empty path for %s", attempt, title
-                )
-                if attempt == 2:
-                    return None
-                continue
-            url = media_url(path)
-            # Cache-buster so a regenerated cover reloads in the browser while
-            # an unchanged one keeps a stable URL (mirrors avatar_url_for).
-            try:
-                url = f"{url}?v={int(os.path.getmtime(path))}"
-            except OSError:
-                pass
-            return url
-        except Exception as exc:  # noqa: BLE001
-            last_exc = exc
-            logger.warning("cover attempt %d failed for %s: %s", attempt, title, exc)
-    logger.warning("cover generation gave up for %s: %s", title, last_exc)
-    return None
+    gen = ImageGenerator(provider=provider)
+    gen.output_dir = base_dir
+    try:
+        # ImageGenerator is synchronous (requests); keep it off the event loop.
+        path = await asyncio.to_thread(
+            gen.generate, prompt, _COVER_FILENAME, _COVER_SIZE
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("cover generation failed for %s: %s", title, exc)
+        return None
+    if not path:
+        logger.warning(
+            "cover generation returned no image for %s (provider=%s)", title, provider
+        )
+        return None
+    url = output_paths.media_url(path)
+    # Cache-buster so a regenerated cover reloads in the browser while an
+    # unchanged one keeps a stable URL (mirrors avatar_url_for).
+    try:
+        url = f"{url}?v={int(os.path.getmtime(path))}"
+    except OSError:
+        pass
+    return url
 
 
 __all__ = ["generate_story_cover"]

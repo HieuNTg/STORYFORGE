@@ -30,14 +30,6 @@ class TestTextUtils:
         result = sanitize_story_html("")
         assert result == ""
 
-    def test_sanitize_story_html_plain_text(self):
-        from services.text_utils import sanitize_story_html, _HAS_NH3
-
-        if not _HAS_NH3:
-            pytest.skip("nh3 not installed")
-        result = sanitize_story_html("Hello world")
-        assert isinstance(result, str)
-
     def test_sanitize_story_html_strips_script(self):
         from services.text_utils import sanitize_story_html, _HAS_NH3
 
@@ -231,64 +223,61 @@ class TestLLMRetry:
 
 
 class TestLLMProviderFactory:
-    """Tests for provider auto-detection."""
+    """get_provider picks the SDK from the base URL and hands it the credentials."""
 
-    def test_get_provider_openai_default(self):
+    def test_openai_url_builds_an_openai_client(self):
         from services.llm.providers import get_provider
-
-        with patch("openai.OpenAI") as mock_openai:
-            mock_openai.return_value = MagicMock()
-            provider = get_provider(
-                base_url="https://api.openai.com/v1", api_key="sk-test"
-            )
         from services.llm.providers.openai_provider import OpenAIProvider
 
-        assert isinstance(provider, OpenAIProvider)
-
-    def test_get_provider_openrouter(self):
-        from services.llm.providers import get_provider
-
         with patch("openai.OpenAI") as mock_openai:
-            mock_openai.return_value = MagicMock()
-            provider = get_provider(
-                base_url="https://openrouter.ai/api/v1", api_key="sk-test"
-            )
+            provider = get_provider(base_url="https://api.openai.com/v1", api_key="sk-test")
+
+        assert type(provider) is OpenAIProvider
+        assert provider._provider_type == "openai"
+        kwargs = mock_openai.call_args.kwargs
+        assert (kwargs["api_key"], kwargs["base_url"]) == ("sk-test", "https://api.openai.com/v1")
+
+    def test_openrouter_url_is_openai_compatible(self):
+        from services.llm.providers import get_provider
         from services.llm.providers.openai_provider import OpenAIProvider
 
-        assert isinstance(provider, OpenAIProvider)  # OpenRouter is OpenAI-compatible
+        with patch("openai.OpenAI"):
+            provider = get_provider(base_url="https://openrouter.ai/api/v1", api_key="sk-or")
 
-    def test_get_provider_anthropic(self):
+        assert type(provider) is OpenAIProvider
+        assert provider._provider_type == "openrouter"
+
+    def test_anthropic_url_builds_an_anthropic_client(self):
         from services.llm.providers import get_provider
+        from services.llm.providers.anthropic_provider import AnthropicProvider
 
         mock_anthropic = MagicMock()
         with patch.dict(sys.modules, {"anthropic": mock_anthropic}):
-            try:
-                provider = get_provider(
-                    base_url="https://api.anthropic.com/v1", api_key="sk-ant-test"
-                )
-                from services.llm.providers.anthropic_provider import AnthropicProvider
+            provider = get_provider(
+                base_url="https://api.anthropic.com/v1", api_key="sk-ant-test"
+            )
 
-                assert isinstance(provider, AnthropicProvider)
-            except ImportError:
-                pytest.skip("anthropic SDK not installed")
+        assert type(provider) is AnthropicProvider
+        kwargs = mock_anthropic.Anthropic.call_args.kwargs
+        assert (kwargs["api_key"], kwargs["base_url"]) == (
+            "sk-ant-test",
+            "https://api.anthropic.com/v1",
+        )
+        assert kwargs["max_retries"] == 0
 
-    def test_get_provider_gemini(self):
+    def test_gemini_url_builds_a_genai_client(self):
         from services.llm.providers import get_provider
+        from services.llm.providers.gemini_provider import GeminiProvider
 
         mock_genai = MagicMock()
-        with patch.dict(
-            sys.modules, {"google": MagicMock(), "google.genai": mock_genai}
-        ):
-            try:
-                provider = get_provider(
-                    base_url="https://generativelanguage.googleapis.com",
-                    api_key="ai-test",
-                )
-                from services.llm.providers.gemini_provider import GeminiProvider
+        google = MagicMock(genai=mock_genai)
+        with patch.dict(sys.modules, {"google": google, "google.genai": mock_genai}):
+            provider = get_provider(
+                base_url="https://generativelanguage.googleapis.com", api_key="ai-test"
+            )
 
-                assert isinstance(provider, GeminiProvider)
-            except ImportError:
-                pytest.skip("google-genai SDK not installed")
+        assert type(provider) is GeminiProvider
+        assert mock_genai.Client.call_args.kwargs["api_key"] == "ai-test"
 
 
 # ============================================================
@@ -467,15 +456,6 @@ class TestGenerationMixin:
         client = self._make_client('```json\n{"wrapped": true}\n```')
         result = client.generate_json("sys", "user")
         assert result.get("wrapped") is True
-
-    def test_generate_json_repairs_trailing_comma(self):
-        client = self._make_client('{"a": 1, "b": 2,}')
-        # May or may not repair, but should not raise uncaught exception
-        try:
-            result = client.generate_json("sys", "user")
-            assert isinstance(result, dict)
-        except Exception:
-            pass  # repair failed, acceptable
 
 
 # ============================================================
@@ -668,23 +648,6 @@ class TestModelFallback:
 
 
 # ============================================================
-# services.structured_output
-# ============================================================
-
-
-class TestStructuredOutput:
-    """Tests for structured output utilities."""
-
-    def test_import(self):
-        try:
-            import services.structured_output as so
-
-            assert so is not None
-        except ImportError:
-            pytest.skip("structured_output not available")
-
-
-# ============================================================
 # services.prometheus_metrics
 # ============================================================
 
@@ -695,26 +658,16 @@ class TestPrometheusMetrics:
     def test_record_request(self):
         from services.prometheus_metrics import prometheus_metrics
 
-        # Should not raise
+        key = ("GET", "/api/test", "200")
+        before = prometheus_metrics._requests[key]
         prometheus_metrics.record_request(
-            method="GET",
+            method="get",
             path="/api/test",
             status=200,
             duration_ms=50.0,
         )
-
-    def test_record_llm_call(self):
-        from services.prometheus_metrics import prometheus_metrics
-
-        try:
-            prometheus_metrics.record_llm_call(
-                model="gpt-4o-mini",
-                tokens=100,
-                latency_ms=200.0,
-                success=True,
-            )
-        except AttributeError:
-            pass  # method may not exist, acceptable
+        assert prometheus_metrics._requests[key] == before + 1
+        assert 'path="/api/test"' in prometheus_metrics.format_prometheus()
 
     def test_singleton(self):
         from services.prometheus_metrics import prometheus_metrics as m1

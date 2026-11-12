@@ -3,13 +3,14 @@
 Nothing in the backend called load_dotenv, so STORYFORGE_SECRET_KEY was never
 set. secret_manager therefore had no key, encryption at rest silently did
 nothing, and data/config.json held API keys as plaintext. The same gap made all
-30 entries of persistence._ENV_MAP dead, along with STORYFORGE_ALLOWED_ORIGINS,
-REDIS_URL and DATABASE_URL.
+30 entries of persistence._ENV_MAP dead, along with STORYFORGE_ALLOWED_ORIGINS.
 """
 
 import json
 import os
 from unittest.mock import patch
+
+from cryptography.fernet import Fernet
 
 from config.persistence import _apply_env_overrides
 from config.defaults import LLMConfig, PipelineConfig
@@ -18,6 +19,8 @@ from services.secret_manager import (
     has_plaintext_secrets,
     migrate_plaintext_secrets,
 )
+
+_FERNET_KEY = Fernet.generate_key().decode()
 
 
 class TestDotenvWiring:
@@ -118,32 +121,39 @@ class TestPlaceholderKeysAreRefused:
 
         assert is_placeholder_key("k7Fq2-real-random-9xZ") is False
 
-    def test_encryption_is_refused_with_a_placeholder(self):
-        from services.secret_manager import encrypt_value
+    def test_placeholder_is_ignored_and_value_is_still_encrypted(self):
+        from services.secret_manager import decrypt_value, encrypt_value
 
         with patch.dict(
             os.environ, {STORYFORGE_SECRET_KEY_ENV: "change-me-in-production"}
         ):
-            assert encrypt_value("sk-real-key") == "sk-real-key"
+            enc = encrypt_value("sk-real-key")
+            assert enc.startswith("ENC:")
+            assert decrypt_value(enc) == "sk-real-key"
 
-    def test_migration_is_refused_with_a_placeholder(self, tmp_path):
+    def test_migration_encrypts_with_the_generated_key_despite_placeholder(
+        self, tmp_path
+    ):
         path = tmp_path / "config.json"
         path.write_text(json.dumps({"llm": {"api_key": "sk-plain"}}), encoding="utf-8")
 
         with patch.dict(
             os.environ, {STORYFORGE_SECRET_KEY_ENV: "change-me-in-production"}
         ):
-            assert migrate_plaintext_secrets(str(path)) is False
+            assert migrate_plaintext_secrets(str(path)) is True
 
-        assert json.loads(path.read_text(encoding="utf-8"))["llm"]["api_key"] == (
-            "sk-plain"
-        ), "a publicly known key must not be used to fake encryption"
+        stored = json.loads(path.read_text(encoding="utf-8"))["llm"]["api_key"]
+        assert stored.startswith("ENC:"), "placeholder ignored, generated key used"
 
     def test_a_real_key_still_encrypts(self, tmp_path):
         path = tmp_path / "config.json"
         path.write_text(json.dumps({"llm": {"api_key": "sk-plain"}}), encoding="utf-8")
 
-        with patch.dict(os.environ, {STORYFORGE_SECRET_KEY_ENV: "k7Fq2-real-random"}):
+        from cryptography.fernet import Fernet
+
+        with patch.dict(
+            os.environ, {STORYFORGE_SECRET_KEY_ENV: Fernet.generate_key().decode()}
+        ):
             assert migrate_plaintext_secrets(str(path)) is True
 
         assert json.loads(path.read_text(encoding="utf-8"))["llm"]["api_key"].startswith(
@@ -172,18 +182,18 @@ class TestSecretMigration:
         path.write_text(json.dumps(data), encoding="utf-8")
         return str(path)
 
-    def test_no_key_means_no_migration(self, tmp_path):
+    def test_no_env_key_still_migrates_with_generated_key(self, tmp_path):
         path = self._write(tmp_path, {"llm": {"api_key": "sk-plain"}})
         env = {k: v for k, v in os.environ.items() if k != STORYFORGE_SECRET_KEY_ENV}
         with patch.dict(os.environ, env, clear=True):
-            assert migrate_plaintext_secrets(path) is False
-        assert json.loads(open(path, encoding="utf-8").read())["llm"]["api_key"] == (
-            "sk-plain"
-        )
+            assert migrate_plaintext_secrets(path) is True
+        assert json.loads(open(path, encoding="utf-8").read())["llm"][
+            "api_key"
+        ].startswith("ENC:")
 
     def test_plaintext_is_encrypted_in_place(self, tmp_path):
         path = self._write(tmp_path, {"llm": {"api_key": "sk-plain", "model": "m"}})
-        with patch.dict(os.environ, {STORYFORGE_SECRET_KEY_ENV: "unit-test-key"}):
+        with patch.dict(os.environ, {STORYFORGE_SECRET_KEY_ENV: _FERNET_KEY}):
             assert migrate_plaintext_secrets(path) is True
             written = json.loads(open(path, encoding="utf-8").read())
 
@@ -192,22 +202,30 @@ class TestSecretMigration:
 
     def test_migration_is_idempotent(self, tmp_path):
         path = self._write(tmp_path, {"llm": {"api_key": "sk-plain"}})
-        with patch.dict(os.environ, {STORYFORGE_SECRET_KEY_ENV: "unit-test-key"}):
+        with patch.dict(os.environ, {STORYFORGE_SECRET_KEY_ENV: _FERNET_KEY}):
             assert migrate_plaintext_secrets(path) is True
             assert migrate_plaintext_secrets(path) is False
 
     def test_missing_file_is_not_an_error(self, tmp_path):
-        with patch.dict(os.environ, {STORYFORGE_SECRET_KEY_ENV: "unit-test-key"}):
+        with patch.dict(os.environ, {STORYFORGE_SECRET_KEY_ENV: _FERNET_KEY}):
             assert migrate_plaintext_secrets(str(tmp_path / "absent.json")) is False
 
 
-class TestSyncDriverUrlDoesNotAbortStartup:
-    def test_sync_sqlite_url_degrades_instead_of_raising(self):
-        """The repo's own .env ships sqlite:///./data/storyforge.db — a sync URL."""
+class TestStaleDatabaseUrlIsIgnored:
+    def test_old_env_database_url_does_not_change_the_engine(self, tmp_path):
+        """Old .env files ship DATABASE_URL=sqlite:///./data/storyforge.db (a sync
+        URL that used to abort startup). It is no longer read at all: the engine
+        always opens STORYFORGE_DB_PATH through aiosqlite."""
         import services.infra.database as db
 
-        with patch.dict(os.environ, {"DATABASE_URL": "sqlite:///./data/test.db"}):
-            db._engine = None
-            db._session_factory = None
+        db_file = tmp_path / "app.db"
+        with patch.dict(
+            os.environ,
+            {
+                "DATABASE_URL": "sqlite:///./data/test.db",
+                "STORYFORGE_DB_PATH": str(db_file),
+            },
+        ):
             engine = db.get_engine()  # must not raise
-        assert engine is None
+        assert engine.url.drivername == "sqlite+aiosqlite"
+        assert engine.url.database == str(db_file)

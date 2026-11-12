@@ -8,14 +8,19 @@ import logging
 import os
 from pathlib import Path
 
+from services.infra.bundled_data import bundled_data_dir
+
 logger = logging.getLogger(__name__)
 
-_PROMPTS_DIR = Path(
-    os.environ.get(
-        "STORYFORGE_PROMPTS_DIR",
-        Path(__file__).resolve().parents[1] / "data" / "prompts",
-    )
-)
+
+def _prompts_dir() -> Path:
+    """STORYFORGE_PROMPTS_DIR, else the bundled prompts directory."""
+    custom = os.environ.get("STORYFORGE_PROMPTS_DIR")
+    if custom:
+        return Path(custom)
+    return bundled_data_dir() / "prompts"
+
+
 _DEFAULT_FILE = "agent_prompts.yaml"
 
 
@@ -43,14 +48,14 @@ def get_prompt_version() -> dict:
     Returns:
         dict with version, updated_at, description, changelog
     """
-    data = _load_yaml(_PROMPTS_DIR / _DEFAULT_FILE)
+    data = _load_yaml(_prompts_dir() / _DEFAULT_FILE)
     meta = data.get("_meta", {})
     return {
         "version": meta.get("version", "unknown"),
         "updated_at": meta.get("updated_at", ""),
         "description": meta.get("description", ""),
         "changelog": meta.get("changelog", []),
-        "file": str(_PROMPTS_DIR / _DEFAULT_FILE),
+        "file": str(_prompts_dir() / _DEFAULT_FILE),
     }
 
 
@@ -62,10 +67,10 @@ def list_prompt_versions() -> list[dict]:
     """
     versions = []
     active_file = os.environ.get(
-        "STORYFORGE_PROMPTS_FILE", str(_PROMPTS_DIR / _DEFAULT_FILE)
+        "STORYFORGE_PROMPTS_FILE", str(_prompts_dir() / _DEFAULT_FILE)
     )
 
-    for yaml_file in sorted(_PROMPTS_DIR.glob("*.yaml")):
+    for yaml_file in sorted(_prompts_dir().glob("*.yaml")):
         data = _load_yaml(yaml_file)
         meta = data.get("_meta", {})
         if not meta:
@@ -86,7 +91,7 @@ def list_prompt_versions() -> list[dict]:
 
 def get_active_prompts() -> dict:
     """Return all active prompts (excluding _meta) from current version."""
-    data = _load_yaml(_PROMPTS_DIR / _DEFAULT_FILE)
+    data = _load_yaml(_prompts_dir() / _DEFAULT_FILE)
     return {k: v for k, v in data.items() if k != "_meta"}
 
 
@@ -103,8 +108,8 @@ def get_prompt_diff(version_a: str, version_b: str) -> dict:
     # Sanitize filenames
     safe_a = Path(version_a).name
     safe_b = Path(version_b).name
-    data_a = _load_yaml(_PROMPTS_DIR / safe_a)
-    data_b = _load_yaml(_PROMPTS_DIR / safe_b)
+    data_a = _load_yaml(_prompts_dir() / safe_a)
+    data_b = _load_yaml(_prompts_dir() / safe_b)
 
     prompts_a = {k: v for k, v in data_a.items() if k != "_meta"}
     prompts_b = {k: v for k, v in data_b.items() if k != "_meta"}

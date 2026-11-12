@@ -15,6 +15,18 @@ from unittest.mock import MagicMock, patch
 # live proxy. Set before the config import on the next line.
 os.environ.setdefault("STORYFORGE_SKIP_DOTENV", "1")
 
+# Hermetic access: a STORYFORGE_ACCESS_TOKEN exported in the developer's shell
+# would put every app-level test into token mode. Tests that exercise token
+# mode set it themselves with monkeypatch.
+os.environ.pop("STORYFORGE_ACCESS_TOKEN", None)
+
+# Hermetic Host check: Starlette's TestClient sends ``Host: testserver``,
+# which the API's Host allow list (middleware/hosts.py) rejects. Trust it for
+# the session; production defaults are untouched. Assigned, not setdefault, so
+# a developer's exported list cannot leak in. Tests of the Host check itself
+# send explicit Host headers.
+os.environ["STORYFORGE_ALLOWED_HOSTS"] = "testserver"
+
 # Hermetic LLM cache: point it at a throwaway file. Tests have always written to
 # the developer's real data/llm_cache.db; now that the cache key is fixed and
 # reads actually hit, sharing it would let one test be served another's cached
@@ -22,6 +34,15 @@ os.environ.setdefault("STORYFORGE_SKIP_DOTENV", "1")
 os.environ.setdefault(
     "STORYFORGE_LLM_CACHE_DB",
     os.path.join(tempfile.mkdtemp(prefix="storyforge-test-cache-"), "llm_cache.db"),
+)
+
+# Hermetic app database: one throwaway SQLite file for the whole session, so
+# tests never write stories/pipeline_runs into the developer's
+# data/storyforge.db. Tests that need their own file monkeypatch
+# STORYFORGE_DB_PATH; every engine reads it per call. Assigned, not
+# setdefault: a path exported in the developer's shell must not leak in.
+os.environ["STORYFORGE_DB_PATH"] = os.path.join(
+    tempfile.mkdtemp(prefix="storyforge-test-db-"), "storyforge.db"
 )
 
 # ---------------------------------------------------------------------------
@@ -52,11 +73,9 @@ if os.path.exists(_config_persistence.CONFIG_FILE):
 
     shutil.copyfile(_config_persistence.CONFIG_FILE, _TEST_CONFIG_FILE)
 
-    # Drop encrypted secrets from the sandbox copy. Tests deliberately do not
-    # load .env (STORYFORGE_SKIP_DOTENV above), so STORYFORGE_SECRET_KEY is
-    # absent and every ENC: value decrypts to "" anyway — but noisily, logging
-    # "cannot decrypt" on each read. Removing them keeps the effective state
-    # identical and the log honest: tests run without secrets, on purpose.
+    # Drop encrypted secrets from the sandbox copy: they were encrypted with the
+    # developer's real data/.secret_key, which tests never see, so they would
+    # only decrypt to "" with a warning. Tests run without secrets, on purpose.
     try:
         with open(_TEST_CONFIG_FILE, "r", encoding="utf-8") as _f:
             _seed = json.load(_f)
@@ -133,6 +152,12 @@ if os.path.exists(_config_persistence.CONFIG_FILE):
         pass  # malformed config — tests fall back to dataclass defaults anyway
 
 _config_persistence.CONFIG_FILE = _TEST_CONFIG_FILE
+
+# Never read/write the developer's real data/.secret_key during tests.
+import services.secret_manager as _secret_manager  # noqa: E402
+from pathlib import Path as _Path  # noqa: E402
+
+_secret_manager.SECRET_KEY_FILE = _Path(_TEST_CONFIG_DIR) / ".secret_key"
 _config_persistence._SECRETS_FILE = os.path.join(_TEST_CONFIG_DIR, "secrets.json")
 
 # Block lazy loads of the real sentence-transformers model during unit tests.
@@ -164,6 +189,20 @@ from models.schemas import (
 def _default_strict_handoff(monkeypatch):
     if "STORYFORGE_HANDOFF_STRICT" not in os.environ:
         monkeypatch.setenv("STORYFORGE_HANDOFF_STRICT", "1")
+    yield
+
+
+# The run/forge endpoints refuse to start without a usable LLM key
+# (services.llm.provider_config_keys.ensure_llm_key). Route tests mock the LLM
+# and, on CI, run on dataclass defaults with no key, so the guard is switched
+# off for them. Tests of the guard itself opt back in with
+# @pytest.mark.llm_key_guard (tests/test_api_key_guard.py).
+@pytest.fixture(autouse=True)
+def _llm_key_guard_off(request, monkeypatch):
+    if request.node.get_closest_marker("llm_key_guard") is None:
+        import services.llm.provider_config_keys as _keys
+
+        monkeypatch.setattr(_keys, "has_usable_llm_key", lambda llm: True)
     yield
 
 
@@ -248,7 +287,7 @@ def _unshadow_llm_singleton():
 
 
 # Reset orchestrator_layers' module-level sync engine before each test so
-# fixtures that patch DATABASE_URL don't inherit a prior test's engine
+# fixtures that patch STORYFORGE_DB_PATH don't inherit a prior test's engine
 # (which would silently write to the wrong DB). Dispose the pool to avoid
 # leaking connections across tests.
 @pytest.fixture(autouse=True)
@@ -262,6 +301,20 @@ def _reset_orchestrator_sync_engine():
             pass
         _ol._sync_engine = None
     yield
+
+
+@pytest.fixture
+def client():
+    """TestClient over the full app built by ``app.create_app()``.
+
+    Startup/shutdown hooks are not run (no ``with`` block), so no reaper
+    threads start; routes and middleware are exactly what ``main()`` serves.
+    """
+    from fastapi.testclient import TestClient
+
+    from app import create_app
+
+    return TestClient(create_app())
 
 
 # ---------------------------------------------------------------------------

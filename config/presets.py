@@ -1,5 +1,8 @@
 """Pipeline presets and provider presets for StoryForge."""
 
+import copy
+import os
+
 PIPELINE_PRESETS = {
     "beginner": {
         "label": "Người mới — Cơ bản, dễ dùng",
@@ -53,16 +56,22 @@ PIPELINE_PRESETS = {
 
 _OPENROUTER_BASE = "https://openrouter.ai/api/v1"
 
+# Ollama on the user's machine. From inside the api container "localhost" is
+# the container itself, so there the host is reached as host.docker.internal
+# (compose maps it; url_validator exempts exactly that name).
+_OLLAMA_LOCAL_BASE = "http://localhost:11434/v1"
+_OLLAMA_CONTAINER_BASE = "http://host.docker.internal:11434/v1"
+
+
+def ollama_base_url() -> str:
+    """Ollama's default base URL for where the API runs. Read per call."""
+    if os.environ.get("STORYFORGE_IN_CONTAINER") == "1":
+        return _OLLAMA_CONTAINER_BASE
+    return _OLLAMA_LOCAL_BASE
+
 # Vietnamese-capable models prioritized — models that produce poor Vietnamese
 # (e.g. coder models, tiny models, English-only fine-tunes) cause language
 # drift where summaries/context turn English and later chapters follow suit.
-
-# Local OpenAI-compatible bridge to the Gemini + Qwen web apps (gemini-webapi
-# server). Runs at http://localhost:8000 — see Gemini-API/server/README.md.
-_GEMINI_LOCAL_BASE = "http://localhost:8000/v1"
-# The bridge's own default shared token (its `GEMINI_API_KEYS`). Local-only —
-# it never leaves the machine, and the bridge rejects requests without it.
-_GEMINI_LOCAL_KEY = "changeme-internal-key"
 
 # ---------------------------------------------------------------------------
 # Provider presets — single source of truth for the "Quick provider" cards in
@@ -179,45 +188,21 @@ PROVIDER_PRESETS = [
         "placeholder": "sk-or-...",
     },
     {
-        # Local OpenAI-compatible bridge to the Gemini + Qwen web apps.
-        # Requires running the bridge at localhost:8000 — see Gemini-API/server/README.md.
-        #
-        # Model ids below are the ones the bridge actually advertises on
-        # GET /v1/models (verified against a running instance). Unknown names do
-        # not error — they silently fall back to the bridge's default model —
-        # so listing the real ids is what keeps model choice meaningful here.
-        #
-        # `auto` hands the request to the bridge's rotation/failover logic
-        # (ROTATION_MODE + API_PROVIDERS in the bridge's .env); a named model
-        # always pins its own provider.
-        "name": "Gemini Web (local/dev)",
-        "label": "Gemini Web (local/dev)",
-        "base_url": _GEMINI_LOCAL_BASE,
-        "model": "gemini-3-pro",
+        # Local models via Ollama's OpenAI-compatible endpoint. base_url here
+        # is the outside-Docker default; provider_presets() swaps in the
+        # container address at request time. Ollama ignores the key, but the
+        # card asks for one, so the placeholder says any value works.
+        "name": "Ollama",
+        "label": "Ollama (local)",
+        "base_url": _OLLAMA_LOCAL_BASE,
+        "model": "qwen2.5:7b",
         "models": [
-            {"id": "gemini-3-pro", "label": "Gemini 3 Pro (web)"},
-            {"id": "gemini-3-pro-plus", "label": "Gemini 3 Pro Plus (web)"},
-            {"id": "gemini-3-flash", "label": "Gemini 3 Flash (web)"},
-            {
-                "id": "gemini-3-flash-thinking",
-                "label": "Gemini 3 Flash Thinking (web)",
-            },
-            # The Qwen side of the bridge drives a real browser (Playwright), so
-            # a single call costs ~45s vs ~1s for Gemini. `auto` inherits that
-            # cost whenever rotation lands on Qwen — measured, not estimated.
-            {"id": "auto", "label": "Auto — xoay tua Gemini/Qwen (chậm)"},
-            {"id": "qwen3.8-max", "label": "Qwen3.8 Max (web, ~45s/lượt)"},
-            {
-                "id": "qwen3.8-max-thinking",
-                "label": "Qwen3.8 Max Thinking (web, ~45s/lượt)",
-            },
+            {"id": "qwen2.5:7b", "label": "Qwen 2.5 7B"},
+            {"id": "qwen3:8b", "label": "Qwen3 8B"},
+            {"id": "gemma3:12b", "label": "Gemma 3 12B"},
+            {"id": "llama3.1:8b", "label": "Llama 3.1 8B"},
         ],
-        # The bridge authenticates with a shared local token (GEMINI_API_KEYS in
-        # its .env), not a per-user secret. Prefill it so the card is one click
-        # to set up; a user running the bridge with a different token just types
-        # over it. Only ever a localhost dev token — never ship a real key here.
-        "default_key": _GEMINI_LOCAL_KEY,
-        "placeholder": _GEMINI_LOCAL_KEY,
+        "placeholder": "ollama (any value)",
     },
     {
         # Escape hatch for any OpenAI-compatible endpoint we don't ship a card
@@ -233,3 +218,17 @@ PROVIDER_PRESETS = [
         "custom": True,
     },
 ]
+
+
+def provider_presets() -> list[dict]:
+    """PROVIDER_PRESETS with environment-dependent defaults resolved.
+
+    Evaluated per call (GET /api/config/provider-presets), not at import, so
+    the Ollama card points at host.docker.internal only when
+    STORYFORGE_IN_CONTAINER=1 at request time. Returns copies.
+    """
+    presets = copy.deepcopy(PROVIDER_PRESETS)
+    for preset in presets:
+        if preset["name"] == "Ollama":
+            preset["base_url"] = ollama_base_url()
+    return presets

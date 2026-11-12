@@ -52,9 +52,7 @@ def _client(cfg):
         "services.llm_client.OpenAI"
     ):
         client = LLMClient()
-    client._current_model = cfg.llm.model
     client._client = MagicMock()
-    client._last_key = "http://api.test:key"
     # _get_cheap_client reads the live ConfigManager, not the mock passed to
     # _build_fallback_chain, so pin it to keep the assertions about ordering.
     if cfg.llm.cheap_model:

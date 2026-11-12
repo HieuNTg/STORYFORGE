@@ -457,21 +457,44 @@ class TestStress50Spans:
             assert a.text == b.text
             assert a.char_offset == b.char_offset
 
-    def test_extract_anchors_under_50ms(self):
-        """50-span extraction completes in < 50ms (O(n) guard)."""
-        import time as _time
+    def test_extract_anchors_scans_the_chapter_a_fixed_number_of_times(self, monkeypatch):
+        """O(n) guard: regex passes per character do not grow with the span count.
+
+        Counted, not timed — a wall-clock budget measured the machine.
+        """
+        import re as _re
+
+        import pipeline.layer2_enhance.voice_fingerprint as vf
+
+        scans = []
+
+        class _CountingRe:
+            def __getattr__(self, name):
+                return getattr(_re, name)
+
+            @staticmethod
+            def finditer(pattern, string, flags=0):
+                scans.append(len(string))
+                return _re.finditer(pattern, string, flags)
+
+        monkeypatch.setattr(vf, "re", _CountingRe())
 
         content, chars = self._make_50span_chapter()
-
-        t0 = _time.perf_counter()
         anchors = _extract_dialogue_anchors(content, chars)
-        elapsed_ms = (_time.perf_counter() - t0) * 1000.0
+        scans_for_50 = len(scans)
 
-        assert len(anchors) > 0
-        assert elapsed_ms < 50.0, (
-            f"_extract_dialogue_anchors took {elapsed_ms:.1f}ms for 50 spans; "
-            "expected < 50ms (O(n) regression)"
+        speakers = [c.name for c in chars]
+        long_content = " ".join(
+            f'{speakers[i % len(speakers)]} nói: "Câu số {i:03d} của {speakers[i % len(speakers)]}."'
+            for i in range(500)
         )
+        scans.clear()
+        long_anchors = _extract_dialogue_anchors(long_content, chars)
+
+        assert len(anchors) == 50
+        assert len(long_anchors) == 500
+        assert scans_for_50 > 0
+        assert len(scans) == scans_for_50, "scan count grew with the chapter"
 
     def test_ordinals_are_per_speaker_0_indexed(self):
         """Each speaker's ordinals start at 0 and increment by 1 (0-9 range)."""

@@ -6,7 +6,7 @@ Endpoints
 
 Behavior:
 - Returns 404 when ``PipelineConfig.enable_character_traits`` is False.
-- Rate-limited 10 req/min/IP (in-memory or Redis), separate bucket from forge.
+- Rate-limited 10 req/min/IP (in-memory), separate bucket from forge.
 - Mocked-LLM-testable via ``_get_llm`` indirection (same pattern as forge_routes).
 """
 
@@ -19,15 +19,21 @@ import threading
 import time
 
 from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 from config import ConfigManager
+from middleware.access import require_access
 from models.schemas import CharacterGenerateRequest, ForgeCharacter
 from pydantic import Field, BaseModel
 from services.character_service import generate_character
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/characters", tags=["characters"])
+router = APIRouter(
+    prefix="/characters",
+    tags=["characters"],
+    dependencies=[Depends(require_access)],
+)
 
 
 CHARACTER_LIMIT_PER_MIN = int(os.environ.get("STORYFORGE_CHARACTER_RATE_LIMIT", "10"))
@@ -49,20 +55,6 @@ def _client_ip(request: Request) -> str:
 
 def _check_character_rate(ip: str) -> bool:
     """True if request is allowed under N/min/IP. Sliding window per IP."""
-    if os.environ.get("REDIS_URL"):
-        try:
-            from middleware.rate_limiter import _get_redis  # type: ignore
-
-            r = _get_redis()
-            if r is not None:
-                key = f"sf:ratelimit:character:{ip}"
-                count = r.incr(key)
-                if count == 1:
-                    r.expire(key, int(_CHARACTER_WINDOW))
-                return int(count) <= CHARACTER_LIMIT_PER_MIN
-        except Exception as e:  # noqa: BLE001
-            logger.debug("character rate redis path failed: %s", e)
-
     now = time.monotonic()
     with _character_lock:
         bucket = _character_state.setdefault(ip, [])
@@ -190,6 +182,13 @@ async def _generate_avatars_bg(
     try:
         from services.character_avatar import generate_character_avatar
 
+        if (ConfigManager().pipeline.image_provider or "none") == "none":
+            logger.info(
+                "avatar skip: no image provider configured (%d characters)",
+                len(characters),
+            )
+            return
+
         # No story-level "setting" is passed in — leaking the story setting into
         # the avatar prompt triggered calligraphy/landscape backgrounds in Nano
         # Banana for wuxia stories. Avatars must be studio portraits regardless.
@@ -295,10 +294,10 @@ REMINDER: All description / backstory / secret / conflict text MUST be in {langu
             char = ForgeCharacter(**item)
             characters.append(char)
 
-        # Avatar generation is intentionally fire-and-forget. FlowKit serializes
-        # portraits (~25-30s each), so a 6-character extract would otherwise run
-        # 2-3 minutes inline — long enough for the dev proxy / any reverse proxy
-        # to reset the connection ("socket hang up" -> 500 Internal Server Error)
+        # Avatar generation is intentionally fire-and-forget. A portrait can take
+        # ~25-30s, so a 6-character extract would otherwise run 2-3 minutes
+        # inline — long enough for the dev proxy / any reverse proxy to reset
+        # the connection ("socket hang up" -> 500 Internal Server Error)
         # even though the LLM extraction itself finished in seconds. The portraits
         # are NOT part of the response: the client's character schema has no
         # `avatar` field and strips it on arrival; they exist only on disk to seed
@@ -371,6 +370,21 @@ class AvatarBulkGenerateResponse(BaseModel):
     accepted: int = 0
 
 
+def _provider_not_configured() -> JSONResponse:
+    """409 for an explicit portrait request while image_provider is "none".
+
+    Not a server fault: the user asked for a portrait with no image provider
+    selected. A distinct code lets the client point at Settings.
+    """
+    return JSONResponse(
+        status_code=409,
+        content={
+            "code": "image_provider_not_configured",
+            "error": "No image provider is configured. Choose one in Settings.",
+        },
+    )
+
+
 @router.post("/avatars/lookup", response_model=AvatarLookupResponse)
 async def lookup_character_avatars(req: AvatarLookupRequest) -> AvatarLookupResponse:
     """Map character names to existing on-disk avatar URLs for a story.
@@ -397,7 +411,7 @@ async def lookup_character_avatars(req: AvatarLookupRequest) -> AvatarLookupResp
 async def regenerate_character_avatar_route(
     req: AvatarRegenerateRequest,
 ) -> AvatarRegenerateResponse:
-    """Regenerate a single character portrait via FlowKit.
+    """Regenerate a single character portrait with the configured image provider.
 
     Awaits inline: one portrait is ~25-30s (well under any proxy reset window,
     unlike the 6-portrait extract that had to be backgrounded), the user clicked
@@ -405,6 +419,7 @@ async def regenerate_character_avatar_route(
     limited because each call hits the image backend.
     """
     from services.character_avatar import avatar_url_for, generate_character_avatar
+    from services.media.image_generator import ImageProviderNotConfigured
 
     try:
         generated = await asyncio.wait_for(
@@ -416,10 +431,12 @@ async def regenerate_character_avatar_route(
     except asyncio.TimeoutError:
         logger.warning("avatar regeneration timeout for %s", req.character.name)
         raise HTTPException(status_code=504, detail="avatar generation timeout")
+    except ImageProviderNotConfigured:
+        return _provider_not_configured()
 
     if not generated:
-        # FlowKit disabled / project_id unset / upstream failed. Surface a clear
-        # 502 instead of a 200 with a null URL so the client can toast properly.
+        # The provider failed or returned nothing. Surface a clear 502 instead
+        # of a 200 with a null URL so the client can toast properly.
         raise HTTPException(status_code=502, detail="avatar generation unavailable")
 
     # Re-resolve via avatar_url_for so the response carries the fresh ?v=<mtime>
@@ -438,16 +455,19 @@ async def generate_all_character_avatars_route(
 ) -> AvatarBulkGenerateResponse:
     """Queue portrait generation for many characters at once (fire-and-forget).
 
-    Same rationale as ``/extract-story``: FlowKit serializes portraits
-    (~25-30s each), so generating N inline would run minutes and trip the dev
-    proxy's reset window ("socket hang up"). So kick the whole batch off the
-    request path via the shared ``_generate_avatars_bg`` helper and return
+    Same rationale as ``/extract-story``: a portrait can take ~25-30s, so
+    generating N inline would run minutes and trip the dev proxy's reset
+    window ("socket hang up"). So kick the whole batch off the request path via
+    the shared ``_generate_avatars_bg`` helper and return
     immediately; the client polls ``/avatars/lookup`` until each new file lands.
     A strong reference is held in ``_avatar_tasks`` so the loop can't GC the task.
     """
     chars = req.characters[:64]
     if not chars:
         return AvatarBulkGenerateResponse(accepted=0)
+    if (ConfigManager().pipeline.image_provider or "none") == "none":
+        # Queuing would only make the client poll for files that never come.
+        return _provider_not_configured()
 
     task = asyncio.create_task(_generate_avatars_bg(chars, req.story_id, req.genre))
     _avatar_tasks.add(task)

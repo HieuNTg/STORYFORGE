@@ -95,12 +95,6 @@ def _envelope() -> L1Handoff:
 # ---------------------------------------------------------------------------
 
 
-def test_get_envelope_returns_typed_value():
-    draft = SimpleNamespace(_l1_handoff_envelope=_envelope())
-    out = ea.get_envelope(draft)
-    assert isinstance(out, L1Handoff)
-
-
 def test_get_envelope_rejects_magicmock_truthy_attr():
     """MagicMock auto-creates any attribute; isinstance guard must filter."""
     draft = MagicMock()

@@ -1,14 +1,14 @@
 "use client";
 
 /**
- * ApiKeysFormFields â€” RHF body for the "API Keys" settings tab.
+ * ApiKeysFormFields — RHF body for the "API Keys" settings tab.
  *
  * SECURITY INVARIANTS (do not relax without security review):
  *   1. Secret values live in RHF state ONLY. Never serialized to URL (nuqs),
  *      never written to Zustand persist, never logged.
  *   2. Inputs render as `type="password"` by default. Designer's `MaskedInput`
- *      flips to text on an explicit click â€” never automatically.
- *   3. PUT payload is delta-only â€” built from RHF `dirtyFields`. The masked
+ *      flips to text on an explicit click — never automatically.
+ *   3. PUT payload is delta-only — built from RHF `dirtyFields`. The masked
  *      echo never appears in `dirtyFields` because the user never typed it,
  *      so it cannot be sent back as a "new" key (F4/F5).
  *   4. The masked echo (e.g. `sk-1***abcd`) from GET /api/config is shown as

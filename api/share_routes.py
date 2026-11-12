@@ -12,14 +12,14 @@ from api._share_models import (
     LibraryShareRequest,
     build_story_draft,
 )
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 from services.share_manager import ShareManager
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/share", tags=["share"])
-_CREATE_STORIES = Depends(require_permission_if_enabled(Permission.CREATE_STORIES))
-_DELETE_ANY_STORIES = Depends(
-    require_permission_if_enabled(Permission.DELETE_ANY_STORIES)
+router = APIRouter(
+    prefix="/share",
+    tags=["share"],
+    dependencies=[Depends(require_access)],
 )
 
 _share_manager = ShareManager()
@@ -38,7 +38,7 @@ def _validate_share_id(share_id: str) -> None:
         raise HTTPException(status_code=400, detail="Invalid share ID")
 
 
-@router.post("/create", dependencies=[_CREATE_STORIES])
+@router.post("/create")
 def create_share(req: CreateShareRequest):
     """Create a share from an active pipeline session's output."""
     # Import here to avoid circular imports at module load time
@@ -73,7 +73,7 @@ def create_share(req: CreateShareRequest):
     }
 
 
-@router.post("/create-from-library", dependencies=[_CREATE_STORIES])
+@router.post("/create-from-library")
 def create_share_from_library(req: LibraryShareRequest):
     """Create a public share from a serialized library story.
 
@@ -159,7 +159,7 @@ def get_share(share_id: str):
     return FileResponse(str(resolved), media_type="text/html")
 
 
-@router.delete("/{share_id}", dependencies=[_DELETE_ANY_STORIES])
+@router.delete("/{share_id}")
 def delete_share(share_id: str):
     """Delete a share and its HTML file."""
     _validate_share_id(share_id)

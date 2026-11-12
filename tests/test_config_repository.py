@@ -1,8 +1,7 @@
-"""Unit tests for the config repository trio (previously untested).
+"""Unit tests for the config repository (previously untested).
 
-Covers services/_config_repo_json.py (against tmp_path files),
-services/_config_repo_pg.py (Sprint 7 stub contract), and the
-services/infra/config_repository.py factory (singleton + backend selection).
+Covers services/_config_repo_json.py (against tmp_path files) and the
+services/infra/config_repository.py factory (singleton, JSON backend).
 asyncio_mode = "auto" — async tests run directly.
 """
 
@@ -14,7 +13,6 @@ import pytest
 
 import services.infra.config_repository as factory_module
 from services._config_repo_json import JsonFileConfigRepository
-from services._config_repo_pg import PostgresConfigRepository
 from services.infra.config_repository import get_config_repository
 
 
@@ -76,22 +74,6 @@ class TestJsonFileRepository:
         assert on_disk["tiêu đề"] == {"truyện": "Tiên Hiệp"}
 
 
-class TestPostgresStub:
-    @pytest.mark.parametrize(
-        "method,args",
-        [
-            ("get_config", ("k",)),
-            ("set_config", ("k", {})),
-            ("get_all", ()),
-            ("delete_config", ("k",)),
-        ],
-    )
-    async def test_every_operation_raises_not_implemented(self, method, args):
-        stub = PostgresConfigRepository()
-        with pytest.raises(NotImplementedError, match=method):
-            await getattr(stub, method)(*args)
-
-
 class TestFactory:
     @pytest.fixture(autouse=True)
     def _reset_singleton(self):
@@ -100,17 +82,11 @@ class TestFactory:
         yield
         factory_module._instance = saved
 
-    def test_defaults_to_json_backend(self, monkeypatch, tmp_path):
-        monkeypatch.delenv("DATABASE_URL", raising=False)
+    def test_defaults_to_json_backend(self, tmp_path):
         repo = get_config_repository(str(tmp_path / "config.json"))
         assert isinstance(repo, JsonFileConfigRepository)
 
-    def test_database_url_selects_postgres_stub(self, monkeypatch):
-        monkeypatch.setenv("DATABASE_URL", "postgresql+asyncpg://u:p@host/db")
-        assert isinstance(get_config_repository(), PostgresConfigRepository)
-
-    def test_factory_returns_singleton(self, monkeypatch, tmp_path):
-        monkeypatch.delenv("DATABASE_URL", raising=False)
+    def test_factory_returns_singleton(self, tmp_path):
         first = get_config_repository(str(tmp_path / "config.json"))
         second = get_config_repository(str(tmp_path / "khác.json"))
         assert first is second

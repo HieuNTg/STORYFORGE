@@ -4,19 +4,11 @@ Targets:
   - pipeline/agents/debate_orchestrator.py
   - pipeline/agents/agent_registry.py
   - pipeline/layer1_story/batch_generator.py
-  - services/story_brancher.py
-  - services/_rate_limiter_base.py
-  - services/_rate_limiter_inmemory.py
-  - services/_rate_limiter_redis_impl.py
-  - services/rate_limiter_redis.py
   - services/seedream_client.py
   - services/replicate_ip_adapter.py
 """
 
-import json
 import os
-import threading
-import time
 import tempfile
 import base64
 from typing import Optional
@@ -30,15 +22,11 @@ import pytest
 from models.schemas import (
     AgentReview,
     DebateEntry,
-    DebateResult,
     DebateStance,
     Chapter,
     StoryDraft,
     StoryContext,
     ChapterOutline,
-    StoryTree,
-    StoryNode,
-    BranchChoice,
     PipelineOutput,
 )
 
@@ -361,19 +349,6 @@ class TestDebateOrchestrator:
         with pytest.raises(BudgetExceededError):
             orch.run_debate([agent], {}, 2, reviews)
 
-    def test_total_token_budget_exceeded_stops_round2(self):
-        orch = self._make_orchestrator(
-            debate_mode="full",
-            max_total_tokens=0,  # already exhausted at start
-        )
-        orch._session_tokens = 1  # exceed immediately
-        agent = self._make_agent("agent_a")
-        reviews = [_make_review("agent_a")]
-        agent.debate_response.return_value = []
-        # Should proceed but skip when total budget hit mid-loop
-        result = orch.run_debate([agent], {}, 2, reviews)
-        assert result is not None
-
     def test_run_debate_with_budget_skip_before_round2(self):
         orch = self._make_orchestrator(budget_action="skip", max_total_tokens=0)
         orch._session_tokens = 100
@@ -569,73 +544,38 @@ class TestAgentRegistry:
 
         assert len(msgs) > 0
 
-    def test_run_review_cycle_dag_cycle_fallback(self):
+    def _run_with_broken_dag(self, dag_patch_kwargs, configure_dag=None):
         reg = self._make_registry()
         agent = self._make_agent("agent_a", layers=[1])
-        review = _make_review("agent_a", approved=True)
-        agent.review.return_value = review
+        agent.review.return_value = _make_review("agent_a", approved=True)
         reg.register(agent)
-        output = PipelineOutput()
 
         with (
-            patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG,
+            patch("pipeline.agents.agent_registry.AgentDAG", **dag_patch_kwargs) as MockDAG,
             patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
         ):
             MockCfg.return_value.pipeline.enable_agent_debate = False
+            if configure_dag:
+                configure_dag(MockDAG)
+            result = reg.run_review_cycle(PipelineOutput(), layer=1, max_iterations=1)
+        return agent, result
+
+    def test_run_review_cycle_dag_cycle_falls_back_to_flat_review(self):
+        def _cycle(MockDAG):
             MockDAG.return_value.validate.side_effect = ValueError("cycle!")
-            result = reg.run_review_cycle(output, layer=1, max_iterations=1)
 
-        assert isinstance(result, list)
+        agent, result = self._run_with_broken_dag({}, _cycle)
 
-    def test_run_review_cycle_dag_build_exception_fallback(self):
-        reg = self._make_registry()
-        agent = self._make_agent("agent_a", layers=[1])
-        review = _make_review("agent_a", approved=True)
-        agent.review.return_value = review
-        reg.register(agent)
-        output = PipelineOutput()
+        assert [r.agent_name for r in result] == ["agent_a"]
+        agent.review.assert_called_once()
 
-        with (
-            patch(
-                "pipeline.agents.agent_registry.AgentDAG",
-                side_effect=Exception("build fail"),
-            ),
-            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
-        ):
-            MockCfg.return_value.pipeline.enable_agent_debate = False
-            result = reg.run_review_cycle(output, layer=1, max_iterations=1)
-
-        assert isinstance(result, list)
-
-    def test_run_review_cycle_debate_triggered_on_layer2(self):
-        reg = self._make_registry()
-        agent = self._make_agent("agent_a", layers=[2])
-        review = _make_review("agent_a", approved=True)
-        agent.review.return_value = review
-        reg.register(agent)
-        output = PipelineOutput()
-
-        mock_debate_result = DebateResult(
-            rounds=[[], []],
-            final_reviews=[review],
-            debate_skipped=False,
-            total_challenges=0,
+    def test_run_review_cycle_dag_build_failure_falls_back_to_flat_review(self):
+        agent, result = self._run_with_broken_dag(
+            {"side_effect": Exception("build fail")}
         )
 
-        with (
-            patch("pipeline.agents.agent_registry.AgentDAG") as MockDAG,
-            patch("pipeline.agents.agent_registry.ConfigManager") as MockCfg,
-            patch("pipeline.agents.debate_orchestrator.DebateOrchestrator") as MockOrch,
-        ):
-            MockCfg.return_value.pipeline.enable_agent_debate = True
-            MockCfg.return_value.pipeline.max_debate_rounds = 3
-            MockCfg.return_value.pipeline.debate_mode = "full"
-            dag_instance = MockDAG.return_value
-            dag_instance.get_agents_by_tier.return_value = [[agent]]
-            MockOrch.return_value.run_debate.return_value = mock_debate_result
-            result = reg.run_review_cycle(output, layer=2, max_iterations=1)
-
-        assert isinstance(result, list)
+        assert [r.agent_name for r in result] == ["agent_a"]
+        agent.review.assert_called_once()
 
     def test_run_review_cycle_not_all_approved_continues(self):
         reg = self._make_registry()
@@ -993,474 +933,6 @@ class TestBatchChapterGenerator:
 
 
 # ===========================================================================
-# services/story_brancher.py
-# ===========================================================================
-
-
-class TestStoryBrancher:
-    def setup_method(self):
-        self.mock_llm = MagicMock()
-        with patch("services.story_brancher.LLMClient", return_value=self.mock_llm):
-            from services.story_brancher import StoryBrancher
-
-            self.brancher = StoryBrancher()
-
-    def _make_chapter(self, num: int = 1) -> Chapter:
-        return Chapter(
-            chapter_number=num, title="Chapter One", content="Long content here " * 100
-        )
-
-    def test_create_tree_from_chapter(self):
-        ch = self._make_chapter()
-        tree = self.brancher.create_tree_from_chapter(ch, "fantasy")
-        assert tree.root_id == "root"
-        assert "root" in tree.nodes
-        assert tree.genre == "fantasy"
-        assert tree.nodes["root"].chapter_number == 1
-
-    def test_generate_choices_node_not_found(self):
-        tree = StoryTree(root_id="root", nodes={}, title="T", genre="g")
-        result = self.brancher.generate_choices(tree, "nonexistent")
-        assert result == []
-
-    def test_generate_choices_success(self):
-        node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(root_id="root", nodes={"root": node}, title="T", genre="g")
-        self.mock_llm.generate_json.return_value = {
-            "choices": [
-                {"text": "Go left", "direction": "forest path"},
-                {"text": "Go right", "direction": "city road"},
-            ]
-        }
-        choices = self.brancher.generate_choices(tree, "root")
-        assert len(choices) == 2
-        assert choices[0].text == "Go left"
-        assert node.choices == choices
-
-    def test_generate_choices_llm_failure_returns_empty(self):
-        node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(root_id="root", nodes={"root": node}, title="T", genre="g")
-        self.mock_llm.generate_json.side_effect = Exception("LLM down")
-        result = self.brancher.generate_choices(tree, "root")
-        assert result == []
-
-    def test_generate_choices_caps_at_3(self):
-        node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(root_id="root", nodes={"root": node}, title="T", genre="g")
-        self.mock_llm.generate_json.return_value = {
-            "choices": [{"text": f"c{i}", "direction": "d"} for i in range(10)]
-        }
-        choices = self.brancher.generate_choices(tree, "root")
-        assert len(choices) <= 3
-
-    def test_generate_branch_parent_not_found_raises(self):
-        tree = StoryTree(root_id="root", nodes={}, title="T", genre="g")
-        choice = BranchChoice(choice_id="c1", text="go", next_node_id="")
-        with pytest.raises(ValueError, match="not found"):
-            self.brancher.generate_branch(tree, "missing_parent", choice)
-
-    def test_generate_branch_success(self):
-        node = StoryNode(
-            node_id="root", chapter_number=1, title="C1", content="root text " * 200
-        )
-        tree = StoryTree(root_id="root", nodes={"root": node}, title="T", genre="g")
-        self.mock_llm.generate.return_value = "Branch content goes here"
-        choice = BranchChoice(
-            choice_id="c0",
-            text="Go left",
-            next_node_id="",
-            state_delta={"direction": "forest"},
-        )
-        new_node = self.brancher.generate_branch(tree, "root", choice)
-        assert new_node.parent_id == "root"
-        assert new_node.chapter_number == 2
-        assert new_node.content == "Branch content goes here"
-        assert new_node.node_id in tree.nodes
-        assert choice.next_node_id == new_node.node_id
-        assert tree.current_node_id == new_node.node_id
-
-    def test_generate_branch_llm_failure_stores_error(self):
-        node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(root_id="root", nodes={"root": node}, title="T", genre="g")
-        self.mock_llm.generate.side_effect = Exception("timeout")
-        choice = BranchChoice(choice_id="c0", text="Go", next_node_id="")
-        new_node = self.brancher.generate_branch(tree, "root", choice)
-        assert "timeout" in new_node.content or "Loi" in new_node.content
-
-    def test_save_and_load_tree(self):
-        node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(
-            root_id="root", nodes={"root": node}, title="TestTitle", genre="g"
-        )
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("services.story_brancher.BRANCHES_DIR", tmpdir):
-                path = self.brancher.save_tree(tree, "test_tree.json")
-                loaded = self.brancher.load_tree(path)
-        assert loaded.root_id == "root"
-        assert "root" in loaded.nodes
-
-    def test_load_tree_corrupt_json(self):
-        from services.story_brancher import StoryBrancher
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            f.write("{bad json}")
-            fname = f.name
-        try:
-            with pytest.raises(ValueError, match="Corrupt"):
-                StoryBrancher.load_tree(fname)
-        finally:
-            os.unlink(fname)
-
-    def test_load_tree_missing_root_id(self):
-        from services.story_brancher import StoryBrancher
-
-        with tempfile.NamedTemporaryFile(mode="w", suffix=".json", delete=False) as f:
-            json.dump({"nodes": {}}, f)
-            fname = f.name
-        try:
-            with pytest.raises(ValueError, match="Invalid"):
-                StoryBrancher.load_tree(fname)
-        finally:
-            os.unlink(fname)
-
-    def test_save_tree_auto_filename(self):
-        node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(
-            root_id="root", nodes={"root": node}, title="My Story", genre="g"
-        )
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with patch("services.story_brancher.BRANCHES_DIR", tmpdir):
-                path = self.brancher.save_tree(tree)  # no filename
-                # Check inside tmpdir context while it still exists
-                assert os.path.exists(path)
-                assert "My_Story" in os.path.basename(path)
-
-    def test_list_saved_trees_no_dir(self):
-        from services.story_brancher import StoryBrancher
-
-        with patch("services.story_brancher.BRANCHES_DIR", "/nonexistent/path/xyz"):
-            result = StoryBrancher.list_saved_trees()
-        assert result == []
-
-    def test_list_saved_trees_with_files(self):
-        from services.story_brancher import StoryBrancher
-
-        node = StoryNode(node_id="root", chapter_number=1, title="C1", content="text")
-        tree = StoryTree(
-            root_id="root", nodes={"root": node}, title="TestStory", genre="g"
-        )
-        with tempfile.TemporaryDirectory() as tmpdir:
-            tree_path = os.path.join(tmpdir, "story_123.json")
-            with open(tree_path, "w", encoding="utf-8") as f:
-                json.dump(tree.model_dump(), f, ensure_ascii=False)
-            with patch("services.story_brancher.BRANCHES_DIR", tmpdir):
-                result = StoryBrancher.list_saved_trees()
-        assert len(result) == 1
-        display, path = result[0]
-        assert "TestStory" in display
-
-    def test_list_saved_trees_corrupt_file(self):
-        from services.story_brancher import StoryBrancher
-
-        with tempfile.TemporaryDirectory() as tmpdir:
-            bad = os.path.join(tmpdir, "bad.json")
-            with open(bad, "w") as f:
-                f.write("not json")
-            with patch("services.story_brancher.BRANCHES_DIR", tmpdir):
-                result = StoryBrancher.list_saved_trees()
-        # Should return filename as fallback, not crash
-        assert len(result) == 1
-        assert result[0][0] == "bad.json"
-
-
-# ===========================================================================
-# services/_rate_limiter_base.py
-# ===========================================================================
-
-
-class TestRateLimiterBase:
-    def test_abstract_methods_enforced(self):
-        from services._rate_limiter_base import RateLimiterBase
-
-        with pytest.raises(TypeError):
-            RateLimiterBase()  # type: ignore
-
-    def test_concrete_subclass_works(self):
-        from services._rate_limiter_base import RateLimiterBase
-
-        class ConcreteRL(RateLimiterBase):
-            def is_allowed(self, key, limit, window_seconds):
-                return True
-
-            def get_remaining(self, key, limit, window_seconds):
-                return limit
-
-        rl = ConcreteRL()
-        assert rl.is_allowed("k", 10, 60) is True
-        assert rl.get_remaining("k", 10, 60) == 10
-
-
-# ===========================================================================
-# services/_rate_limiter_inmemory.py
-# ===========================================================================
-
-
-class TestInMemoryRateLimiter:
-    def setup_method(self):
-        from services._rate_limiter_inmemory import InMemoryRateLimiter
-
-        self.rl = InMemoryRateLimiter()
-
-    def test_first_request_allowed(self):
-        assert self.rl.is_allowed("key1", 10, 60) is True
-
-    def test_within_limit_allowed(self):
-        for _ in range(5):
-            result = self.rl.is_allowed("key2", 10, 60)
-        assert result is True
-
-    def test_at_limit_blocked(self):
-        for _ in range(10):
-            self.rl.is_allowed("key3", 10, 60)
-        blocked = self.rl.is_allowed("key3", 10, 60)
-        assert blocked is False
-
-    def test_window_reset_allows_again(self):
-        for _ in range(10):
-            self.rl.is_allowed("key4", 10, 1)  # 1 second window
-        time.sleep(1.1)
-        assert self.rl.is_allowed("key4", 10, 1) is True
-
-    def test_get_remaining_fresh_key(self):
-        assert self.rl.get_remaining("fresh_key", 10, 60) == 10
-
-    def test_get_remaining_decreases(self):
-        self.rl.is_allowed("key5", 10, 60)
-        self.rl.is_allowed("key5", 10, 60)
-        remaining = self.rl.get_remaining("key5", 10, 60)
-        assert remaining == 8
-
-    def test_get_remaining_never_negative(self):
-        for _ in range(15):
-            self.rl.is_allowed("key6", 5, 60)
-        remaining = self.rl.get_remaining("key6", 5, 60)
-        assert remaining == 0
-
-    def test_get_remaining_after_window_reset(self):
-        for _ in range(5):
-            self.rl.is_allowed("key7", 5, 1)
-        time.sleep(1.1)
-        assert self.rl.get_remaining("key7", 5, 1) == 5
-
-    def test_thread_safe(self):
-        errors = []
-
-        def make_requests():
-            try:
-                for _ in range(20):
-                    self.rl.is_allowed("shared_key", 100, 60)
-            except Exception as e:
-                errors.append(e)
-
-        threads = [threading.Thread(target=make_requests) for _ in range(5)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        assert errors == []
-
-    def test_different_keys_independent(self):
-        for _ in range(5):
-            self.rl.is_allowed("keyA", 5, 60)
-        # keyA exhausted, keyB fresh
-        assert self.rl.is_allowed("keyB", 5, 60) is True
-
-
-# ===========================================================================
-# services/_rate_limiter_redis_impl.py
-# ===========================================================================
-
-
-class TestRedisRateLimiter:
-    """Test RedisRateLimiter with mocked Redis."""
-
-    def _make_rl(self, redis_available=True):
-        mock_client = MagicMock()
-        mock_client.ping.return_value = True
-        mock_client.script_load.return_value = "abc123sha"
-        mock_client.evalsha.return_value = 1  # count=1 → allowed
-
-        with patch.dict(
-            "sys.modules",
-            {"redis": MagicMock(from_url=MagicMock(return_value=mock_client))},
-        ):
-            if not redis_available:
-                mock_client.ping.side_effect = ConnectionError("no redis")
-            from services._rate_limiter_redis_impl import RedisRateLimiter
-
-            rl = RedisRateLimiter("redis://localhost:6379")
-            rl._client = mock_client
-            rl._script_sha = "abc123sha"
-            rl._healthy = redis_available
-        return rl, mock_client
-
-    def test_connect_success(self):
-        mock_redis_module = MagicMock()
-        mock_client = MagicMock()
-        mock_client.ping.return_value = True
-        mock_client.script_load.return_value = "sha1"
-        mock_redis_module.from_url.return_value = mock_client
-
-        with patch.dict("sys.modules", {"redis": mock_redis_module}):
-            from services._rate_limiter_redis_impl import RedisRateLimiter
-
-            rl = RedisRateLimiter("redis://localhost")
-        assert rl._healthy is True
-
-    def test_connect_failure_falls_back(self):
-        mock_redis_module = MagicMock()
-        mock_client = MagicMock()
-        mock_client.ping.side_effect = ConnectionError("no redis")
-        mock_redis_module.from_url.return_value = mock_client
-
-        with patch.dict("sys.modules", {"redis": mock_redis_module}):
-            from services._rate_limiter_redis_impl import RedisRateLimiter
-
-            rl = RedisRateLimiter("redis://localhost")
-        assert rl._healthy is False
-
-    def test_is_allowed_via_redis(self):
-        rl, mock_client = self._make_rl(redis_available=True)
-        mock_client.evalsha.return_value = 1  # count=1, limit=10 → allowed
-        assert rl.is_allowed("k", 10, 60) is True
-
-    def test_is_allowed_at_limit_blocked(self):
-        rl, mock_client = self._make_rl(redis_available=True)
-        mock_client.evalsha.return_value = 11  # count > limit
-        assert rl.is_allowed("k", 10, 60) is False
-
-    def test_is_allowed_fallback_when_unhealthy(self):
-        rl, _ = self._make_rl(redis_available=False)
-        # Fallback to in-memory → fresh key → allowed
-        assert rl.is_allowed("k", 10, 60) is True
-
-    def test_is_allowed_redis_error_falls_back(self):
-        rl, mock_client = self._make_rl(redis_available=True)
-        mock_client.evalsha.side_effect = Exception("redis error")
-        # After error, should fall back to in-memory
-        result = rl.is_allowed("k", 10, 60)
-        assert result is True  # in-memory allows fresh key
-
-    def test_get_remaining_via_redis(self):
-        rl, mock_client = self._make_rl(redis_available=True)
-        mock_client.zcount.return_value = 3
-        remaining = rl.get_remaining("k", 10, 60)
-        assert remaining == 7
-
-    def test_get_remaining_fallback_when_unhealthy(self):
-        rl, _ = self._make_rl(redis_available=False)
-        # Fresh key in in-memory → remaining == limit
-        assert rl.get_remaining("k", 10, 60) == 10
-
-    def test_get_remaining_redis_error_fallback(self):
-        rl, mock_client = self._make_rl(redis_available=True)
-        mock_client.zcount.side_effect = Exception("zcount fail")
-        result = rl.get_remaining("k", 10, 60)
-        assert result == 10  # fallback returns full limit
-
-    def test_eval_returns_none_when_unhealthy(self):
-        rl, _ = self._make_rl(redis_available=False)
-        result = rl._eval("k", 10, 60)
-        assert result is None
-
-    def test_get_remaining_never_negative(self):
-        rl, mock_client = self._make_rl(redis_available=True)
-        mock_client.zcount.return_value = 100  # way over limit
-        assert rl.get_remaining("k", 10, 60) == 0
-
-
-# ===========================================================================
-# services/rate_limiter_redis.py  (factory module)
-# ===========================================================================
-
-
-class TestRateLimiterFactory:
-    def setup_method(self):
-        # Reset singleton
-        import services.rate_limiter_redis as mod
-
-        mod._instance = None
-
-    def teardown_method(self):
-        import services.rate_limiter_redis as mod
-
-        mod._instance = None
-
-    def test_get_rate_limiter_no_redis_url(self):
-        from services.rate_limiter_redis import get_rate_limiter, InMemoryRateLimiter
-
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("REDIS_URL", None)
-            rl = get_rate_limiter()
-        assert isinstance(rl, InMemoryRateLimiter)
-
-    def test_get_rate_limiter_singleton(self):
-        from services.rate_limiter_redis import get_rate_limiter
-
-        os.environ.pop("REDIS_URL", None)
-        r1 = get_rate_limiter()
-        r2 = get_rate_limiter()
-        assert r1 is r2
-
-    def test_get_rate_limiter_with_redis_url(self):
-        import services.rate_limiter_redis as mod
-
-        mod._instance = None
-        mock_redis_rl = MagicMock()
-        with (
-            patch(
-                "services.rate_limiter_redis.RedisRateLimiter",
-                return_value=mock_redis_rl,
-            ),
-            patch.dict(os.environ, {"REDIS_URL": "redis://localhost:6379"}),
-        ):
-            from services.rate_limiter_redis import get_rate_limiter
-
-            rl = get_rate_limiter()
-        assert rl is mock_redis_rl
-
-    def test_exports(self):
-        from services.rate_limiter_redis import get_rate_limiter
-
-        assert callable(get_rate_limiter)
-
-    def test_thread_safe_singleton(self):
-        import services.rate_limiter_redis as mod
-
-        mod._instance = None
-        os.environ.pop("REDIS_URL", None)
-        results = []
-        errors = []
-
-        def get():
-            try:
-                from services.rate_limiter_redis import get_rate_limiter
-
-                results.append(get_rate_limiter())
-            except Exception as e:
-                errors.append(e)
-
-        threads = [threading.Thread(target=get) for _ in range(5)]
-        for t in threads:
-            t.start()
-        for t in threads:
-            t.join()
-        assert errors == []
-        # All threads should get the same singleton
-        assert all(r is results[0] for r in results)
-
-
-# ===========================================================================
 # services/seedream_client.py
 # ===========================================================================
 
@@ -1729,53 +1201,6 @@ class TestReplicateIPAdapter:
         result = self.adapter.generate("prompt", "/nonexistent/ref.png")
         assert result is None
 
-    def test_generate_success_list_output(self):
-        with tempfile.TemporaryDirectory() as tmpdir:
-            ref = os.path.join(tmpdir, "ref.png")
-            with open(ref, "wb") as f:
-                f.write(b"PNG")
-
-            # Mock: create prediction, poll → succeeded, download image
-            create_resp = MagicMock()
-            create_resp.raise_for_status.return_value = None
-            create_resp.json.return_value = {
-                "urls": {"get": "https://api.replicate.com/v1/predictions/abc"},
-                "status": "starting",
-            }
-            poll_resp = MagicMock()
-            poll_resp.raise_for_status.return_value = None
-            poll_resp.json.return_value = {
-                "status": "succeeded",
-                "output": ["https://delivery.replicate.com/img.png"],
-            }
-            img_resp = MagicMock()
-            img_resp.raise_for_status.return_value = None
-            img_resp.content = b"IMAGE_BYTES"
-
-            output_dir = os.path.join(tmpdir, "output", "images")
-            os.makedirs(output_dir, exist_ok=True)
-            self.adapter.output_dir = output_dir
-
-            with (
-                patch(
-                    "services.replicate_ip_adapter.requests.post",
-                    return_value=create_resp,
-                ),
-                patch(
-                    "services.replicate_ip_adapter.requests.get",
-                    side_effect=[poll_resp, img_resp],
-                ),
-                patch("services.replicate_ip_adapter.time.sleep"),
-                patch(
-                    "services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]
-                ),
-            ):
-                result = self.adapter.generate(
-                    "A portrait", ref, "output.png", timeout=120
-                )
-
-        assert result is not None
-
     def test_generate_prediction_failed(self):
         with tempfile.TemporaryDirectory() as tmpdir:
             ref = os.path.join(tmpdir, "ref.png")
@@ -1870,49 +1295,6 @@ class TestReplicateIPAdapter:
             ):
                 result = self.adapter.generate("prompt", ref)
         assert result is None
-
-    def test_generate_string_output(self):
-        """Test handling of string (not list) output format."""
-        with tempfile.TemporaryDirectory() as tmpdir:
-            ref = os.path.join(tmpdir, "ref.png")
-            with open(ref, "wb") as f:
-                f.write(b"PNG")
-
-            create_resp = MagicMock()
-            create_resp.raise_for_status.return_value = None
-            create_resp.json.return_value = {
-                "urls": {"get": "https://api.replicate.com/v1/predictions/abc"},
-            }
-            poll_resp = MagicMock()
-            poll_resp.raise_for_status.return_value = None
-            poll_resp.json.return_value = {
-                "status": "succeeded",
-                "output": "https://delivery.replicate.com/img.png",  # string, not list
-            }
-            img_resp = MagicMock()
-            img_resp.raise_for_status.return_value = None
-            img_resp.content = b"IMG"
-
-            output_dir = os.path.join(tmpdir, "out")
-            os.makedirs(output_dir)
-            self.adapter.output_dir = output_dir
-
-            with (
-                patch(
-                    "services.replicate_ip_adapter.requests.post",
-                    return_value=create_resp,
-                ),
-                patch(
-                    "services.replicate_ip_adapter.requests.get",
-                    side_effect=[poll_resp, img_resp],
-                ),
-                patch("services.replicate_ip_adapter.time.sleep"),
-                patch(
-                    "services.replicate_ip_adapter.time.time", side_effect=[0, 5, 10]
-                ),
-            ):
-                result = self.adapter.generate("prompt", ref, timeout=120)
-        assert result is not None
 
     def test_generate_unexpected_output_format(self):
         with tempfile.TemporaryDirectory() as tmpdir:

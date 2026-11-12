@@ -5,7 +5,7 @@ Targets:
 - services/knowledge_graph.py (get_entity_context, pure-python save/load)
 - services/character_visual_extractor.py (all)
 - services/character_visual_profile.py (save_enhanced_profile, get_frozen_prompt)
-- services/progress_tracker.py (Redis paths, _make_redis_client, ProgressEvent.from_dict)
+- services/progress_tracker.py (session-tagged tracker, ProgressEvent.from_dict)
 - services/openrouter_model_discovery.py (all)
 - models/db_models.py (all ORM model definitions)
 """
@@ -16,7 +16,6 @@ import json
 import os
 import sys
 import tempfile
-import threading
 import types
 import unittest
 from unittest.mock import MagicMock, patch
@@ -592,21 +591,6 @@ class TestCharacterVisualExtractor(unittest.TestCase):
         self.assertIn("f2", prompt)
         self.assertIn("f3", prompt)
 
-    def test_init_imports_llm_client(self):
-        """Test __init__ calls LLMClient constructor."""
-        mock_llm = MagicMock()
-        with (
-            patch(
-                "services.character_visual_extractor.LLMClient", return_value=mock_llm
-            )
-            if False
-            else patch("services.llm_client.LLMClient", return_value=mock_llm)
-        ):
-            # Just ensure import works
-            from services.character_visual_extractor import CharacterVisualExtractor
-
-            self.assertTrue(hasattr(CharacterVisualExtractor, "extract_attributes"))
-
 
 # ===========================================================================
 # 4. CharacterVisualProfileStore — save_enhanced_profile, get_frozen_prompt
@@ -757,7 +741,7 @@ class TestCharacterVisualProfileEnhanced(unittest.TestCase):
 
 
 # ===========================================================================
-# 5. ProgressTracker — Redis paths, _make_redis_client, ProgressEvent.from_dict
+# 5. ProgressTracker — session-tagged tracker, ProgressEvent.from_dict
 # ===========================================================================
 
 
@@ -808,101 +792,16 @@ class TestProgressEventFromDict(unittest.TestCase):
         self.assertEqual(ev2.detail, ev.detail)
 
 
-class TestMakeRedisClient(unittest.TestCase):
-    def test_make_redis_client_no_url_raises(self):
-        from services.progress_tracker import _make_redis_client
+class TestProgressTrackerSession(unittest.TestCase):
+    def test_session_tracker_keeps_events_in_memory(self):
+        """A session_id no longer needs an external store: events stay local."""
+        from services.progress_tracker import ProgressTracker
 
-        with patch.dict(os.environ, {}, clear=True):
-            # Ensure REDIS_URL not set
-            os.environ.pop("REDIS_URL", None)
-            with self.assertRaises(RuntimeError) as ctx:
-                _make_redis_client()
-            self.assertIn("REDIS_URL", str(ctx.exception))
-
-    def test_make_redis_client_no_redis_package_raises(self):
-        from services.progress_tracker import _make_redis_client
-
-        with patch.dict(os.environ, {"REDIS_URL": "redis://localhost:6379"}):
-            with patch.dict("sys.modules", {"redis": None}):
-                with self.assertRaises(RuntimeError) as ctx:
-                    _make_redis_client()
-                self.assertIn("redis", str(ctx.exception).lower())
-
-    def test_make_redis_client_success(self):
-        from services.progress_tracker import _make_redis_client
-
-        mock_redis_lib = MagicMock()
-        mock_client = MagicMock()
-        mock_redis_lib.from_url.return_value = mock_client
-        mock_client.ping.return_value = True
-        with patch.dict(os.environ, {"REDIS_URL": "redis://localhost:6379"}):
-            with patch.dict("sys.modules", {"redis": mock_redis_lib}):
-                client = _make_redis_client()
-        self.assertEqual(client, mock_client)
-
-
-class TestProgressTrackerRedis(unittest.TestCase):
-    def _make_tracker_with_redis(self):
-        """Create ProgressTracker with mocked Redis."""
-        mock_redis = MagicMock()
-        mock_redis.rpush.return_value = 1
-        mock_redis.expire.return_value = True
-        mock_redis.lrange.return_value = []
-
-        with patch(
-            "services.progress_tracker._make_redis_client", return_value=mock_redis
-        ):
-            from services.progress_tracker import ProgressTracker
-
-            tracker = ProgressTracker(callback=None, session_id="test-session-123")
-        return tracker, mock_redis
-
-    def test_emit_writes_to_redis(self):
-        tracker, mock_redis = self._make_tracker_with_redis()
-        tracker.emit("gate", "started", "Testing Redis")
-        mock_redis.rpush.assert_called_once()
-        mock_redis.expire.assert_called()
-
-    def test_emit_redis_error_falls_back_to_local(self):
-        tracker, mock_redis = self._make_tracker_with_redis()
-        mock_redis.rpush.side_effect = Exception("Redis down")
-        tracker.emit("gate", "started", "Fallback test")
-        # Should be in local events
-        self.assertEqual(len(tracker._local_events), 1)
-
-    def test_events_reads_from_redis(self):
-        from services.progress_tracker import ProgressEvent
-
-        tracker, mock_redis = self._make_tracker_with_redis()
-        ev = ProgressEvent(step="gate", status="started", message="from redis")
-        mock_redis.lrange.return_value = [json.dumps(ev.to_dict())]
-        events = tracker.events
-        self.assertEqual(len(events), 1)
-        self.assertEqual(events[0].step, "gate")
-
-    def test_events_redis_read_error_falls_back_to_local(self):
-        tracker, mock_redis = self._make_tracker_with_redis()
-        mock_redis.lrange.side_effect = Exception("read error")
-        tracker._local_events.append(MagicMock())
-        events = tracker.events
-        self.assertEqual(len(events), 1)
-
-    def test_tracker_redis_init_failure_raises(self):
-        """When Redis init fails, ProgressTracker raises."""
-        with patch(
-            "services.progress_tracker._make_redis_client",
-            side_effect=Exception("Connection refused"),
-        ):
-            from services.progress_tracker import ProgressTracker
-
-            with self.assertRaises(Exception):
-                ProgressTracker(session_id="fail-session")
-
-    def test_session_key_format(self):
-        from services.progress_tracker import _session_key
-
-        key = _session_key("abc123", "progress")
-        self.assertEqual(key, "storyforge:session:abc123:progress")
+        tracker = ProgressTracker(callback=None, session_id="test-session-123")
+        tracker.emit("gate", "started", "first")
+        tracker.emit("gate", "completed", "second")
+        self.assertEqual([e.message for e in tracker.events], ["first", "second"])
+        self.assertEqual(tracker.last_event.status, "completed")
 
 
 # ===========================================================================
@@ -1189,15 +1088,6 @@ class TestOpenrouterGetModelInfo(unittest.TestCase):
         self.assertIsNotNone(result)
         self.assertEqual(result["id"], "target-model")
 
-    def test_get_model_info_from_api(self):
-        import services.openrouter_model_discovery as mod
-
-        raw = [{"id": "api-model", "context_length": 32768}]
-        with patch.object(mod, "_load_cache", return_value=None):
-            with patch.object(mod, "_fetch_from_api", return_value=raw):
-                result = mod.get_model_info("api-model")
-        self.assertIsNotNone(result)
-
     def test_get_model_info_not_found(self):
         import services.openrouter_model_discovery as mod
 
@@ -1205,6 +1095,18 @@ class TestOpenrouterGetModelInfo(unittest.TestCase):
             with patch.object(mod, "_fetch_from_api", return_value=[]):
                 result = mod.get_model_info("unknown-model")
         self.assertIsNone(result)
+
+    def test_get_model_info_falls_back_to_the_api_when_uncached(self):
+        import services.openrouter_model_discovery as mod
+
+        raw = [
+            {"id": "other-model", "context_length": 8192},
+            {"id": "api-model", "context_length": 32768},
+        ]
+        with patch.object(mod, "_load_cache", return_value=None):
+            with patch.object(mod, "_fetch_from_api", return_value=raw):
+                result = mod.get_model_info("api-model")
+        self.assertEqual(result, {"id": "api-model", "context_length": 32768})
 
 
 class TestOpenrouterValidateAndRefresh(unittest.TestCase):
@@ -1271,27 +1173,6 @@ class TestFetchFromApi(unittest.TestCase):
 class TestDBModelsImportAndStructure(unittest.TestCase):
     """Verify ORM models import and have correct table/column structure."""
 
-    def test_import_all_models(self):
-        from models.db_models import (
-            Base,
-            User,
-            Story,
-            Chapter,
-            PipelineRun,
-            AuditLog,
-            Feedback,
-            Config,
-        )
-
-        self.assertIsNotNone(Base)
-        self.assertIsNotNone(User)
-        self.assertIsNotNone(Story)
-        self.assertIsNotNone(Chapter)
-        self.assertIsNotNone(PipelineRun)
-        self.assertIsNotNone(AuditLog)
-        self.assertIsNotNone(Feedback)
-        self.assertIsNotNone(Config)
-
     def test_uuid_function(self):
         from models.db_models import _uuid
 
@@ -1300,11 +1181,6 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
         self.assertEqual(len(uid), 36)  # UUID4 format
         # Two calls should differ
         self.assertNotEqual(_uuid(), _uuid())
-
-    def test_user_tablename(self):
-        from models.db_models import User
-
-        self.assertEqual(User.__tablename__, "users")
 
     def test_story_tablename(self):
         from models.db_models import Story
@@ -1341,14 +1217,6 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
         from sqlalchemy.orm import DeclarativeBase
 
         self.assertTrue(issubclass(Base, DeclarativeBase))
-
-    def test_user_repr(self):
-        from models.db_models import User
-
-        u = User(id="test-id-123", username="testuser")
-        r = u.__repr__()
-        self.assertIn("User", r)
-        self.assertIn("testuser", r)
 
     def test_story_repr(self):
         from models.db_models import Story
@@ -1398,24 +1266,12 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
         self.assertIn("Config", r)
         self.assertIn("theme", r)
 
-    def test_user_columns_exist(self):
-        from models.db_models import User
-
-        columns = {col.name for col in User.__table__.columns}
-        self.assertIn("id", columns)
-        self.assertIn("username", columns)
-        self.assertIn("email", columns)
-        self.assertIn("credits", columns)
-        self.assertIn("role", columns)
-        self.assertIn("created_at", columns)
-        self.assertIn("updated_at", columns)
-
     def test_story_columns_exist(self):
         from models.db_models import Story
 
         columns = {col.name for col in Story.__table__.columns}
         self.assertIn("id", columns)
-        self.assertIn("user_id", columns)
+        self.assertNotIn("user_id", columns)
         self.assertIn("title", columns)
         self.assertIn("genre", columns)
         self.assertIn("status", columns)
@@ -1474,20 +1330,12 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
         self.assertIn("value", columns)
         self.assertIn("updated_at", columns)
 
-    def test_user_relationships_exist(self):
-        from models.db_models import User
-
-        mapper = User.__mapper__
-        rel_names = {r.key for r in mapper.relationships}
-        self.assertIn("stories", rel_names)
-        self.assertIn("pipeline_runs", rel_names)
-
     def test_story_relationships_exist(self):
         from models.db_models import Story
 
         mapper = Story.__mapper__
         rel_names = {r.key for r in mapper.relationships}
-        self.assertIn("user", rel_names)
+        self.assertNotIn("user", rel_names)
         self.assertIn("chapters", rel_names)
         self.assertIn("pipeline_runs", rel_names)
         self.assertIn("feedback_entries", rel_names)
@@ -1499,17 +1347,12 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
         rel_names = {r.key for r in mapper.relationships}
         self.assertIn("story", rel_names)
 
-    def test_table_args_index_user(self):
-        from models.db_models import User
+    def test_no_users_table(self):
+        from models.db_models import Base, PipelineRun, Story
 
-        index_names = {idx.name for idx in User.__table__.indexes}
-        self.assertIn("ix_users_username", index_names)
-
-    def test_table_args_index_story(self):
-        from models.db_models import Story
-
-        index_names = {idx.name for idx in Story.__table__.indexes}
-        self.assertIn("ix_stories_user_id", index_names)
+        self.assertNotIn("users", Base.metadata.tables)
+        self.assertNotIn("user_id", PipelineRun.__table__.columns)
+        self.assertEqual(Story.__table__.indexes, set())
 
     def test_table_args_unique_constraint_config(self):
         from models.db_models import Config
@@ -1526,7 +1369,6 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
         from sqlalchemy import Table
         from models.db_models import (
             Base,
-            User,
             Story,
             Chapter,
             PipelineRun,
@@ -1535,7 +1377,7 @@ class TestDBModelsImportAndStructure(unittest.TestCase):
             Config,
         )
 
-        for model in (User, Story, Chapter, PipelineRun, AuditLog, Feedback, Config):
+        for model in (Story, Chapter, PipelineRun, AuditLog, Feedback, Config):
             self.assertIsInstance(model.__table__, Table)
             self.assertIn(model.__tablename__, Base.metadata.tables)
 

@@ -18,6 +18,7 @@ both call the module-global ``_index_chapter_into_rag`` that tests patch via
 """
 
 import asyncio
+import inspect
 import logging
 from concurrent.futures import ThreadPoolExecutor
 from typing import Optional, Callable
@@ -58,6 +59,22 @@ __all__ = [
     "CausalAccumulator",
     "_index_chapter_into_rag",
 ]
+
+
+def _call_batch_checkpoint(callback, batch_done: int, total_batches: int, draft):
+    """Call a batch checkpoint callback, handing it the live partial draft.
+
+    New-style callbacks take ``(batch_done, total_batches, draft)`` so the
+    caller can checkpoint the chapters written so far. Callbacks that only
+    accept ``(batch_done, total_batches)`` keep working.
+    """
+    try:
+        inspect.signature(callback).bind(batch_done, total_batches, draft)
+    except TypeError:
+        return callback(batch_done, total_batches)
+    except ValueError:  # no introspectable signature (some builtins)
+        pass
+    return callback(batch_done, total_batches, draft)
 
 
 class BatchChapterGenerator(ParallelDispatchMixin, ParallelWriteMixin):
@@ -108,7 +125,6 @@ class BatchChapterGenerator(ParallelDispatchMixin, ParallelWriteMixin):
         progress_callback: Optional[Callable] = None,
         stream_callback: Optional[Callable] = None,
         batch_checkpoint_callback: Optional[Callable] = None,
-        chapter_complete_callback: Optional[Callable] = None,
         resume_from_batch: int = 0,
         # NEW:
         macro_arcs=None,
@@ -228,20 +244,18 @@ class BatchChapterGenerator(ParallelDispatchMixin, ParallelWriteMixin):
 
                 for ch in batch_chapters:
                     draft.chapters.append(ch)
-                    if chapter_complete_callback:
-                        try:
-                            chapter_complete_callback(ch, draft, len(outlines))
-                        except Exception as e:
-                            logger.warning(
-                                "chapter_complete_callback failed (non-fatal): %s", e
-                            )
 
                 # Context health check (Sprint 1 Task 1)
                 self._check_context_health(story_context, batch_idx, _log)
 
                 if batch_checkpoint_callback:
                     try:
-                        batch_checkpoint_callback(batch_idx + 1, len(batches))
+                        _call_batch_checkpoint(
+                            batch_checkpoint_callback,
+                            batch_idx + 1,
+                            len(batches),
+                            draft,
+                        )
                     except Exception as e:
                         logger.warning("Batch checkpoint callback failed: %s", e)
 

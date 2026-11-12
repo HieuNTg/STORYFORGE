@@ -65,13 +65,6 @@ export const configPipelineSchema = z
     stream_first_chunk_timeout: z.number().int().default(180),
     stream_chunk_timeout: z.number().int().default(30),
     image_provider: z.string(),
-    codex_model: z.string().default(""),
-    qwen_local_base_url: z.string().default("http://localhost:8000/v1"),
-    qwen_local_api_key_masked: z.string().default(""),
-    qwen_local_model: z.string().default(""),
-    qwen_local_size: z.string().default(""),
-    qwen_local_use_edit_for_refs: z.boolean().default(true),
-    qwen_local_timeout: z.number().default(300),
     hf_token_masked: z.string(),
     hf_image_model: z.string(),
     image_prompt_style: z.string(),
@@ -79,20 +72,6 @@ export const configPipelineSchema = z
     enable_drama_climax: z.boolean().default(false),
     enable_pipeline_overlay: z.boolean().default(false),
     enable_chapter_illustration: z.boolean().default(false),
-    flowkit_enabled: z.boolean().default(false),
-    flowkit_port: z.number().int().default(7860),
-    flowkit_style_reference_path: z.string().default(""),
-    flowkit_concurrent_workers: z.number().int().default(1),
-    flowkit_concurrent_workers_max: z.number().int().default(4),
-    flowkit_workers_ramp_threshold: z.number().int().default(10),
-    flowkit_account_warning_shown: z.boolean().default(false),
-    flowkit_risk_acknowledged: z.boolean().default(false),
-    flowkit_image_input_type_split: z.boolean().default(false),
-    flowkit_callback_hmac_required: z.boolean().default(false),
-    flowkit_use_refiner: z.boolean().default(true),
-    flowkit_request_timeout: z.number().default(180.0),
-    flowkit_aspect_ratio: z.string().default("9:16"),
-    flowkit_project_id: z.string().default(""),
   })
   .strict();
 
@@ -100,6 +79,8 @@ export const configResponseSchema = z
   .object({
     llm: configLlmSchema,
     pipeline: configPipelineSchema,
+    // One-off messages, e.g. "image_provider_removed:<name>".
+    notices: z.array(z.string()).default([]),
   })
   .strict();
 
@@ -132,13 +113,6 @@ export const configUpdateSchema = z
     stream_first_chunk_timeout: z.number().int().min(30).max(600).optional(),
     stream_chunk_timeout: z.number().int().min(5).max(300).optional(),
     image_provider: z.string().optional(),
-    codex_model: z.string().optional(),
-    qwen_local_base_url: z.string().optional(),
-    qwen_local_api_key: z.string().optional(),
-    qwen_local_model: z.string().optional(),
-    qwen_local_size: z.string().optional(),
-    qwen_local_use_edit_for_refs: z.boolean().optional(),
-    qwen_local_timeout: z.number().min(30).max(900).optional(),
     hf_token: z.string().optional(),
     hf_image_model: z.string().optional(),
     image_prompt_style: z.string().optional(),
@@ -146,17 +120,6 @@ export const configUpdateSchema = z
     enable_pipeline_overlay: z.boolean().optional(),
     enable_chapter_illustration: z.boolean().optional(),
     enable_simulation_transcript: z.boolean().optional(),
-    flowkit_enabled: z.boolean().optional(),
-    flowkit_port: z.number().int().min(1024).max(65535).optional(),
-    flowkit_style_reference_path: z.string().optional(),
-    flowkit_concurrent_workers_max: z.number().int().min(1).max(10).optional(),
-    flowkit_workers_ramp_threshold: z.number().int().min(1).max(50).optional(),
-    flowkit_account_warning_shown: z.boolean().optional(),
-    flowkit_risk_acknowledged: z.boolean().optional(),
-    flowkit_image_input_type_split: z.boolean().optional(),
-    flowkit_callback_hmac_required: z.boolean().optional(),
-    flowkit_use_refiner: z.boolean().optional(),
-    flowkit_request_timeout: z.number().min(30).max(900).optional(),
   })
   .strict();
 
@@ -168,23 +131,10 @@ export const SUPPORTED_LANGUAGES = ["vi", "en", "zh"] as const;
 export const IMAGE_PROVIDERS = [
   "none",
   "dalle",
-  "huggingface",
+  "sd-api",
   "seedream",
-  "flowkit",
-  "codex",
-  "qwen-local",
-] as const;
-
-// Aspect ratios the local Qwen proxy accepts. "" = let the proxy decide (1:1).
-export const QWEN_LOCAL_SIZES = [
-  "",
-  "1:1",
-  "4:3",
-  "3:4",
-  "16:9",
-  "9:16",
-  "3:2",
-  "2:3",
+  "huggingface",
+  "replicate",
 ] as const;
 
 export const generalFormSchema = z.object({

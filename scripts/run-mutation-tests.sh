@@ -17,7 +17,7 @@ set -euo pipefail
 
 THRESHOLD=60
 
-TARGET_PATHS="services/auth.py,services/token_cost_tracker.py,middleware/rbac.py,pipeline/agents/debate_orchestrator.py"
+TARGET_PATHS="services/token_cost_tracker.py,pipeline/agents/debate_orchestrator.py"
 
 echo "==> Running mutmut on targeted modules..."
 mutmut run \

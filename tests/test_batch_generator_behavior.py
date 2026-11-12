@@ -346,9 +346,10 @@ class TestSequentialGeneration:
             batch_checkpoint_callback=checkpoint_cb,
         )
         # 2 batches: [1,2] and [3,4] → calls (1,2) and (2,2)
+        # (a callback that accepts it also gets the live draft — Task 15 fix)
         assert checkpoint_cb.call_count == 2
-        checkpoint_cb.assert_any_call(1, 2)
-        checkpoint_cb.assert_any_call(2, 2)
+        checkpoint_cb.assert_any_call(1, 2, draft)
+        checkpoint_cb.assert_any_call(2, 2, draft)
 
     @patch("pipeline.layer1_story.chapter_finalizer.process_chapter_post_write")
     def test_checkpoint_failure_does_not_abort_generation(self, mock_post):

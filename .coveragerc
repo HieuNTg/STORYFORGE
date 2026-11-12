@@ -6,7 +6,7 @@
 # ──────────────
 # Critical modules (auth, credits, export, middleware): minimum 80 %
 # All other modules:                                    minimum 60 %
-# Global hard floor (fail_under):                               60 %
+# Global hard floor (fail_under):                               75 %
 #
 # To enforce per-module thresholds use pytest-cov with --cov-fail-under
 # or add per-path assertions in your CI script, e.g.:
@@ -39,8 +39,9 @@ omit =
     conftest.py
 
 [report]
-# Coverage floor — enforced in CI at 60%
-fail_under = 60
+# Coverage floor — enforced in CI (pytest --cov-fail-under in pyproject.toml).
+# Keep in step with pyproject.toml.
+fail_under = 75
 
 # Print lines that have no coverage next to each file
 show_missing = True
@@ -59,10 +60,9 @@ exclude_lines =
     @(abc\.)?abstractmethod
 
 # ── Per-module minimum coverage targets ──────────────────────────────────────
-# Per-module gates enforced in CI — see .github/workflows/ci.yml
-# "Enforce per-module coverage" step in the unit-tests job.
-# Ratchet approach: currently warn-only (|| echo WARNING) until overall
-# coverage reaches targets, then gates will be converted to hard failures.
+# Not enforced. CI (.github/workflows/ci.yml, "Test" step of the python job)
+# enforces only the global fail_under above, through pytest's coverage options
+# in pyproject.toml. The per-module figures below are targets, not gates.
 #
 # Module                          Min   Rationale
 # ──────────────────────────────  ────  ────────────────────────────────────────
@@ -70,7 +70,7 @@ exclude_lines =
 # pipeline/*                       75%  Story generation pipeline: correctness critical
 # api/*                            70%  API endpoints: integration coverage floor
 #
-# Legacy informational targets (not yet enforced in CI):
+# Legacy informational targets:
 # api/auth*                        80%  Security-critical: token validation, login
 # api/credits*                     80%  Business-critical: credit deduction logic
 # services/credit*                 80%  Business-critical: credit management service

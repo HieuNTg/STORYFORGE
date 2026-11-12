@@ -7,17 +7,71 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## [Unreleased]
+## [2.0.0] - Unreleased
+
+First Docker-first, local self-hosted release. This is a breaking release: authentication, several providers and non-SQLite storage are gone. The owner confirms the version number at tagging time.
+
+### Added
+
+- **One-command Docker run** -- `docker compose up -d --build`, then open http://localhost:3001. Both ports are published on 127.0.0.1 only; data lives in the `storyforge-data` and `storyforge-output` volumes. `compose.release.yaml` runs prebuilt images via `STORYFORGE_VERSION`
+- **Self-hosting guide** (`docs/self-hosting.md`) covering install, update, backup/restore, reset, LAN exposure, local LLMs and troubleshooting
+- **Optional shared access token** (`STORYFORGE_ACCESS_TOKEN`) with an httponly session cookie and an unlock screen in the UI
+- **Host and Origin checks** with `STORYFORGE_ALLOWED_HOSTS` / `STORYFORGE_ALLOWED_ORIGINS`: the `Host` header and, behind the web proxy, `X-Forwarded-Host` must be trusted (DNS rebinding), and writes with a foreign `Origin` get 403. `STORYFORGE_ALLOWED_ORIGINS` adds to the local defaults, and its hosts are trusted
+- **Cost caps from the environment** -- `STORYFORGE_MAX_COST_PER_RUN_USD`, `STORYFORGE_MAX_TOKENS_PER_RUN`, `STORYFORGE_MAX_CALLS_PER_RUN`
+- **Clear first-run error** -- starting a story or forge with no API key (and no local endpoint) answers 400 `api_key_missing` with "Set an API key in Settings → API Keys"
+- **Anti-framing headers** (`X-Frame-Options`, `frame-ancestors`, `nosniff`, `Referrer-Policy`) from the web server on every page
+- **Auto-generated encryption key** saved to `data/.secret_key`, validated at boot
+- **Cross-platform dev launcher** `scripts/dev.py`
+- **CI** running lint, tests, dependency audits and a `requirements.lock.txt` sync check on every push and pull request
+- **Per-run config snapshot** so a run keeps the settings it started with
+
+### Changed
+
+- **SQLite-only storage** -- Redis, Postgres and Alembic are removed. Existing SQLite databases keep the old unused `user_id` columns and `users` table; they are harmless
+- **Multi-user JWT/RBAC auth replaced by the optional access token** (breaking)
+- **API binds to loopback by default** and refuses a non-loopback bind without an access token
+- **Stricter API hardening** -- corrected middleware order, a stream-safe request body limit and a tighter CSP
+- **Changing the provider host requires re-entering the API key**
+- **Vietnamese token estimate** uses a continuous blend instead of a step threshold
+- **Dependencies** -- Next.js patched, shadcn moved to dev dependencies, lint errors cleared, and a fresh install now resolves and passes the suite
+- **README rewritten** for the Docker-first release; `scripts/dev.py` replaces `dev.ps1` and the stale `scripts/setup.sh` is removed. From-source installs use `requirements.txt`; `requirements.lock.txt` (Linux x86_64, Python 3.12) is for Docker and CI
+- **Internal plans, specs and the worklog are removed from the tree** (they remain in git history); `docs/deployment-production.md` is replaced by `docs/self-hosting.md`
+
+### Removed
+
+- **FlowKit, qwen-local, Codex-image and Gemini Web providers** (breaking). A `data/config.json` that selects one loads with the image provider set to `none`
+- **Settings for the removed web-session providers** in the UI
+- Discarded per-chapter L1 reviews, debug probes and dead modules
+
+### Fixed
+
+- **Cost caps now work** -- the `llm.max_*` caps were never enforced before; they now apply per run, across thread hops, resume and continuation entry points
+- **MCP `generate_story`** now awaits the pipeline, so jobs actually run
+- **Every continuation entry point runs inside the run's cost wallet**: `/continue/select-path`, `/continue/paths`, `/collaborative-chapter` (polish) and `/check-consistency`
+- **`/regenerate-chapter` and `/insert-chapter` work again** -- they called orchestrator methods that did not exist
+- **Per-chapter L1 checkpoint resume** saves the live draft, so a resume continues from it
+- **LLM calls read the run's model and key**, not the client's cached ones
+- **Forge stream** always settles and never re-POSTs
+- **Unlock screen** shows an error when unlocking fails for reasons other than a wrong token
+
+### Security
+
+- Loopback binding, Host/Origin enforcement and the optional access token (see `SECURITY.md`)
+- API keys encrypted at rest with a generated Fernet key; the key file is published without overwriting an existing one. Old SHA-256-derived keys are not migrated, so re-enter your API keys after upgrading
+- Pool keys are pinned to the old host, and the full origin is compared when the provider host changes, when a saved key is reused for model discovery, and when picking a provider card's model list
+- Patched Next.js and dependency audits in CI
+
+## Earlier unreleased changes (included in 2.0.0)
 
 ### Added
 
 - **Chapter length gate (L1)** — a chapter that comes back materially under its word-count target gets one expansion pass built from real material (expanded scenes, dialogue, interiority), never a padding loop; an "expansion" that returns shorter is rejected and the original kept. Toggle + threshold in Settings → Nâng cao L1 (`enable_length_gate`, `length_gate_min_ratio`, default 85%)
 - **Streaming stall timeouts are configurable** — `stream_first_chunk_timeout` (180s) and `stream_chunk_timeout` (30s) replace the hard-coded 60s/30s; a reasoning model's time-to-first-token measured a 106s max through the local bridge, so the old ceiling discarded calls mid-thought and silently demoted them down the model chain
 - **Colour steering in every image prompt** — panel, scene, refiner, avatar and cover prompts now ask for full colour and negate monochrome/grayscale; comic-style wording ("cel shading", "bold ink lines") otherwise lands on the black-and-white slice of the training data
-- **Qwen local proxy image provider** (`image_provider="qwen-local"`) — generate panels through a locally-run OpenAI-compatible proxy in front of chat.qwen.ai. Selectable in Settings → General with its own panel (base URL, API key, model, aspect ratio, timeout, reachability probe). Reference images go to the proxy's edit endpoint, so character likeness is preserved instead of being re-described in text; toggle with `qwen_local_use_edit_for_refs`. See `docs/qwen-local-provider.md`
 - **Phase E: Contract Gate** — Validate enhanced chapters against `ChapterContract` (Phase 1 constraints); auto-rewrite if ≥2 critical failures or (≥1 critical + ≥2 warnings); integrated post-causal-audit; feature-flagged `config.pipeline.l2_contract_gate` (default True)
 
 ### Removed
+- **Web-session providers** — every provider that automated a consumer web session: the Google Labs image proxy driven by a Chrome extension, the chat.qwen.ai image proxy, ChatGPT image generation through the Codex CLI login, and the browser-driving Gemini/Qwen LLM bridge preset. An old `data/config.json` that selects one loads with `image_provider = "none"` and `GET /api/config` returns a `notices` entry; avatars and covers now use the configured image provider
 - Layer 3 video storyboarding pipeline
 - TTS/voice narration (edge-tts)
 - Audio player component

@@ -1,190 +1,107 @@
 # Contributing to StoryForge
 
-Thank you for your interest in contributing! StoryForge is a community-driven project and we welcome contributions of all kinds — bug fixes, new features, documentation improvements, and more. This guide will get you up and running quickly.
+Thanks for helping out. StoryForge is a local-first, open-source story generator: a FastAPI backend, a multi-agent LLM pipeline, and a Next.js UI. Bug fixes, features and docs are all welcome.
 
----
+## Prerequisites
 
-## Development Setup
-
-### Prerequisites
-
-- Python 3.10+
-- Node.js 18+ (for frontend asset building)
+- Python 3.11+ (Docker and CI use 3.12)
+- Node.js 24 (for `frontend/`)
 - Git
-- Docker (optional, for container-based development)
+- Docker (optional, only to run the packaged stack)
 
-### Fork & Clone
+## Setup
 
 ```bash
-# Fork the repo on GitHub, then:
 git clone https://github.com/<your-username>/STORYFORGE.git
 cd STORYFORGE
+
+# Python: create a venv, then install runtime + test dependencies
+python -m venv .venv
+source .venv/bin/activate          # Windows Git Bash: source .venv/Scripts/activate
+pip install -r requirements.txt -r requirements-test.txt
+# Linux: append --extra-index-url https://download.pytorch.org/whl/cpu to get the
+# CPU-only torch wheel instead of the multi-GB CUDA build.
+# or with uv: uv venv && uv pip install -r requirements.txt -r requirements-test.txt
+
+# Frontend
+cd frontend && npm ci && cd ..
+
+cp .env.example .env               # then add your LLM API key (or set it in the UI)
 ```
 
-### Install Dependencies
+CI and the Docker image install from the pinned `requirements.lock.txt`. It is compiled for Linux x86_64 and Python 3.12 (it does not install on Windows or macOS); on Linux you can use it to reproduce CI exactly (it needs `--extra-index-url https://download.pytorch.org/whl/cpu`). CI checks that it stays in sync with `requirements.txt`; after changing `requirements.txt`, regenerate it with the `uv pip compile` command in its header.
 
-```bash
-# Backend
-pip install -r requirements.txt
-pip install -r requirements-test.txt   # test dependencies
+## Running it
 
-# Frontend (Tailwind CSS build)
-npm install
-```
+- **Both services, one command:** `python scripts/dev.py` starts the API (`app.py`, default `:7860`, debug on) and `npm run dev` (default `:3001`) with `[api]` / `[web]` prefixed logs. Flags: `--api-port`, `--web-port`.
+- **Backend only:** `python app.py`.
+- **Docker:** `docker compose up` builds both images from this checkout and serves the UI at http://localhost:3001.
 
-### Run the Development Server
+Runtime state lives under `data/` (SQLite DB, `config.json`, caches, `data/logs/storyforge.log`) and `output/`.
 
-```bash
-python app.py
-# → http://localhost:7860
-```
+## Checks CI runs
 
-The server reloads automatically when you change Python files (Uvicorn `--reload` mode).
-
-### Run Tests
-
-```bash
-python -m pytest tests/
-```
-
-To run a specific test file or directory:
-
-```bash
-python -m pytest tests/test_pipeline.py -v
-python -m pytest tests/integration/ -v
-```
-
-To run with coverage:
-
-```bash
-python -m pytest tests/ --cov=pipeline --cov=services --cov=api
-```
-
-### Run Linting
+Run these before opening a PR (Python commands from the repo root with the venv active):
 
 ```bash
 ruff check .
-ruff format --check .
+python -m pytest -q -m "not calibration and not bench and not perf"
+
+cd frontend
+npx tsc --noEmit
+npx eslint .
+npx vitest run
 ```
 
----
+CI also runs `pip-audit`, `npm audit --omit=dev --audit-level=high` and `docker compose build`. Pytest enforces a coverage floor (`--cov-fail-under=75` in `pyproject.toml`) and blocks real network access in tests, so mock LLM calls. Run a single test with `python -m pytest tests/test_foo.py -k name --no-cov`.
 
-## Code Style
+## Code style
 
-Consistency keeps the codebase readable for everyone. Please follow these guidelines:
+- Linter: ruff (`ruff check .`); configuration is in `pyproject.toml`.
+- Type hints on public function signatures; docstrings on public classes and functions.
+- Keep files focused. There is no hard line limit, but split modules that grow several responsibilities.
+- Keep `api/` handlers thin; put logic in `services/` or `pipeline/`.
+- Follow the naming already used in each directory (snake_case modules).
+- Every bug fix starts with a test that fails on the old code. Do not delete a behavior test to get green.
 
-- **Linter:** [ruff](https://docs.astral.sh/ruff/) — run `ruff check .` before committing
-- **Formatter:** ruff format (or Black-compatible) — run `ruff format .`
-- **File length:** keep files under 200 lines; split large modules into focused sub-modules
-- **Filenames:** `kebab-case` for new files where the framework permits (e.g. `drama-utils.py`); follow existing naming in each directory
-- **Docstrings:** write descriptive docstrings for all public functions and classes
-- **Type hints:** use Python type annotations for all function signatures
-- **Imports:** standard library first, then third-party, then local — separated by blank lines
-- **No magic numbers:** extract constants with descriptive names
+See `docs/code-standards.md` for more detail.
 
-### Example
+## Commits and pull requests
 
-```python
-def score_chapter(text: str, dimensions: list[str]) -> dict[str, float]:
-    """Score a chapter across multiple quality dimensions using LLM-as-judge.
-
-    Args:
-        text: Raw chapter text to evaluate.
-        dimensions: List of dimension names (e.g. ["coherence", "drama"]).
-
-    Returns:
-        Mapping of dimension name to score in range [0.0, 1.0].
-    """
-    ...
-```
-
----
-
-## Pull Request Process
-
-### 1. Create a Feature Branch
-
-```bash
-git checkout -b feat/your-feature-name
-# or
-git checkout -b fix/short-description
-```
-
-### 2. Make Your Changes
-
-- Write or update tests for any new behavior (place them in `tests/`)
-- Keep each PR focused on **one feature or fix**
-- Update `docs/` if your change affects architecture or public APIs
-
-### 3. Verify Before Submitting
-
-```bash
-ruff check .          # no lint errors
-ruff format --check . # no formatting issues
-python -m pytest tests/ -q  # all tests pass
-```
-
-### 4. Commit with Conventional Messages
-
-Use the [Conventional Commits](https://www.conventionalcommits.org/) format:
+Use [Conventional Commits](https://www.conventionalcommits.org/): `feat:`, `fix:`, `docs:`, `refactor:`, `test:`, `chore:`, `ci:`.
 
 ```
-feat: add Ollama streaming support
 fix: handle empty chapter text in quality scorer
-docs: update architecture diagram in README
-refactor: extract prompt templates into services/prompts/
-test: add unit tests for drama simulation rounds
 ```
 
-### 5. Open the Pull Request
+PR checklist:
 
-- Use the PR template (filled in automatically)
-- Reference the related issue: `Closes #123`
-- Keep the PR description concise but complete
-- Request a review and respond to feedback promptly
+- [ ] One focused change; branch named `feat/...` or `fix/...`
+- [ ] Tests added or updated
+- [ ] `ruff check .`, the pytest command and the frontend checks above pass
+- [ ] Docs updated if behavior, config or architecture changed (see `ARCHITECTURE.md`)
+- [ ] No secrets, personal paths or generated output committed
+- [ ] PR description links the issue (`Closes #123`)
 
----
-
-## Architecture Overview
-
-Understanding where things live will help you find the right place for your changes:
+## Directory map
 
 | Directory | Responsibility |
 |:----------|:---------------|
-| `pipeline/` | 3-layer generation engine (story → drama → storyboard) and AI agent graph |
-| `services/` | Reusable business logic: LLM client, quality scorer, exporters, TTS, auth |
-| `api/` | FastAPI route handlers — thin layer that calls into `services/` and `pipeline/` |
-| `web/` | Alpine.js single-page application and Tailwind CSS frontend |
-| `middleware/` | Cross-cutting concerns: JWT auth, rate limiting, audit logging, metrics |
+| `api/` | FastAPI routers (thin handlers), session endpoints, SSE/WebSocket |
+| `pipeline/` | Generation engine: `orchestrator.py`, `layer1_story/`, `layer2_enhance/`, `agents/`, `semantic/` |
+| `services/` | LLM client and providers (`llm/`), exporters, media, quality scoring, SQLite/infra (`infra/`) |
+| `middleware/` | Hosts allow-list, access token, CSRF, body limit, rate limit, sanitization, audit, metrics |
+| `config/` | `ConfigManager`, defaults, presets |
 | `models/` | Pydantic schemas shared across layers |
-| `tests/` | All automated tests — mirrors source directory structure |
+| `errors/` | Exception types and handlers |
+| `frontend/` | Next.js 16 / React 19 UI (see `frontend/AGENTS.md`) |
+| `docker/`, `compose*.yaml` | Container images and compose files |
+| `scripts/` | Dev launcher and maintenance scripts |
+| `tests/` | pytest suite; `frontend/tests/` and `*.test.ts` for the UI |
+| `docs/` | Architecture, standards, ADRs |
 
-Key design rules:
-- `api/` handlers should stay thin — business logic belongs in `services/`
-- `pipeline/` layers communicate through well-defined Pydantic models
-- Agents in `pipeline/agents/` are stateless and receive all context as arguments
-- No circular imports — `pipeline/` may import from `services/`, never the reverse
+Dependencies between layers are by convention, not enforced: `api/` calls into `services/` and `pipeline/`; `pipeline/` uses `services/` (LLM client, config); avoid `services/` and `pipeline/` importing `api/`.
 
----
+## Getting help
 
-## Good First Issues
-
-Looking for a place to start? Check the
-[`good first issue`](https://github.com/HieuNTg/STORYFORGE/labels/good%20first%20issue)
-label on GitHub for beginner-friendly tasks.
-
-For broader discussion, feature ideas, or questions — open a
-[GitHub Discussion](https://github.com/HieuNTg/STORYFORGE/discussions)
-rather than an issue.
-
----
-
-## Code of Conduct
-
-Be respectful and welcoming to all contributors. We follow the
-[Contributor Covenant](https://www.contributor-covenant.org/) code of conduct.
-Harassment or exclusionary behavior will not be tolerated.
-
----
-
-Thank you for helping make StoryForge better for everyone!
+Open a [GitHub Discussion](https://github.com/HieuNTg/STORYFORGE/discussions) for questions or ideas, and look for the `good first issue` label. Be respectful; we follow the [Contributor Covenant](https://www.contributor-covenant.org/).

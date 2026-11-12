@@ -1,6 +1,6 @@
 """Branch narrative — thread-safe choose-your-own-adventure tree manager.
 
-Supports dual-backend persistence: Redis (production) or in-memory (local).
+Sessions are kept in an in-memory store (see branch_persistence).
 """
 
 import uuid
@@ -14,12 +14,12 @@ MAX_SESSIONS = 50
 
 
 class BranchManager:
-    """Branch tree manager with optional Redis persistence."""
+    """Branch tree manager backed by the in-memory branch store."""
 
     def __init__(self) -> None:
         self._store = get_branch_store()
         self._lock = Lock()
-        # In-memory caches for undo/redo (not persisted to Redis)
+        # In-memory caches for undo/redo (not kept in the session store)
         self._undo_stacks: dict[str, list[str]] = {}
         self._redo_stacks: dict[str, list[str]] = {}
 

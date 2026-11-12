@@ -28,9 +28,8 @@ from services.llm.model_fallback import get_fallback_manager
 
 # P0-8: contextvar for ambient run_id — propagates across asyncio.gather boundaries
 # so charge_wallet() inherits the orchestrator's run_id without explicit threading.
-current_run_id: contextvars.ContextVar[str] = contextvars.ContextVar(
-    "current_run_id", default=""
-)
+# Defined in run_context (with the thread-hop helpers); re-exported here.
+from services.llm.run_context import current_run_id, run_in_thread
 
 logger = logging.getLogger(__name__)
 
@@ -387,25 +386,39 @@ class LLMClient(StreamingMixin, GenerationMixin):
     _instance = None
     _lock = threading.Lock()
 
-    # Per-run wallet dict (P0-8). Key = run_id string. _wallet_run_id is the
-    # default-pointer so legacy callers without run_id still work.
+    # Per-run wallet dict (P0-8). Key = run_id string. There is deliberately
+    # no "default run" pointer: a charge that cannot name its run is dropped
+    # rather than billed to whichever run happened to reset its wallet last.
     _wallet_lock = threading.Lock()
     _wallet_state: dict = {}  # dict[str, WalletState]
-    _wallet_run_id: str = ""
+    # One WARNING per process for charges outside any run (see charge_wallet).
+    _unscoped_charge_warned: bool = False
 
     @classmethod
-    def reset_wallet(cls, run_id: str = "") -> None:
-        """Reset (or create) wallet entry for run_id. Updates default pointer."""
-        rid = run_id or uuid.uuid4().hex[:8]
+    def reset_wallet(cls, run_id: str) -> None:
+        """Reset (or create) the wallet entry for ``run_id``."""
+        if not run_id:
+            raise ValueError("reset_wallet requires a run_id")
         with cls._wallet_lock:
-            cls._wallet_state[rid] = WalletState()
-            cls._wallet_run_id = rid
+            cls._wallet_state[run_id] = WalletState()
+
+    @classmethod
+    def has_wallet(cls, run_id: str) -> bool:
+        """True while ``run_id`` has an open wallet."""
+        with cls._wallet_lock:
+            return run_id in cls._wallet_state
+
+    @classmethod
+    def close_wallet(cls, run_id: str) -> None:
+        """Drop the wallet entry for ``run_id`` once its run is over. Idempotent."""
+        with cls._wallet_lock:
+            cls._wallet_state.pop(run_id, None)
 
     @classmethod
     def wallet_snapshot(cls, run_id: str = "") -> dict:
-        """Return a snapshot of wallet counters for run_id (default pointer if omitted)."""
+        """Return a snapshot of wallet counters for run_id (ambient run if omitted)."""
         with cls._wallet_lock:
-            rid = run_id or current_run_id.get() or cls._wallet_run_id
+            rid = run_id or current_run_id.get()
             state = cls._wallet_state.get(rid, WalletState())
             return {
                 "cost_usd": state.cost_usd,
@@ -418,8 +431,10 @@ class LLMClient(StreamingMixin, GenerationMixin):
     def charge_wallet(cls, cost_usd: float, tokens: int, run_id: str = "") -> None:
         """Charge the wallet and raise LLMBudgetExceededError if any cap is exceeded.
 
-        Caps come from PipelineConfig: max_cost_per_run_usd, max_total_tokens_per_run,
-        max_calls_per_run. A cap value of 0 means disabled.
+        Caps come from LLMConfig (``config.llm``): max_cost_per_run_usd,
+        max_total_tokens_per_run, max_calls_per_run. A cap value of 0 means
+        disabled. (They were once read off ``config.pipeline``, which has no
+        such fields — so every cap silently stayed 0.)
         """
 
         def _safe_num(v, cast, default):
@@ -430,18 +445,42 @@ class LLMClient(StreamingMixin, GenerationMixin):
 
         try:
             ConfigManager, _, _ = _imports()
-            pcfg = ConfigManager().pipeline
-            cap_cost = _safe_num(getattr(pcfg, "max_cost_per_run_usd", 0.0), float, 0.0)
-            cap_tokens = _safe_num(getattr(pcfg, "max_total_tokens_per_run", 0), int, 0)
-            cap_calls = _safe_num(getattr(pcfg, "max_calls_per_run", 0), int, 0)
+            lcfg = ConfigManager().llm
+            cap_cost = _safe_num(getattr(lcfg, "max_cost_per_run_usd", 0.0), float, 0.0)
+            cap_tokens = _safe_num(getattr(lcfg, "max_total_tokens_per_run", 0), int, 0)
+            cap_calls = _safe_num(getattr(lcfg, "max_calls_per_run", 0), int, 0)
         except Exception:
             cap_cost = cap_tokens = cap_calls = 0
 
+        rid = run_id or current_run_id.get()
+        if not rid:
+            # Outside any run (single-shot endpoints), or a thread hop dropped
+            # the context. Never guess: charging another run would trip its
+            # caps. Only worth a WARNING — once — when a cap is actually set.
+            caps_on = cap_cost > 0 or cap_tokens > 0 or cap_calls > 0
+            with cls._wallet_lock:
+                first = caps_on and not cls._unscoped_charge_warned
+                if first:
+                    cls._unscoped_charge_warned = True
+            logger.log(
+                logging.WARNING if first else logging.DEBUG,
+                "charge_wallet called without a run_id (cost=$%.4f, tokens=%s) — "
+                "not charged; run caps apply only inside run_wallet_scope "
+                "(services.llm.run_context)",
+                float(cost_usd or 0.0),
+                tokens,
+            )
+            return
+
         with cls._wallet_lock:
-            rid = run_id or current_run_id.get() or cls._wallet_run_id
-            if rid not in cls._wallet_state:
-                cls._wallet_state[rid] = WalletState()
-            state = cls._wallet_state[rid]
+            state = cls._wallet_state.get(rid)
+            if state is None:
+                # Wallet already closed (a late pool thread after the run
+                # ended or aborted) or never opened. Recreating it would leak.
+                logger.debug(
+                    "charge_wallet: no open wallet for run %s — charge dropped", rid
+                )
+                return
             state.cost_usd += float(cost_usd or 0.0)
             state.tokens += int(tokens or 0)
             state.calls += 1
@@ -479,9 +518,6 @@ class LLMClient(StreamingMixin, GenerationMixin):
         if self._initialized:
             return
         self._initialized = True
-        self._provider = None
-        self._last_key = ""
-        self._current_model = ""
         self._client_lock = threading.Lock()
         self._providers_cache: dict = {}
         self._key_index = 0
@@ -514,18 +550,11 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """
         ConfigManager, _, _ = _imports()
         config = ConfigManager()
-        base_url = config.llm.base_url
-        api_key = config.llm.api_key
-        model = config.llm.model
-
-        cache_key = f"{base_url}:{api_key}"
-        with self._client_lock:
-            if self._provider is None or self._last_key != cache_key:
-                self._provider = _get_provider(base_url, api_key)
-                self._last_key = cache_key
-                self._current_model = model
-
-        return self._provider
+        # Task 13: resolve for the caller's own (base_url, api_key) — the run's
+        # snapshot inside a run — from the keyed cache. A shared "current"
+        # provider flipped between runs with different keys, and was read
+        # outside the lock, so a caller could get the other key's provider.
+        return self._get_or_create_provider(config.llm.base_url, config.llm.api_key)
 
     def model_for_layer(self, layer: int) -> str:
         """Return model name for a given pipeline layer (1, 2, or 3).
@@ -545,7 +574,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
         """
         ConfigManager, _, _ = _imports()
         config = ConfigManager()
-        primary_model = self._current_model or config.llm.model
+        # Always the caller's config (the run snapshot inside a run). A model
+        # cached on this process-wide client leaked one run's model into others.
+        primary_model = config.llm.model
         primary_base_url = config.llm.base_url
         primary_api_key = config.llm.api_key
 
@@ -670,10 +701,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         config = ConfigManager()
         cheap_model = config.llm.cheap_model
         if not cheap_model:
-            provider = self._get_client()
-            with self._client_lock:
-                model = self._current_model or config.llm.model
-            return provider, model
+            return self._get_client(), config.llm.model
 
         cheap_base = config.llm.cheap_base_url or config.llm.base_url
         api_key = config.llm.api_key
@@ -1221,7 +1249,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
         fm = get_fallback_manager()
 
         # Resolve primary model
-        default_model = self._current_model or config.llm.model
+        default_model = config.llm.model
         raw_model = model_override or default_model
 
         # If the caller asked for a specific model that doesn't match the
@@ -1556,6 +1584,9 @@ class LLMClient(StreamingMixin, GenerationMixin):
         # Tier label for trace: "cheap" / "fallback" / "primary" / ...
         tier_label = entry.get("label", "").split(":", 1)[0] or "primary"
 
+        # Bind the run now: _call may be retried, but always on this run's dime.
+        run_id = current_run_id.get()
+
         def _call():
             start_time = time.monotonic()
             # Fresh per call: nothing is shared between concurrent chapters.
@@ -1608,7 +1639,7 @@ class LLMClient(StreamingMixin, GenerationMixin):
                         usage.get("completion_tokens") or _estimate_tokens(result)
                     )
                     cost = compute_cost(model, p_tokens, c_tokens)
-                    LLMClient.charge_wallet(cost, p_tokens + c_tokens)
+                    LLMClient.charge_wallet(cost, p_tokens + c_tokens, run_id=run_id)
                 except LLMBudgetExceededError:
                     raise
                 except Exception as we:  # noqa: BLE001 — pricing missing must not break call
@@ -1647,21 +1678,16 @@ class LLMClient(StreamingMixin, GenerationMixin):
         Signature mirrors generate() exactly so callers can migrate by replacing
         `self.llm.generate(...)` with `await self.llm.agenerate(...)`.
         """
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self.generate(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                json_mode=json_mode,
-                model_tier=model_tier,
-                model=model,
-                budget_remaining=budget_remaining,
-            ),
+        return await run_in_thread(
+            self.generate,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            json_mode=json_mode,
+            model_tier=model_tier,
+            model=model,
+            budget_remaining=budget_remaining,
         )
 
     async def agenerate_json(
@@ -1678,19 +1704,14 @@ class LLMClient(StreamingMixin, GenerationMixin):
         Signature mirrors generate_json() exactly so callers can migrate by replacing
         `self.llm.generate_json(...)` with `await self.llm.agenerate_json(...)`.
         """
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self.generate_json(
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                model_tier=model_tier,
-                model=model,
-            ),
+        return await run_in_thread(
+            self.generate_json,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            model_tier=model_tier,
+            model=model,
         )
 
     def generate_for_layer(
@@ -1877,20 +1898,15 @@ class LLMClient(StreamingMixin, GenerationMixin):
         budget_remaining: Optional[int] = None,
     ) -> str:
         """Async wrapper around generate_for_layer()."""
-        import asyncio
-
-        loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None,
-            lambda: self.generate_for_layer(
-                layer=layer,
-                system_prompt=system_prompt,
-                user_prompt=user_prompt,
-                temperature=temperature,
-                max_tokens=max_tokens,
-                json_mode=json_mode,
-                budget_remaining=budget_remaining,
-            ),
+        return await run_in_thread(
+            self.generate_for_layer,
+            layer=layer,
+            system_prompt=system_prompt,
+            user_prompt=user_prompt,
+            temperature=temperature,
+            max_tokens=max_tokens,
+            json_mode=json_mode,
+            budget_remaining=budget_remaining,
         )
 
     @staticmethod

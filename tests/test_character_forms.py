@@ -239,8 +239,8 @@ def test_form_reference_generated_once_from_base_reference(store, tmp_path):
     refs = {"Diệp Lăng Thiên": str(base)}
     profiles = {"Diệp Lăng Thiên": "FP: black robe"}
 
-    first = cf.prepare_form_references(store, CHARS, profiles, refs, image_gen, provider="qwen-local")
-    second = cf.prepare_form_references(store, CHARS, profiles, refs, image_gen, provider="qwen-local")
+    first = cf.prepare_form_references(store, CHARS, profiles, refs, image_gen, provider="seedream")
+    second = cf.prepare_form_references(store, CHARS, profiles, refs, image_gen, provider="seedream")
 
     assert len(image_gen.calls) == 1, "the form reference was rendered twice"
     prompt, sources, _ = image_gen.calls[0]

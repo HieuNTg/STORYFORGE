@@ -138,33 +138,15 @@ class PipelineConfig:
 
     # Image generation provider
     image_provider: str = (
-        # none / dalle / sd-api / seedream / huggingface / flowkit / codex /
-        # qwen-local
+        # none / dalle / sd-api / seedream / huggingface / replicate
         "none"
     )
+    # Runtime only, never persisted: the name of a removed image provider
+    # (persistence.REMOVED_IMAGE_PROVIDERS) that an older config.json selected
+    # and load_config reset to "none". GET /api/config surfaces it as a notice.
+    image_provider_notice: str = ""
     image_api_key: str = ""
     image_api_url: str = ""
-    # Codex provider: generate images through the user's own logged-in ChatGPT
-    # Plus session (the official "Sign in with ChatGPT" credentials that Codex CLI
-    # stores in ~/.codex/auth.json). Leave codex_model empty to auto-detect from
-    # ~/.codex/config.toml (falls back to gpt-5.5). No API key needed — it reuses
-    # the Codex login and supports reference images for character consistency.
-    codex_model: str = ""
-    # Qwen local proxy: an OpenAI-compatible server (run separately) that drives
-    # chat.qwen.ai. Unlike the other providers it takes an ASPECT RATIO rather
-    # than a pixel size, and it can edit an existing image — which is what gives
-    # reference-conditioned panels real character consistency instead of the
-    # text-only fallback. Leave qwen_local_model empty to use whatever the proxy
-    # has as QWEN_IMAGE_MODEL, and qwen_local_size empty for its default (1:1).
-    qwen_local_base_url: str = "http://localhost:8000/v1"
-    qwen_local_api_key: str = ""
-    qwen_local_model: str = ""
-    qwen_local_size: str = ""
-    # When a panel has character reference images, send the first one to the
-    # proxy's edit endpoint. Off = always text-only, which is faster but loses
-    # the character likeness the references exist for.
-    qwen_local_use_edit_for_refs: bool = True
-    qwen_local_timeout: float = 300.0
     # Comic panels generated per chapter (truyện tranh). Each chapter gets this
     # many distinct scene images. Used by both the pipeline media stage and the
     # on-demand reader regen. Acts as the FIXED count when panels_auto is False,
@@ -249,9 +231,9 @@ class PipelineConfig:
     # Library cover image. When a story is saved to the Library the frontend
     # requests ONE cover illustration (POST /api/images/library/generate-cover)
     # so the bookshelf card shows art instead of the gradient placeholder.
-    # Runs through FlowKit and is therefore ALSO gated by flowkit_enabled +
-    # flowkit_project_id; failures degrade silently to the placeholder.
-    # Defaults ON because it is inert while FlowKit is off.
+    # Runs through the configured image_provider; with provider "none" it is
+    # skipped, and failures degrade silently to the placeholder. Defaults ON
+    # because it is inert until an image provider is configured.
     cover_image_enabled: bool = True
 
     # HuggingFace Inference API (free tier)
@@ -261,40 +243,6 @@ class PipelineConfig:
     # Seedream (ByteDance) image generation
     seedream_api_key: str = ""
     seedream_api_url: str = ""
-
-    # Flowkit (Chrome Extension + Google Labs proxy) — local-only, account-ban risk
-    flowkit_enabled: bool = True
-    flowkit_port: int = 7860
-    flowkit_style_reference_path: str = ""
-    flowkit_concurrent_workers: int = (
-        1  # runtime initial value; adaptive ramp managed by FlowService
-    )
-    flowkit_concurrent_workers_max: int = 4  # ceiling for adaptive ramp
-    flowkit_workers_ramp_threshold: int = (
-        10  # consecutive successes before incrementing
-    )
-    flowkit_account_warning_shown: bool = False
-    flowkit_risk_acknowledged: bool = (
-        True  # hard gate; backend rejects flowkit_enabled=True without this
-    )
-    flowkit_image_input_type_split: bool = (
-        False  # split REFERENCE → CHARACTER/STYLE (requires live enum sniff)
-    )
-    # Verify X-Callback-Signature (HMAC-SHA256 of body) on the HTTP
-    # /api/ext/callback fallback; the live WS path relies on 127.0.0.1 trust.
-    # On by default: that route is exempt from CSRF (the extension holds no
-    # cookie), so the signature is the only thing authenticating it. The shipped
-    # extension talks over the WebSocket and never posts here, so requiring a
-    # signature costs nothing today.
-    flowkit_callback_hmac_required: bool = True
-    flowkit_use_refiner: bool = True  # ACTIVE: ImageGenerator._flowkit_refine runs the comic-panel refiner on every prompt before flowMedia:batchGenerateImages
-    flowkit_request_timeout: float = 180.0  # seconds; sync-bridge wait when ImageGenerator dispatches to FlowService loop
-    flowkit_aspect_ratio: str = (
-        "4:5"  # webtoon comic panel; mapped to IMAGE_ASPECT_RATIO_* enum at send time
-    )
-    # Google Labs Flow project UUID. Find in URL at labs.google/fx/tools/flow/project/<UUID>.
-    # Required when flowkit_enabled=True — request_image raises if empty.
-    flowkit_project_id: str = ""
 
     # Self-review (CoT quality check)
     enable_self_review: bool = True  # CoT self-review for quality
@@ -468,7 +416,7 @@ class PipelineConfig:
 
     # Agentic repair loop — replaces the four post-write rewrite passes above
     # (payoff, consistency, pacing, length) with one bounded loop that carries
-    # every constraint into a single rewrite. Spec: docs/agentic-repair-loop-spec.md.
+    # every constraint into a single rewrite.
     #
     # Why it exists: those four passes each regenerate the whole chapter knowing
     # only their own concern, so the payoff rewrite could shorten a chapter below

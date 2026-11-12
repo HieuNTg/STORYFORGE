@@ -5,7 +5,6 @@ from pydantic import ValidationError
 from models.schemas import (
     EscalationPattern,
     ImagePrompt,
-    UserProfile,
     ReadingStats,
     ShareableStory,
 )
@@ -28,17 +27,6 @@ def test_image_prompt_defaults():
     assert ip.style == "cinematic"
     assert ip.negative_prompt == ""
     assert ip.characters_in_scene == []
-
-
-def test_user_profile_required():
-    with pytest.raises(ValidationError):
-        UserProfile()  # missing user_id and username
-
-
-def test_user_profile_creation():
-    u = UserProfile(user_id="abc", username="alice")
-    assert u.usage_count == 0
-    assert u.story_ids == []
 
 
 def test_reading_stats_defaults():

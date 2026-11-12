@@ -1,0 +1,21 @@
+# StoryForge from the prebuilt GHCR images (no local build):
+#   STORYFORGE_VERSION=1.0.0 docker compose -f compose.release.yaml up
+# then open http://localhost:3001. Same services, ports and volumes as
+# compose.yaml, so run from the same directory the two files share data.
+services:
+  api:
+    image: ghcr.io/hieuntg/storyforge-api:${STORYFORGE_VERSION:?set STORYFORGE_VERSION}
+    environment:
+      STORYFORGE_HOST: 0.0.0.0
+      STORYFORGE_IN_CONTAINER: "1"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: [storyforge-data:/app/data, storyforge-output:/app/output]
+    ports: ["127.0.0.1:7860:7860"]
+    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:7860/api/health')"] }
+  web:
+    image: ghcr.io/hieuntg/storyforge-web:${STORYFORGE_VERSION:?set STORYFORGE_VERSION}
+    depends_on: { api: { condition: service_healthy } }
+    ports: ["127.0.0.1:3001:3000"]
+volumes:
+  storyforge-data: { name: storyforge-data }
+  storyforge-output: { name: storyforge-output }

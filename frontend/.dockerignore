@@ -1,0 +1,13 @@
+# Build context of docker/web.Dockerfile (compose.yaml: context: frontend).
+# The image runs its own `npm ci`; the host's node_modules hold
+# platform-specific binaries.
+node_modules
+.next
+out
+coverage
+test-results
+playwright-report
+tests
+*.tsbuildinfo
+.env*
+npm-debug.log*

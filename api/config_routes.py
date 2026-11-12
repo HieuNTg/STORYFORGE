@@ -1,36 +1,7 @@
 """Config API routes — settings CRUD, connection test, cache management.
 
-RBAC examples
--------------
-These routes touch pipeline configuration and should be protected in production.
-Import the helpers from middleware.rbac and add them as Depends():
-
-    from fastapi import Depends
-    from middleware.rbac import require_permission, require_role, Permission, Role
-
-    # Require CONFIGURE_PIPELINE permission (admin + superadmin):
-    # @router.put("", dependencies=[Depends(require_permission(Permission.CONFIGURE_PIPELINE))])
-
-    # Require at least ADMIN role (coarser check):
-    # @router.put("", dependencies=[Depends(require_role(Role.ADMIN))])
-
-    # Inject user for handler-level logic (e.g., audit who changed config):
-    # @router.put("")
-    # def save_config(body: ConfigUpdate, user=Depends(require_permission(Permission.CONFIGURE_PIPELINE))):
-    #     logger.info("Config updated by %r", user["user_id"])
-    #     ...
-
-    # Restrict API key management to SUPERADMIN only:
-    # @router.get("/api-keys", dependencies=[Depends(require_permission(Permission.MANAGE_API_KEYS))])
-
-    # Restrict audit log access to SUPERADMIN only:
-    # @router.get("/audit", dependencies=[Depends(require_permission(Permission.VIEW_AUDIT_LOGS))])
-
-    # Restrict user management endpoints to ADMIN+:
-    # @router.get("/admin/users", dependencies=[Depends(require_permission(Permission.MANAGE_USERS))])
-
-    # Restrict analytics to ADMIN+:
-    # @router.get("/analytics", dependencies=[Depends(require_permission(Permission.ACCESS_ANALYTICS))])
+Every route is guarded router-wide by ``middleware.access.require_access``
+(a no-op unless STORYFORGE_ACCESS_TOKEN is set).
 """
 
 import logging
@@ -43,13 +14,19 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from typing import Optional
 
-from config import ConfigManager, PIPELINE_PRESETS, PROVIDER_PRESETS
-from middleware.rbac import Permission, require_permission_if_enabled
+from config import ConfigManager, PIPELINE_PRESETS
+from config.presets import provider_presets
+from config.persistence import REMOVED_IMAGE_PROVIDERS
+from middleware.access import require_access
 from services.i18n import I18n, SUPPORTED_LANGUAGES
 from services.security.url_validator import validate_base_url
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/config", tags=["config"])
+router = APIRouter(
+    prefix="/config",
+    tags=["config"],
+    dependencies=[Depends(require_access)],
+)
 
 
 def _mask_key(k: str) -> str:
@@ -188,14 +165,6 @@ class ConfigUpdate(BaseModel):
     stream_first_chunk_timeout: Optional[int] = None
     stream_chunk_timeout: Optional[int] = None
     image_provider: Optional[str] = None
-    codex_model: Optional[str] = None
-    # Qwen local proxy (separate OpenAI-compatible server driving chat.qwen.ai)
-    qwen_local_base_url: Optional[str] = None
-    qwen_local_api_key: Optional[str] = None
-    qwen_local_model: Optional[str] = None
-    qwen_local_size: Optional[str] = None
-    qwen_local_use_edit_for_refs: Optional[bool] = None
-    qwen_local_timeout: Optional[float] = None
     hf_token: Optional[str] = None
     hf_image_model: Optional[str] = None
     image_prompt_style: Optional[str] = None
@@ -204,26 +173,6 @@ class ConfigUpdate(BaseModel):
     enable_pipeline_overlay: Optional[bool] = None
     enable_chapter_illustration: Optional[bool] = None
     enable_simulation_transcript: Optional[bool] = None
-    # FlowKit (Chrome Extension + Google Labs proxy)
-    flowkit_enabled: Optional[bool] = None
-    flowkit_port: Optional[int] = None
-    flowkit_style_reference_path: Optional[str] = None
-    flowkit_concurrent_workers_max: Optional[int] = None
-    flowkit_workers_ramp_threshold: Optional[int] = None
-    flowkit_account_warning_shown: Optional[bool] = None
-    flowkit_risk_acknowledged: Optional[bool] = None
-    flowkit_image_input_type_split: Optional[bool] = None
-    flowkit_callback_hmac_required: Optional[bool] = None
-    flowkit_use_refiner: Optional[bool] = None
-    flowkit_request_timeout: Optional[float] = None
-    flowkit_aspect_ratio: Optional[str] = None
-    flowkit_project_id: Optional[str] = None
-
-
-_CONFIGURE_PIPELINE = Depends(
-    require_permission_if_enabled(Permission.CONFIGURE_PIPELINE)
-)
-_MANAGE_API_KEYS = Depends(require_permission_if_enabled(Permission.MANAGE_API_KEYS))
 
 
 # Mask-shape regex: matches the masked echo emitted by `_mask_key` and the
@@ -239,7 +188,16 @@ def _is_masked_echo(value: Optional[str]) -> bool:
     return bool(_MASKED_KEY_RE.match(value))
 
 
-@router.get("", dependencies=[_CONFIGURE_PIPELINE])
+def _config_notices(pipeline) -> list[str]:
+    """One-off messages about this config for the Settings page to show."""
+    notices: list[str] = []
+    removed = getattr(pipeline, "image_provider_notice", "")
+    if removed:
+        notices.append(f"image_provider_removed:{removed}")
+    return notices
+
+
+@router.get("")
 def get_config(response: Response):
     """Return current config (API key and HF token masked).
 
@@ -304,16 +262,6 @@ def get_config(response: Response):
             "stream_first_chunk_timeout": cfg.pipeline.stream_first_chunk_timeout,
             "stream_chunk_timeout": cfg.pipeline.stream_chunk_timeout,
             "image_provider": cfg.pipeline.image_provider,
-            "codex_model": cfg.pipeline.codex_model,
-            "qwen_local_base_url": cfg.pipeline.qwen_local_base_url,
-            # Masked like every other secret the GET surface returns.
-            "qwen_local_api_key_masked": _mask_key(
-                cfg.pipeline.qwen_local_api_key
-            ),
-            "qwen_local_model": cfg.pipeline.qwen_local_model,
-            "qwen_local_size": cfg.pipeline.qwen_local_size,
-            "qwen_local_use_edit_for_refs": cfg.pipeline.qwen_local_use_edit_for_refs,
-            "qwen_local_timeout": cfg.pipeline.qwen_local_timeout,
             "hf_token_masked": masked_hf_token,
             "hf_image_model": cfg.pipeline.hf_image_model,
             "image_prompt_style": cfg.pipeline.image_prompt_style,
@@ -321,50 +269,19 @@ def get_config(response: Response):
             "enable_drama_climax": cfg.pipeline.enable_drama_climax,
             "enable_pipeline_overlay": cfg.pipeline.enable_pipeline_overlay,
             "enable_chapter_illustration": cfg.pipeline.enable_chapter_illustration,
-            "flowkit_enabled": cfg.pipeline.flowkit_enabled,
-            "flowkit_port": cfg.pipeline.flowkit_port,
-            "flowkit_style_reference_path": cfg.pipeline.flowkit_style_reference_path,
-            "flowkit_concurrent_workers": cfg.pipeline.flowkit_concurrent_workers,
-            "flowkit_concurrent_workers_max": cfg.pipeline.flowkit_concurrent_workers_max,
-            "flowkit_workers_ramp_threshold": cfg.pipeline.flowkit_workers_ramp_threshold,
-            "flowkit_account_warning_shown": cfg.pipeline.flowkit_account_warning_shown,
-            "flowkit_risk_acknowledged": cfg.pipeline.flowkit_risk_acknowledged,
-            "flowkit_image_input_type_split": cfg.pipeline.flowkit_image_input_type_split,
-            "flowkit_callback_hmac_required": cfg.pipeline.flowkit_callback_hmac_required,
-            "flowkit_use_refiner": cfg.pipeline.flowkit_use_refiner,
-            "flowkit_request_timeout": cfg.pipeline.flowkit_request_timeout,
-            "flowkit_aspect_ratio": cfg.pipeline.flowkit_aspect_ratio,
-            "flowkit_project_id": cfg.pipeline.flowkit_project_id,
         },
+        "notices": _config_notices(cfg.pipeline),
     }
 
 
-@router.put("", dependencies=[_CONFIGURE_PIPELINE])
+@router.put("")
 def save_config(body: ConfigUpdate):
     """Save settings to config.json."""
-    # FlowKit hard gate: enabling the provider requires explicit risk
-    # acknowledgement. Evaluated against the post-PATCH effective state
-    # (delta + current) so a previously-acked user can toggle enabled alone.
     cfg = ConfigManager()
-    eff_provider = (
-        body.image_provider
-        if body.image_provider is not None
-        else cfg.pipeline.image_provider
-    )
-    eff_enabled = (
-        body.flowkit_enabled
-        if body.flowkit_enabled is not None
-        else cfg.pipeline.flowkit_enabled
-    )
-    eff_ack = (
-        body.flowkit_risk_acknowledged
-        if body.flowkit_risk_acknowledged is not None
-        else cfg.pipeline.flowkit_risk_acknowledged
-    )
-    if eff_provider == "flowkit" and eff_enabled and not eff_ack:
+    if body.image_provider in REMOVED_IMAGE_PROVIDERS:
         raise HTTPException(
             status_code=400,
-            detail="flowkit_risk_acknowledged required when enabling flowkit",
+            detail=f"image provider {body.image_provider!r} is no longer supported",
         )
 
     # F5 guard: reject mask-shaped values for any secret field. A correctly-
@@ -396,6 +313,18 @@ def save_config(body: ConfigUpdate):
                     status_code=400,
                     detail="masked echo cannot be persisted as a real api_keys entry",
                 )
+    key_cleared = False
+    pool_keys_pinned = 0
+    old_base_url = cfg.llm.base_url
+    if body.base_url is not None:
+        validate_base_url(body.base_url)
+        if not _key_survives(old_base_url, body.base_url):
+            # Pin the pre-existing pool to its original host before any
+            # api_keys / append_api_keys from this request are applied.
+            cfg.llm.api_keys, pool_keys_pinned = _pin_pool_keys(
+                cfg.llm.api_keys, old_base_url
+            )
+    old_cheap_host_url = cfg.llm.cheap_base_url or old_base_url
     if body.api_key is not None:
         cfg.llm.api_key = body.api_key
     if body.api_keys is not None:
@@ -407,6 +336,15 @@ def save_config(body: ConfigUpdate):
     if body.base_url is not None:
         validate_base_url(body.base_url)
         cfg.llm.base_url = body.base_url
+        # Don't let a saved key follow the user to a different host unless
+        # this same request supplies a key for it.
+        if (
+            not body.api_key
+            and cfg.llm.api_key
+            and not _key_survives(old_base_url, body.base_url)
+        ):
+            cfg.llm.api_key = ""
+            key_cleared = True
     if body.model is not None:
         cfg.llm.model = body.model
     if body.temperature is not None:
@@ -421,6 +359,19 @@ def save_config(body: ConfigUpdate):
     if body.cheap_base_url is not None:
         validate_base_url(body.cheap_base_url)
         cfg.llm.cheap_base_url = body.cheap_base_url
+        # The cheap route has no key slot of its own: it sends the primary
+        # api_key. Clear that key if it would now go to a host other than
+        # the one it was stored for (neither the old cheap host nor the
+        # primary host) and no new key came with this request.
+        new_cheap = body.cheap_base_url or cfg.llm.base_url
+        if (
+            not body.api_key
+            and cfg.llm.api_key
+            and not _key_survives(old_cheap_host_url, new_cheap)
+            and not _key_survives(cfg.llm.base_url, new_cheap)
+        ):
+            cfg.llm.api_key = ""
+            key_cleared = True
     if body.layer1_model is not None:
         cfg.llm.layer1_model = body.layer1_model
     if body.layer2_model is not None:
@@ -442,22 +393,9 @@ def save_config(body: ConfigUpdate):
         cfg.pipeline.stream_chunk_timeout = body.stream_chunk_timeout
     if body.image_provider is not None:
         cfg.pipeline.image_provider = body.image_provider
-    if body.codex_model is not None:
-        cfg.pipeline.codex_model = body.codex_model
-    if body.qwen_local_base_url is not None:
-        cfg.pipeline.qwen_local_base_url = body.qwen_local_base_url
-    # An empty string means "leave the stored key alone" — the UI never echoes
-    # the real value back, so a blank field must not wipe it.
-    if body.qwen_local_api_key:
-        cfg.pipeline.qwen_local_api_key = body.qwen_local_api_key
-    if body.qwen_local_model is not None:
-        cfg.pipeline.qwen_local_model = body.qwen_local_model
-    if body.qwen_local_size is not None:
-        cfg.pipeline.qwen_local_size = body.qwen_local_size
-    if body.qwen_local_use_edit_for_refs is not None:
-        cfg.pipeline.qwen_local_use_edit_for_refs = body.qwen_local_use_edit_for_refs
-    if body.qwen_local_timeout is not None:
-        cfg.pipeline.qwen_local_timeout = body.qwen_local_timeout
+        # The user has picked a provider, so the "your old one was removed"
+        # notice has been seen and acted on.
+        cfg.pipeline.image_provider_notice = ""
     if body.hf_token is not None:
         cfg.pipeline.hf_token = body.hf_token
     if body.hf_image_model is not None:
@@ -474,25 +412,6 @@ def save_config(body: ConfigUpdate):
         _val = getattr(body, _attr, None)
         if _val is not None:
             setattr(cfg.pipeline, _attr, _val)
-    # FlowKit persistence (gate already enforced above)
-    for _attr in (
-        "flowkit_enabled",
-        "flowkit_port",
-        "flowkit_style_reference_path",
-        "flowkit_concurrent_workers_max",
-        "flowkit_workers_ramp_threshold",
-        "flowkit_account_warning_shown",
-        "flowkit_risk_acknowledged",
-        "flowkit_image_input_type_split",
-        "flowkit_callback_hmac_required",
-        "flowkit_use_refiner",
-        "flowkit_request_timeout",
-        "flowkit_aspect_ratio",
-        "flowkit_project_id",
-    ):
-        _val = getattr(body, _attr, None)
-        if _val is not None:
-            setattr(cfg.pipeline, _attr, _val)
     try:
         cfg.save()
     except ValueError as exc:
@@ -501,29 +420,15 @@ def save_config(body: ConfigUpdate):
     from services.llm_client import LLMClient
 
     LLMClient.reset()
-    return {"status": "ok"}
+    result: dict = {"status": "ok"}
+    if key_cleared:
+        result["key_cleared"] = True
+    if pool_keys_pinned:
+        result["pool_keys_pinned"] = pool_keys_pinned
+    return result
 
 
-@router.get("/qwen-local/status", dependencies=[_CONFIGURE_PIPELINE])
-def qwen_local_status():
-    """Probe the local Qwen proxy: is it up, and did its Qwen provider start?
-
-    A sync handler on purpose — FastAPI runs these in a worker thread, so the
-    blocking HTTP probe never touches the event loop. Always answers 200; the
-    body carries the failure so the settings badge can render a reason.
-    """
-    from services.media.qwen_local_client import QwenLocalClient
-
-    cfg = ConfigManager().pipeline
-    client = QwenLocalClient(
-        base_url=cfg.qwen_local_base_url,
-        api_key=cfg.qwen_local_api_key,
-        model=cfg.qwen_local_model,
-    )
-    return client.status()
-
-
-@router.post("/test-connection", dependencies=[_CONFIGURE_PIPELINE])
+@router.post("/test-connection")
 def test_connection():
     """Test LLM connection with current settings + all additional profiles."""
     from services.llm_client import LLMClient
@@ -604,7 +509,7 @@ def get_presets():
     return {"presets": PIPELINE_PRESETS}
 
 
-@router.post("/presets/{key}", dependencies=[_CONFIGURE_PIPELINE])
+@router.post("/presets/{key}")
 def apply_preset(key: str):
     """Apply a pipeline preset by key."""
     preset = PIPELINE_PRESETS.get(key)
@@ -626,12 +531,13 @@ def get_provider_presets():
 
     Single source of truth — the frontend renders these instead of a hardcoded
     list, so adding a provider here makes it appear in the UI with no frontend
-    change. See config/presets.py::PROVIDER_PRESETS.
+    change. See config/presets.py::PROVIDER_PRESETS. Resolved per request
+    (provider_presets()) so the Ollama card follows STORYFORGE_IN_CONTAINER.
     """
-    return {"presets": PROVIDER_PRESETS}
+    return {"presets": provider_presets()}
 
 
-@router.post("/profiles/detect", dependencies=[_MANAGE_API_KEYS])
+@router.post("/profiles/detect")
 def detect_provider(body: ProfileCreate):
     """Detect provider from API key prefix — returns provider info without saving."""
     detected = _detect_provider_from_key(body.api_key) if body.api_key else None
@@ -690,8 +596,52 @@ def _fetch_openai_compatible_models(base_url: str, api_key: str) -> list[dict]:
     return out
 
 
-def _host(url: str) -> str:
-    return (urlparse(url or "").hostname or "").lower()
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _origin(url: str) -> tuple[str, str, int | None]:
+    """(scheme, host without trailing dot, port-or-scheme-default)."""
+    parsed = urlparse(url or "")
+    scheme = (parsed.scheme or "").lower()
+    host = (parsed.hostname or "").lower().rstrip(".")
+    try:
+        port = parsed.port
+    except ValueError:
+        port = -1
+    return scheme, host, port if port is not None else _DEFAULT_PORTS.get(scheme)
+
+
+def _key_survives(old_url: str, new_url: str) -> bool:
+    """A stored key may only follow the user to the same origin.
+
+    Scheme and port count: an https->http downgrade or a different port on the
+    same host would otherwise receive the key.
+    """
+    return _origin(old_url) == _origin(new_url)
+
+
+def _pin_pool_keys(api_keys: list, old_base_url: str) -> tuple[list, int]:
+    """Pin every pool key that inherits the primary base_url to `old_base_url`.
+
+    The LLM client pairs bare-string (and base_url-less dict) pool entries with
+    the primary base_url, so a primary host change would otherwise send them
+    all to the new host. Returns (new_pool, number_pinned).
+    """
+    pinned = 0
+    out: list = []
+    for item in api_keys or []:
+        if isinstance(item, str):
+            if item:
+                out.append({"key": item, "base_url": old_base_url})
+                pinned += 1
+            else:
+                out.append(item)
+        elif isinstance(item, dict) and not item.get("base_url"):
+            out.append({**item, "base_url": old_base_url})
+            pinned += 1
+        else:
+            out.append(item)
+    return out, pinned
 
 
 def _preset_models_for(base_url: str) -> list[dict]:
@@ -700,13 +650,14 @@ def _preset_models_for(base_url: str) -> list[dict]:
     Fallback for when live discovery fails (offline, no key yet, provider
     without a /models endpoint) — so the dropdown is never empty just because
     the network was. config/presets.py stays the single source of truth; this
-    route keeps no second copy of the lists.
+    route keeps no second copy of the lists. Matched by origin (scheme, host,
+    port), so LM Studio at localhost:1234 does not get Ollama's list.
     """
-    host = _host(base_url)
-    if not host:
+    origin = _origin(base_url)
+    if not origin[1]:
         return []
-    for preset in PROVIDER_PRESETS:
-        if _host(preset.get("base_url", "")) == host:
+    for preset in provider_presets():
+        if _origin(preset.get("base_url", "")) == origin:
             return list(preset.get("models") or [])
     return []
 
@@ -716,22 +667,24 @@ def _stored_key_for(base_url: str) -> str:
 
     Lets the UI auto-refresh a configured provider's model list without the
     user re-typing a secret the server already holds. Never returned to the
-    client — only used to authenticate the outgoing discovery call.
+    client — only used to authenticate the outgoing discovery call. Matched by
+    origin like ``_key_survives``: an http:// downgrade or another port on the
+    same host does not get the key.
     """
-    host = _host(base_url)
-    if not host:
+    origin = _origin(base_url)
+    if not origin[1]:
         return ""
     cfg = ConfigManager()
     candidates = list(cfg.llm.fallback_models) + [
         {"base_url": cfg.llm.base_url, "api_key": cfg.llm.api_key}
     ]
     for profile in candidates:
-        if _host(profile.get("base_url") or "") == host and profile.get("api_key"):
+        if _origin(profile.get("base_url") or "") == origin and profile.get("api_key"):
             return str(profile["api_key"])
     return ""
 
 
-@router.post("/provider/models", dependencies=[_MANAGE_API_KEYS])
+@router.post("/provider/models")
 def get_provider_models(body: ModelsRequest):
     """Ask a provider which models it can actually run.
 
@@ -781,7 +734,7 @@ def get_provider_models(body: ModelsRequest):
     return {"provider": provider, "models": models}
 
 
-@router.post("/profiles", dependencies=[_MANAGE_API_KEYS])
+@router.post("/profiles")
 def add_profile(body: ProfileCreate):
     """Add an API provider profile. Auto-detects provider from key prefix if fields empty."""
     if _is_masked_echo(body.api_key):
@@ -806,6 +759,8 @@ def add_profile(body: ProfileCreate):
     validate_base_url(profile["base_url"])
     # If no primary key set, use this provider as primary too
     if not cfg.llm.api_key:
+        if not _key_survives(cfg.llm.base_url, profile["base_url"]):
+            cfg.llm.api_keys, _ = _pin_pool_keys(cfg.llm.api_keys, cfg.llm.base_url)
         cfg.llm.api_key = profile["api_key"]
         cfg.llm.base_url = profile["base_url"]
         cfg.llm.model = profile["model"]
@@ -825,7 +780,7 @@ def add_profile(body: ProfileCreate):
     }
 
 
-@router.put("/profiles/{index}", dependencies=[_MANAGE_API_KEYS])
+@router.put("/profiles/{index}")
 def update_profile(index: int, body: ProfileCreate):
     """Update an API provider profile."""
     if _is_masked_echo(body.api_key):
@@ -839,10 +794,19 @@ def update_profile(index: int, body: ProfileCreate):
         raise HTTPException(status_code=404, detail="Profile index out of range")
     existing_key = profiles[index].get("api_key", "")
     validate_base_url(body.base_url)
+    key_cleared = False
+    if not body.api_key and existing_key:
+        if _key_survives(profiles[index].get("base_url", ""), body.base_url):
+            new_key = existing_key
+        else:
+            new_key = ""
+            key_cleared = True
+    else:
+        new_key = body.api_key
     profiles[index] = {
         "name": body.name,
         "base_url": body.base_url,
-        "api_key": body.api_key if body.api_key else existing_key,
+        "api_key": new_key,
         "model": body.model,
         "enabled": body.enabled,
     }
@@ -854,10 +818,12 @@ def update_profile(index: int, body: ProfileCreate):
     from services.llm_client import LLMClient
 
     LLMClient.reset()
+    if key_cleared:
+        return {"status": "ok", "key_cleared": True}
     return {"status": "ok"}
 
 
-@router.delete("/profiles/{index}", dependencies=[_MANAGE_API_KEYS])
+@router.delete("/profiles/{index}")
 def delete_profile(index: int):
     """Remove an API provider profile."""
     cfg = ConfigManager()
@@ -876,7 +842,7 @@ def delete_profile(index: int):
     return {"status": "ok", "remaining": len(profiles)}
 
 
-@router.patch("/profiles/{index}/toggle", dependencies=[_MANAGE_API_KEYS])
+@router.patch("/profiles/{index}/toggle")
 def toggle_profile(index: int):
     """Toggle enabled state of a profile."""
     cfg = ConfigManager()
@@ -892,7 +858,7 @@ def toggle_profile(index: int):
     return {"status": "ok", "enabled": profiles[index]["enabled"]}
 
 
-@router.get("/cache-stats", dependencies=[_CONFIGURE_PIPELINE])
+@router.get("/cache-stats")
 def cache_stats():
     """Return LLM cache statistics."""
     from services.llm_cache import LLMCache
@@ -900,7 +866,7 @@ def cache_stats():
     return LLMCache(ttl_days=ConfigManager().llm.cache_ttl_days).stats()
 
 
-@router.delete("/api-keys/{index}", dependencies=[_MANAGE_API_KEYS])
+@router.delete("/api-keys/{index}")
 def remove_api_key(index: int):
     """Remove an additional API key by index."""
     cfg = ConfigManager()
@@ -916,7 +882,7 @@ def remove_api_key(index: int):
     return {"status": "ok", "remaining": len(keys)}
 
 
-@router.delete("/cache", dependencies=[_CONFIGURE_PIPELINE])
+@router.delete("/cache")
 def clear_cache():
     """Clear LLM cache."""
     from services.llm_cache import LLMCache

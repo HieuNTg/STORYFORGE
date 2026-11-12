@@ -98,12 +98,7 @@ data/provider_status/
 playwright-report/
 test-results/
 
-# Browser Extension Runtime Artifacts
-flowkit_extension/_metadata/
 data/shares/
-
-# eng-loop gate artifact (owned by scripts/run_gate_chunks.ps1)
-gate_chunks_output.txt
 
 # Root-level junk log files (explicit names; most also matched by *.log)
 *.err.log
@@ -115,3 +110,6 @@ pytest-batch*.log
 
 # uv lockfile (not tracked by team decision)
 uv.lock
+
+# internal design notes (kept locally)
+docs/superpowers/

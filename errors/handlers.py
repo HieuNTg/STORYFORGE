@@ -12,6 +12,7 @@ async def storyforge_error_handler(request: Request, exc: StoryForgeError):
     logger.warning(f"{exc.code}: {exc.message}")
     status_map = {
         "CONFIG_ERROR": 400,
+        "api_key_missing": 400,
         "INPUT_BLOCKED": 422,
         "LLM_QUOTA_EXHAUSTED": 503,
         "LLM_MODEL_NOT_FOUND": 404,

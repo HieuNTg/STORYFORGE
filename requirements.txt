@@ -1,5 +1,6 @@
-﻿# ── Core framework ──
-fastapi>=0.109.0,<1.0
+# ── Core framework ──
+# 0.135.3 is the last version the suite passes on
+fastapi>=0.115,<0.136
 uvicorn[standard]>=0.27.0,<1.0
 
 # ── AI / LLM ──
@@ -7,9 +8,8 @@ uvicorn[standard]>=0.27.0,<1.0
 openai>=1.51.0,<2.0
 # chromadb <0.5: 1.x is a full rewrite with incompatible collection/query API
 chromadb>=0.4.24,<0.5
-# Force CPU-only PyTorch on Linux deploys; otherwise recent torch wheels pull huge CUDA deps.
---extra-index-url https://download.pytorch.org/whl/cpu
-torch==2.5.1+cpu; platform_system == "Linux"
+# chromadb 0.4 uses np.float_, removed in numpy 2
+numpy>=1.26,<2
 sentence-transformers>=2.7.0,<3.0
 # spaCy for NER-based structural detection (Sprint 2 P4).
 # After installing, download the multilingual model:
@@ -22,7 +22,8 @@ pydantic>=2.9.2,<3.0
 requests>=2.32.3,<3.0
 httpx>=0.27,<1.0
 sqlalchemy[asyncio]>=2.0.0,<3.0
-python-multipart>=0.0.9,<1.0
+python-multipart>=0.0.18,<1
+aiosqlite>=0.20,<1
 # Loaded by config/__init__.py — without it STORYFORGE_SECRET_KEY never reaches
 # the process and secrets are stored unencrypted.
 python-dotenv>=1.0,<2.0
@@ -33,16 +34,10 @@ ebooklib==0.18
 python-docx>=1.1.0,<2.0
 plotly==5.24.1
 
-# ── Auth & security ──
-bcrypt>=4.2.0,<5.0
+# ── Encryption at rest ──
 # cryptography <44.0: pin to current major to avoid unexpected cipher deprecations
-cryptography>=43.0.3,<44.0
+cryptography>=43.0.3,<46
 
-# ── Testing (dev only — also in requirements-test.txt) ──
-pytest-asyncio==0.24.0
-
-# ── Cache ──
-redis>=5.2.1,<6.0
 # ── Security ──
 nh3>=0.2.18,<1.0
 

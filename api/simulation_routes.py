@@ -23,6 +23,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Request
 
 from config import ConfigManager
+from middleware.access import require_access
 from models.schemas import (
     SimulationContinueRequest,
     SimulationTranscript,
@@ -33,7 +34,11 @@ from services.simulation_transcript_extractor import extract as extract_transcri
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/simulation", tags=["simulation"])
+router = APIRouter(
+    prefix="/simulation",
+    tags=["simulation"],
+    dependencies=[Depends(require_access)],
+)
 
 CONTINUE_LIMIT_PER_MIN = int(os.environ.get("STORYFORGE_SIMULATION_RATE_LIMIT", "10"))
 _CONTINUE_WINDOW = 60.0
@@ -52,23 +57,6 @@ def _client_ip(request: Request) -> str:
 
 
 def _check_continue_rate(ip: str) -> bool:
-    if os.environ.get("REDIS_URL"):
-        try:
-            from middleware.rate_limiter import _get_redis  # type: ignore
-
-            r = _get_redis()
-            if r is not None:
-                key = f"sf:ratelimit:simulation:{ip}"
-                # Atomic INCR + EXPIRE via pipeline so a partial failure cannot
-                # leave a counter with no TTL (would leak the bucket forever).
-                pipe = r.pipeline()
-                pipe.incr(key)
-                pipe.expire(key, int(_CONTINUE_WINDOW), nx=True)
-                count, _ = pipe.execute()
-                return int(count) <= CONTINUE_LIMIT_PER_MIN
-        except Exception as e:  # noqa: BLE001
-            logger.debug("simulation rate redis path failed: %s", e)
-
     now = time.monotonic()
     with _continue_lock:
         bucket = _continue_state.setdefault(ip, [])

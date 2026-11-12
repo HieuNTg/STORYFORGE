@@ -11,10 +11,10 @@ prompt and its parsed shape, so it belongs in its own measured change.
 """
 
 import threading
-import time
 from unittest.mock import MagicMock, patch
 
 from pipeline.layer2_enhance.character_state_registry import CharacterStateRegistry
+from tests.concurrency_probe import InFlightProbe
 
 
 CONTENT = "Lan và Minh và Hoa cùng bước vào khu rừng. " * 20
@@ -32,14 +32,15 @@ def _subject(kwargs) -> str:
     return first_line.split('"')[1] if '"' in first_line else ""
 
 
-def _registry(side_effect=None, delay=0.0):
+def _registry(side_effect=None, probe=None):
     with patch("pipeline.layer2_enhance.character_state_registry.LLMClient"):
         reg = CharacterStateRegistry()
     llm = MagicMock()
 
     def _call(*args, **kwargs):
-        if delay:
-            time.sleep(delay)
+        if probe:
+            with probe:
+                pass
         if side_effect:
             return side_effect(*args, **kwargs)
         return {"location": "khu rừng", "emotional_state": "căng thẳng"}
@@ -51,13 +52,12 @@ def _registry(side_effect=None, delay=0.0):
 
 class TestExtractionRunsConcurrently:
     def test_three_characters_are_not_extracted_one_after_another(self):
-        reg = _registry(delay=0.15)
+        probe = InFlightProbe(rendezvous=3)
+        reg = _registry(probe=probe)
 
-        started = time.monotonic()
         reg.extract_states_from_chapter(CONTENT, 1, ["Lan", "Minh", "Hoa"])
-        elapsed = time.monotonic() - started
 
-        assert elapsed < 0.35, f"serial would take ~0.45s, took {elapsed:.2f}s"
+        assert probe.peak == 3, f"only {probe.peak} extraction call(s) overlapped"
 
     def test_every_present_character_is_extracted(self):
         reg = _registry()
@@ -72,11 +72,16 @@ class TestExtractionRunsConcurrently:
     def test_order_is_deterministic_not_completion_order(self):
         """Results must not depend on which thread finished first."""
         order = ["Lan", "Minh", "Hoa"]
+        others_done = threading.Semaphore(0)
 
         def staggered(*args, **kwargs):
             # The subject appears in the quoted slot on line 1: nhân vật "Lan".
             if _subject(kwargs) == "Lan":
-                time.sleep(0.12)  # slowest, yet must still come back first
+                # Finish last, yet must still come back first.
+                for _ in order[1:]:
+                    others_done.acquire(timeout=10)
+            else:
+                others_done.release()
             return {"location": "x"}
 
         reg = _registry(side_effect=staggered)

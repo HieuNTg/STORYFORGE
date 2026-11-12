@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 from models.schemas import Chapter, SimulationResult, count_words
 from services.llm_client import LLMClient
 from services.text_utils import strip_llm_scaffolding, build_idea_header
+from services.llm.run_context import run_in_thread, submit_with_context
 
 try:
     from pipeline.layer2_enhance.voice_fingerprint import build_voice_enforcement_prompt
@@ -435,7 +436,8 @@ class SceneEnhancer:
         from concurrent.futures import ThreadPoolExecutor
 
         with ThreadPoolExecutor(max_workers=workers) as executor:
-            return list(executor.map(_score_one, scenes))
+            futures = [submit_with_context(executor, _score_one, s) for s in scenes]
+            return [f.result() for f in futures]
 
     @staticmethod
     def _scene_score_workers() -> int:
@@ -558,14 +560,11 @@ class SceneEnhancer:
         """Parallel scene enhancement using asyncio (#1 improvement)."""
 
         async def _enhance_all():
-            loop = asyncio.get_running_loop()
-
             async def _enhance_one(scene: dict, score: SceneScore) -> tuple[int, str]:
                 snum = scene.get("scene_number", 1)
                 content = scene.get("content", "")
                 try:
-                    result = await loop.run_in_executor(
-                        None,
+                    result = await run_in_thread(
                         self._enhance_single_scene_with_retry,
                         scene,
                         score,
@@ -591,7 +590,8 @@ class SceneEnhancer:
             import concurrent.futures
 
             with concurrent.futures.ThreadPoolExecutor() as pool:
-                future = pool.submit(asyncio.run, _enhance_all())
+                # Fresh thread: carry the run context (cost wallet) across.
+                future = submit_with_context(pool, asyncio.run, _enhance_all())
                 return future.result()
         else:
             return asyncio.run(_enhance_all())

@@ -1,7 +1,7 @@
 """Route tests for api/ab_routes.py (previously untested).
 
 The module-level ab_testing manager singleton is patched so tests stay
-hermetic; the auth dependency is overridden per-app.
+hermetic. No access token is configured, so the routes are open.
 """
 
 from __future__ import annotations
@@ -11,19 +11,12 @@ from unittest.mock import MagicMock, patch
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
-from middleware.auth_middleware import get_current_user
-
 
 def _client() -> TestClient:
     app = FastAPI()
     from api.ab_routes import router
 
     app.include_router(router, prefix="/api")
-    app.dependency_overrides[get_current_user] = lambda: {
-        "user_id": "u1",
-        "username": "tester",
-        "role": "creator",
-    }
     return TestClient(app)
 
 
@@ -51,12 +44,9 @@ class TestCreateExperiment:
         assert resp.status_code == 400
         assert resp.json()["detail"] == "trùng tên"
 
-    def test_requires_auth(self):
-        app = FastAPI()
-        from api.ab_routes import router
-
-        app.include_router(router, prefix="/api")
-        resp = TestClient(app).post(
+    def test_requires_token_when_configured(self, monkeypatch):
+        monkeypatch.setenv("STORYFORGE_ACCESS_TOKEN", "s3cret")
+        resp = _client().post(
             "/api/ab/experiments", json={"name": "x", "variants": ["a", "b"]}
         )
         assert resp.status_code == 401

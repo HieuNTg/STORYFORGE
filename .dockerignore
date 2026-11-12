@@ -6,10 +6,16 @@
 .venv
 venv
 node_modules
+**/__pycache__
+**/*.py[co]
 htmlcov
 coverage
+coverage.xml
 frontend
+frontend/node_modules
+frontend/.next
 output
+out
 data/*
 !data/templates
 !data/templates/**
@@ -17,6 +23,12 @@ data/*
 !data/prompts/**
 !data/evals
 !data/evals/**
+.env*
+!.env.example
+tests/
+docs/
+*.md
+!README.md
 *.log
 *.log.*
 .coverage*
@@ -26,3 +38,5 @@ repomix-output.xml
 plans
 .claude
 .gemini
+.superpowers
+.benchmarks

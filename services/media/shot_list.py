@@ -936,8 +936,7 @@ def apply_shot_list_to_prompts(
     ``shot_type``, ``dialogue``, ``captions`` and ``screen_side`` onto each
     ImagePrompt so the metadata travels with the prompt into image generation.
     The image *prompt text* is left untouched — it still carries NO dialogue;
-    only the Phase 3 compositor (FlowKit path) or bake_dialogue_into_prompts
-    (Codex path) consumes ``dialogue``/``captions``.
+    only the Phase 3 page compositor consumes ``dialogue``/``captions``.
 
     Mutates and returns ``prompts`` (in place) for caller convenience.
     """

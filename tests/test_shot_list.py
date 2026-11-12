@@ -596,9 +596,9 @@ def test_coverage_check_clamps_out_of_range_anchor(monkeypatch):
 
 
 def test_apply_shot_list_to_prompts_threads_captions():
-    """Narration captions must travel onto the ImagePrompt too — the Codex bake
-    step letters them as caption boxes; dropping them here was why comics came
-    out with zero 'thoại dẫn' (reader couldn't follow the story)."""
+    """Narration captions must travel onto the ImagePrompt too — the page
+    compositor letters them as caption boxes; dropping them here was why comics
+    came out with zero 'thoại dẫn' (reader couldn't follow the story)."""
     prompts = [ImagePrompt(panel_number=1, dalle_prompt="P1", sd_prompt="S1")]
     sl = ShotList(
         chapter_number=1,

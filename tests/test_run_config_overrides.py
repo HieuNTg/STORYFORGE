@@ -1,63 +1,46 @@
 """Regression tests: a run's flags must not outlive the run.
 
-`/api/pipeline/run` writes ~18 fields onto the process-wide ConfigManager
-singleton. Nothing put them back, so the flags leaked into every later run in
-the process and the next Settings save persisted one run's ad-hoc choices to
-data/config.json.
+`/api/pipeline/run` used to write ~18 fields onto the process-wide
+ConfigManager singleton. Nothing put them back, so the flags leaked into every
+later run in the process and the next Settings save persisted one run's ad-hoc
+choices to data/config.json. Task 13: they now land on the orchestrator's own
+config snapshot, so there is nothing to restore.
 
 Separately, the L1 consistency block was a chain of `if body.x: cfg.x = True`
 with no else, so clearing a checkbox in the UI did nothing.
 """
 
+from config import ConfigManager
 from config.defaults import PipelineConfig
-from api.pipeline_routes import _apply_run_overrides, _restore_run_overrides
+from api.pipeline_routes import _apply_run_overrides
 
 
-class TestOverridesAreReversible:
-    def test_apply_returns_the_previous_values(self):
+class TestOverridesStayOnTheRun:
+    def test_apply_sets_the_fields(self):
         cfg = PipelineConfig()
         cfg.enable_quality_gate = True
 
-        previous = _apply_run_overrides(cfg, {"enable_quality_gate": False})
+        _apply_run_overrides(cfg, {"enable_quality_gate": False, "language": "en"})
 
-        assert previous == {"enable_quality_gate": True}
         assert cfg.enable_quality_gate is False
+        assert cfg.language == "en"
 
-    def test_restore_puts_every_field_back(self):
-        cfg = PipelineConfig()
-        original = {
-            "enable_quality_gate": cfg.enable_quality_gate,
-            "language": cfg.language,
-            "smart_revision_threshold": cfg.smart_revision_threshold,
-        }
-
-        previous = _apply_run_overrides(
-            cfg,
-            {
-                "enable_quality_gate": not original["enable_quality_gate"],
-                "language": "en",
-                "smart_revision_threshold": 1.0,
-            },
-        )
-        _restore_run_overrides(cfg, previous)
-
-        for field, value in original.items():
-            assert getattr(cfg, field) == value, f"{field} leaked past the run"
-
-    def test_a_second_run_starts_from_the_saved_settings(self):
+    def test_a_second_run_starts_from_the_saved_settings(self, monkeypatch):
         """The leak: run 1's flags used to become run 2's starting point."""
-        cfg = PipelineConfig()
-        cfg.enable_agent_debate = True  # the user's saved setting
+        from pipeline.orchestrator import PipelineOrchestrator
 
-        snapshot = _apply_run_overrides(cfg, {"enable_agent_debate": False})
-        _restore_run_overrides(cfg, snapshot)
+        live = ConfigManager()
+        monkeypatch.setattr(live.pipeline, "enable_agent_debate", True)  # saved
 
-        assert cfg.enable_agent_debate is True
+        run1 = PipelineOrchestrator()
+        _apply_run_overrides(run1.config.pipeline, {"enable_agent_debate": False})
+        run2 = PipelineOrchestrator()
 
-    def test_restore_tolerates_an_empty_snapshot(self):
-        cfg = PipelineConfig()
-        _restore_run_overrides(cfg, {})
-        _restore_run_overrides(cfg, None)
+        assert run1.config.pipeline.enable_agent_debate is False
+        assert run2.config.pipeline.enable_agent_debate is True
+        assert live.pipeline.enable_agent_debate is True, (
+            "a run's flags leaked into the live settings (next Settings save)"
+        )
 
 
 class TestTogglesCanBeTurnedOff:
@@ -96,4 +79,5 @@ def test_run_handler_no_longer_uses_write_only_toggles():
 
     source = open(routes.__file__, encoding="utf-8").read()
     assert "orch.config.pipeline.enable_emotional_memory = True" not in source
-    assert "_restore_run_overrides(orch.config.pipeline" in source
+    assert "_apply_run_overrides(orch.config.pipeline" in source
+    assert "_restore_run_overrides" not in source

@@ -119,15 +119,15 @@ def enhanced_story(viet_chapters):
 
 
 class TestPDFExporter:
-    def test_pdf_export_returns_path_or_empty(self, story_draft):
-        """PDF export returns output path on success or '' if fpdf2 missing."""
+    def test_pdf_export_writes_the_file(self, story_draft):
+        """PDF export writes the file and returns its path."""
         from services.pdf_exporter import PDFExporter  # noqa: PLC0415
 
         with tempfile.TemporaryDirectory() as tmpdir:
             out = os.path.join(tmpdir, "story.pdf")
             result = PDFExporter.export(story_draft, out)
-            # Either successful export or graceful empty string (no fpdf2)
-            assert result == out or result == ""
+            assert result == out
+            assert os.path.getsize(out) > 0
 
     def test_pdf_export_with_characters(self, story_draft, viet_characters):
         """PDF export with character list runs without raising."""
@@ -136,7 +136,8 @@ class TestPDFExporter:
         with tempfile.TemporaryDirectory() as tmpdir:
             out = os.path.join(tmpdir, "story_chars.pdf")
             result = PDFExporter.export(story_draft, out, characters=viet_characters)
-            assert result == out or result == ""
+            assert result == out
+            assert os.path.getsize(out) > 0
 
     def test_compute_reading_stats(self, story_draft):
         """Reading stats are computed correctly from chapter word counts."""
@@ -162,10 +163,8 @@ class TestPDFExporter:
         with tempfile.TemporaryDirectory() as tmpdir:
             nested = os.path.join(tmpdir, "subdir", "nested", "story.pdf")
             result = PDFExporter.export(story_draft, nested)
-            assert result == nested or result == ""
-            # If fpdf2 available, parent dirs must exist
-            if result == nested:
-                assert os.path.exists(os.path.dirname(nested))
+            assert result == nested
+            assert os.path.getsize(nested) > 0
 
 
 # ---------------------------------------------------------------------------
@@ -174,14 +173,15 @@ class TestPDFExporter:
 
 
 class TestEPUBExporter:
-    def test_epub_export_returns_path_or_empty(self, story_draft):
-        """EPUB export returns output path or '' if ebooklib missing."""
+    def test_epub_export_writes_the_file(self, story_draft):
+        """EPUB export writes the file and returns its path."""
         from services.epub_exporter import EPUBExporter  # noqa: PLC0415
 
         with tempfile.TemporaryDirectory() as tmpdir:
             out = os.path.join(tmpdir, "story.epub")
             result = EPUBExporter.export(story_draft, out)
-            assert result == out or result == ""
+            assert result == out
+            assert os.path.getsize(out) > 0
 
     def test_epub_export_with_characters_and_language(
         self, story_draft, viet_characters
@@ -198,7 +198,8 @@ class TestEPUBExporter:
                 language="vi",
                 author="StoryForge AI",
             )
-            assert result == out or result == ""
+            assert result == out
+            assert os.path.getsize(out) > 0
 
     def test_epub_html_escape_helper(self):
         """_html_escape handles special characters safely."""
@@ -216,9 +217,8 @@ class TestEPUBExporter:
         with tempfile.TemporaryDirectory() as tmpdir:
             nested = os.path.join(tmpdir, "exports", "epub", "story.epub")
             result = EPUBExporter.export(story_draft, nested)
-            assert result == nested or result == ""
-            if result == nested:
-                assert os.path.exists(nested)
+            assert result == nested
+            assert os.path.getsize(nested) > 0
 
 
 # ---------------------------------------------------------------------------

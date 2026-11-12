@@ -4,14 +4,10 @@
 - services/handlers.py
 - services/llm/client.py
 - services/llm_cache.py
-- services/auth/auth.py
-- services/auth/jwt_manager.py
 """
 
 from __future__ import annotations
 
-import base64
-import json
 import os
 import sys
 import time
@@ -20,10 +16,6 @@ from unittest.mock import patch, MagicMock
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
-# Ensure secret key is set before any auth imports
-os.environ.setdefault(
-    "STORYFORGE_SECRET_KEY", "test-secret-key-for-unit-tests-coverage"
-)
 
 try:
     from fastapi.testclient import TestClient
@@ -144,6 +136,7 @@ class TestConfigRoutesHelpers:
         from api.config_routes import _detect_provider_name
 
         assert _detect_provider_name("https://myserver.example.com/v1") == "custom"
+        assert _detect_provider_name("") == "custom"
 
     def test_detect_from_key_anthropic(self):
         from api.config_routes import _detect_provider_from_key
@@ -165,12 +158,6 @@ class TestConfigRoutesHelpers:
         result = _detect_provider_from_key("sk-proj-abcdefg")
         assert result is not None
         assert "OpenAI" in result["name"]
-
-    def test_detect_from_key_openai_sk(self):
-        from api.config_routes import _detect_provider_from_key
-
-        result = _detect_provider_from_key("sk-abcdefg")
-        assert result is not None
 
     def test_detect_from_key_gemini(self):
         from api.config_routes import _detect_provider_from_key
@@ -326,7 +313,7 @@ class TestConfigRoutesEndpoints:
             mock_cm = _mock_config_manager()
             MockCM.return_value = mock_cm
             resp = self._client.post("/config/presets/beginner")
-        assert resp.status_code in (200, 422, 500)
+        assert resp.status_code == 200, resp.text
 
     def test_apply_preset_invalid_key(self):
         resp = self._client.post("/config/presets/nonexistent-preset")
@@ -816,139 +803,30 @@ class TestHandlersModule:
             mock_orch.output = None
         return mock_orch
 
-    # _friendly_error
+    # _friendly_error (self._make_t returns the i18n key it is given)
     def test_friendly_error_connection(self):
         from services.handlers import _friendly_error
 
         exc = ConnectionError("Connection refused")
-        result = _friendly_error(exc, self._make_t)
-        assert isinstance(result, str)
-        assert len(result) > 0
+        assert _friendly_error(exc, self._make_t) == "error.api_connection"
 
     def test_friendly_error_timeout(self):
         from services.handlers import _friendly_error
 
         exc = TimeoutError("timeout")
-        result = _friendly_error(exc, self._make_t)
-        assert "timeout" in result.lower() or "error" in result.lower() or result
+        assert _friendly_error(exc, self._make_t) == "error.timeout"
 
     def test_friendly_error_json_validation(self):
         from services.handlers import _friendly_error
 
         exc = ValueError("JSON validation failed")
-        result = _friendly_error(exc, self._make_t)
-        assert isinstance(result, str)
+        assert _friendly_error(exc, self._make_t) == "error.json_validation"
 
-    def test_friendly_error_fallback(self):
+    def test_friendly_error_unknown_uses_the_fallback_key(self):
         from services.handlers import _friendly_error
 
-        exc = RuntimeError("something random")
-        result = _friendly_error(exc, self._make_t)
-        assert isinstance(result, str)
-
-    # handle_login
-    def test_handle_login_empty_username(self):
-        from services.handlers import handle_login
-
-        profile, msg, table = handle_login("", "password", self._make_t)
-        assert profile is None
-        assert table == []
-
-    def test_handle_login_empty_password(self):
-        from services.handlers import handle_login
-
-        profile, msg, table = handle_login("user", "", self._make_t)
-        assert profile is None
-
-    def test_handle_login_success(self):
-        from services.handlers import handle_login
-
-        mock_profile = MagicMock()
-        mock_profile.user_id = "u1"
-        mock_profile.username = "testuser"
-        mock_profile.model_dump.return_value = {"user_id": "u1", "username": "testuser"}
-        with patch("services.handlers.UserManager") as MockUM:
-            mock_um = MagicMock()
-            mock_um.login.return_value = mock_profile
-            mock_um.list_stories.return_value = [
-                {"story_id": "s1", "title": "Story 1", "saved_at": "2026-01-01"}
-            ]
-            MockUM.return_value = mock_um
-            profile, msg, table = handle_login("testuser", "password", self._make_t)
-        assert profile is not None
-        assert len(table) == 1
-
-    def test_handle_login_failure(self):
-        from services.handlers import handle_login
-
-        with patch("services.handlers.UserManager") as MockUM:
-            mock_um = MagicMock()
-            mock_um.login.return_value = None
-            MockUM.return_value = mock_um
-            profile, msg, table = handle_login("baduser", "badpass", self._make_t)
-        assert profile is None
-
-    # handle_register
-    def test_handle_register_empty_fields(self):
-        from services.handlers import handle_register
-
-        profile, msg, table = handle_register("", "", self._make_t)
-        assert profile is None
-
-    def test_handle_register_success(self):
-        from services.handlers import handle_register
-
-        mock_profile = MagicMock()
-        mock_profile.model_dump.return_value = {"user_id": "u1", "username": "newuser"}
-        with patch("services.handlers.UserManager") as MockUM:
-            mock_um = MagicMock()
-            mock_um.register.return_value = mock_profile
-            MockUM.return_value = mock_um
-            profile, msg, table = handle_register("newuser", "password", self._make_t)
-        assert profile is not None
-
-    def test_handle_register_duplicate(self):
-        from services.handlers import handle_register
-
-        with patch("services.handlers.UserManager") as MockUM:
-            mock_um = MagicMock()
-            mock_um.register.side_effect = ValueError("Username taken")
-            MockUM.return_value = mock_um
-            profile, msg, table = handle_register("existing", "password", self._make_t)
-        assert profile is None
-
-    # handle_save_story
-    def test_handle_save_story_no_user(self):
-        from services.handlers import handle_save_story
-
-        msg, table = handle_save_story(None, MagicMock(), "title", self._make_t)
-        assert isinstance(msg, str)
-        assert table == []
-
-    def test_handle_save_story_no_orch(self):
-        from services.handlers import handle_save_story
-
-        msg, table = handle_save_story({"user_id": "u1"}, None, "title", self._make_t)
-        assert isinstance(msg, str)
-        assert table == []
-
-    def test_handle_save_story_success(self):
-        from services.handlers import handle_save_story
-
-        orch_state = self._make_orch_state()
-        orch_state.output.model_dump.return_value = {}
-        with patch("services.handlers.UserManager") as MockUM:
-            mock_um = MagicMock()
-            mock_um.save_story.return_value = "story-123"
-            mock_um.list_stories.return_value = [
-                {"story_id": "story-123", "title": "Test", "saved_at": "2026"}
-            ]
-            MockUM.return_value = mock_um
-            msg, table = handle_save_story(
-                {"user_id": "u1"}, orch_state, "My Story", self._make_t
-            )
-        assert "story-123" in msg
-        assert len(table) == 1
+        exc = RuntimeError("disk quota exceeded")
+        assert _friendly_error(exc, self._make_t, "error.export_fail") == "error.export_fail"
 
     # handle_export_pdf
     def test_handle_export_pdf_no_orch(self):
@@ -1012,8 +890,9 @@ class TestHandlersModule:
             stats_mock.model_dump.return_value = {"word_count": 500}
             MockPDF.compute_reading_stats.return_value = stats_mock
             files, stats = handle_export_epub(orch_state, self._make_t)
-        # epub may succeed or fail depending on mock setup
-        assert files is not None or stats is not None
+
+        assert files == ["output/story.epub"]
+        assert stats == {"word_count": 500}
 
     # handle_share_story
     def test_handle_share_story_no_orch(self):
@@ -1159,22 +1038,6 @@ class TestHandlersModule:
         msg, orch = handle_load_checkpoint("", None, self._make_t)
         assert "continue.no_checkpoint" in msg
 
-    def test_handle_load_checkpoint_with_story(self):
-        from services.handlers import handle_load_checkpoint
-
-        mock_orch = MagicMock()
-        mock_orch.output.story_draft.title = "Test Story"
-        mock_orch.output.story_draft.chapters = [MagicMock()]
-        mock_orch.output.story_draft.synopsis = "A synopsis"
-        mock_orch.output.story_draft.characters = []
-        with patch("services.handlers.PipelineOrchestrator") as MockOrch:
-            MockOrch.CHECKPOINT_DIR = "/tmp/checkpoints"
-            MockOrch.return_value = mock_orch
-            msg, returned_orch = handle_load_checkpoint(
-                "story_1.json (2026, 5KB)", None, self._make_t
-            )
-        assert returned_orch is not None
-
     # handle_genre_autofill
     def test_handle_genre_autofill_known_genre(self):
         from services.handlers import handle_genre_autofill
@@ -1242,14 +1105,6 @@ class TestHandlersModule:
             mock_orch, "", "brave", "revenge", self._make_t
         )
         assert "continue.char_name" in msg
-
-    def test_handle_update_character_no_updates(self):
-        from services.handlers import handle_update_character
-
-        mock_orch = MagicMock()
-        mock_orch.output.story_draft = MagicMock()
-        msg, orch = handle_update_character(mock_orch, "Hero", "", "", self._make_t)
-        assert isinstance(msg, str)
 
     def test_handle_generate_images_no_orch(self):
         from services.handlers import handle_generate_images
@@ -1416,34 +1271,6 @@ class TestLLMCache:
         key2 = cache._make_key(**params)
         assert key1 == key2
 
-    def test_create_cache_returns_sqlite_by_default(self, tmp_path):
-        from services.llm_cache import create_cache, LLMCache
-
-        db_path = str(tmp_path / "factory_cache.db")
-        with patch.dict(os.environ, {}, clear=False):
-            # Remove REDIS_URL if set
-            env = dict(os.environ)
-            env.pop("REDIS_URL", None)
-            with patch.dict(os.environ, env, clear=True):
-                cache = create_cache(redis_url="", db_path=db_path, ttl_days=1)
-        assert isinstance(cache, LLMCache)
-
-    def test_get_cache_singleton(self, tmp_path):
-        from services import llm_cache as lc
-
-        # Reset singleton
-        orig = lc._cache_instance
-        lc._cache_instance = None
-        try:
-            with patch("services.llm_cache.create_cache") as mock_create:
-                mock_cache = MagicMock()
-                mock_create.return_value = mock_cache
-                c1 = lc.get_cache()
-                c2 = lc.get_cache()
-            assert c1 is c2
-        finally:
-            lc._cache_instance = orig
-
     def test_hit_rate_calculation(self, cache):
         params = dict(
             system_prompt="hit_rate",
@@ -1528,7 +1355,6 @@ class TestLLMClient:
             MockCM.return_value = mock_cm
             MockCache.return_value = MagicMock()
             client = LLMClient()
-            client._current_model = "gpt-4o-mini"
             result = client.model_for_layer(1)
         assert result == "gpt-4o-layer1"
 
@@ -1545,7 +1371,6 @@ class TestLLMClient:
             MockCM.return_value = mock_cm
             MockCache.return_value = MagicMock()
             client = LLMClient()
-            client._current_model = ""
             result = client.model_for_layer(1)
         assert result == "gpt-4o-mini"
 
@@ -1561,7 +1386,6 @@ class TestLLMClient:
             MockCM.return_value = mock_cm
             MockCache.return_value = MagicMock()
             client = LLMClient()
-            client._current_model = "fallback-model"
             result = client.model_for_layer(99)
         assert result == "fallback-model"
 
@@ -1600,7 +1424,6 @@ class TestLLMClient:
             MockCM.return_value = mock_cm
             MockCache.return_value = MagicMock()
             client = LLMClient()
-            client._current_model = "gpt-4o-mini"
             cfg = client.get_layer_config(1)
         assert isinstance(cfg, LayerConfig)
         assert cfg.model == "gpt-4o-mini"
@@ -1890,291 +1713,3 @@ class TestLLMClient:
             chain = client._build_fallback_chain(mock_cm, "default")
         assert not any("disabled-model" in entry["label"] for entry in chain)
 
-    def test_repair_json_static_method(self):
-        from services.llm.client import LLMClient
-
-        result = LLMClient._repair_json('{"key": "value"}')
-        assert isinstance(result, str)
-
-
-# ===========================================================================
-# services/auth/auth.py — additional coverage
-# ===========================================================================
-
-
-class TestAuthModule:
-    """Additional tests for services/auth/auth.py (RS256 JWT)."""
-
-    def test_create_and_verify_roundtrip(self):
-        import services.auth.auth as auth
-
-        token = auth.create_token("u1", "alice")
-        payload = auth.verify_token(token)
-        assert payload["sub"] == "u1"
-        assert payload["username"] == "alice"
-        assert "jti" in payload
-        assert "exp" in payload
-        assert "iat" in payload
-
-    def test_verify_malformed_missing_parts(self):
-        import services.auth.auth as auth
-
-        with pytest.raises(ValueError, match="[Mm]alformed"):
-            auth.verify_token("only.two")
-
-    def test_verify_malformed_empty(self):
-        import services.auth.auth as auth
-
-        with pytest.raises(ValueError):
-            auth.verify_token("")
-
-    def test_verify_wrong_algorithm(self):
-        import services.auth.auth as auth
-
-        header = (
-            base64.urlsafe_b64encode(
-                json.dumps({"alg": "HS256", "typ": "JWT"}).encode()
-            )
-            .rstrip(b"=")
-            .decode()
-        )
-        payload = (
-            base64.urlsafe_b64encode(json.dumps({"sub": "x"}).encode())
-            .rstrip(b"=")
-            .decode()
-        )
-        sig = base64.urlsafe_b64encode(b"fake").rstrip(b"=").decode()
-        with pytest.raises(ValueError, match="Unsupported"):
-            auth.verify_token(f"{header}.{payload}.{sig}")
-
-    def test_verify_tampered_payload(self):
-        import services.auth.auth as auth
-
-        token = auth.create_token("u1", "original")
-        parts = token.split(".")
-        fake_payload = (
-            base64.urlsafe_b64encode(
-                json.dumps(
-                    {
-                        "sub": "attacker",
-                        "username": "hacked",
-                        "iat": 0,
-                        "exp": 9999999999,
-                    }
-                ).encode()
-            )
-            .rstrip(b"=")
-            .decode()
-        )
-        bad_token = f"{parts[0]}.{fake_payload}.{parts[2]}"
-        with pytest.raises(ValueError):
-            auth.verify_token(bad_token)
-
-    def test_verify_invalid_sig_encoding(self):
-        import services.auth.auth as auth
-
-        token = auth.create_token("u2", "bob")
-        parts = token.split(".")
-        bad_token = f"{parts[0]}.{parts[1]}.!!!invalid!!!"
-        with pytest.raises(ValueError):
-            auth.verify_token(bad_token)
-
-    def test_b64url_encode_decode(self):
-        import services.auth.auth as auth
-
-        data = b"test binary data \x00\xff"
-        encoded = auth._b64url_encode(data)
-        assert "=" not in encoded
-        decoded = auth._b64url_decode(encoded)
-        assert decoded == data
-
-    def test_detect_provider_name_in_auth_routes(self):
-        from api.config_routes import _detect_provider_name
-
-        assert _detect_provider_name("") == "custom"
-
-    def test_key_dir_uses_env(self, tmp_path):
-        import services.auth.auth as auth
-
-        with patch.dict(
-            os.environ,
-            {
-                "STORYFORGE_JWT_KEY_DIR": str(tmp_path),
-                "STORYFORGE_JWT_KEY_ID": "testkey",
-            },
-        ):
-            key_dir = auth._key_dir()
-        assert "testkey" in str(key_dir)
-
-    def test_load_or_generate_rsa_keys(self, tmp_path):
-        import services.auth.auth as auth
-
-        # Reset cached keys so they regenerate
-        auth._cached_priv = None
-        auth._cached_pubs = None
-        auth._cached_kid = None
-        with patch.dict(
-            os.environ,
-            {
-                "STORYFORGE_JWT_KEY_DIR": str(tmp_path),
-                "STORYFORGE_JWT_KEY_ID": "fresh",
-            },
-        ):
-            priv, pubs = auth._load_or_generate_rsa_keys()
-        assert priv is not None
-        assert len(pubs) >= 1
-
-    def test_token_with_revoked_jti(self):
-        """Token with revoked jti should raise ValueError."""
-        import services.auth.auth as auth
-
-        token = auth.create_token("u3", "eve")
-        # Get the jti from the token
-        parts = token.split(".")
-        payload = json.loads(auth._b64url_decode(parts[1]))
-        payload["jti"]
-        with patch("services.auth.auth.is_revoked", return_value=True):
-            with pytest.raises(ValueError, match="revoked"):
-                auth.verify_token(token)
-
-
-# ===========================================================================
-# services/auth/jwt_manager.py — additional coverage
-# ===========================================================================
-
-
-class TestJWTManager:
-    """Tests for services/auth/jwt_manager.py HS256-based JWT manager."""
-
-    @pytest.fixture(autouse=True)
-    def set_secret(self):
-        with patch.dict(
-            os.environ, {"STORYFORGE_SECRET_KEY": "test-jwt-manager-secret-12345"}
-        ):
-            # Reset singleton so it picks up env key
-            from services.auth import jwt_manager as jm
-
-            orig = jm._JWTKeyStore._instance
-            jm._JWTKeyStore._instance = None
-            # Also reset module-level _store
-            jm._store = jm._JWTKeyStore()
-            yield
-            jm._JWTKeyStore._instance = orig
-
-    def test_sign_token_returns_jwt_string(self):
-        from services.auth.jwt_manager import sign_token
-
-        token = sign_token({"sub": "u1", "username": "alice"})
-        assert isinstance(token, str)
-        assert token.count(".") == 2
-
-    def test_verify_token_success(self):
-        from services.auth.jwt_manager import sign_token, verify_token
-
-        token = sign_token({"sub": "u1", "username": "alice"}, expiry=3600)
-        payload = verify_token(token)
-        assert payload["sub"] == "u1"
-        assert payload["username"] == "alice"
-
-    def test_verify_expired_token(self):
-        from services.auth.jwt_manager import sign_token, verify_token
-
-        token = sign_token({"sub": "u1"}, expiry=-1)  # Already expired
-        with pytest.raises(ValueError, match="expired"):
-            verify_token(token)
-
-    def test_verify_malformed_token(self):
-        from services.auth.jwt_manager import verify_token
-
-        with pytest.raises(ValueError, match="Malformed"):
-            verify_token("only.two")
-
-    def test_verify_invalid_signature(self):
-        from services.auth.jwt_manager import sign_token, verify_token
-
-        token = sign_token({"sub": "u1"}, expiry=3600)
-        parts = token.split(".")
-        bad_sig = base64.urlsafe_b64encode(b"bad_signature").rstrip(b"=").decode()
-        bad_token = f"{parts[0]}.{parts[1]}.{bad_sig}"
-        with pytest.raises(ValueError, match="[Ii]nvalid"):
-            verify_token(bad_token)
-
-    def test_generate_key_returns_hex(self):
-        from services.auth.jwt_manager import generate_key
-
-        key = generate_key()
-        assert isinstance(key, str)
-        assert len(key) == 64  # 32 bytes = 64 hex chars
-
-    def test_get_current_key_returns_bytes(self):
-        from services.auth.jwt_manager import get_current_key
-
-        key = get_current_key()
-        assert isinstance(key, bytes)
-        assert len(key) == 32  # SHA256 produces 32 bytes
-
-    def test_get_valid_keys_list(self):
-        from services.auth.jwt_manager import get_valid_keys
-
-        keys = get_valid_keys()
-        assert isinstance(keys, list)
-        assert len(keys) >= 1
-
-    def test_rotate_key_env_key_skipped(self):
-        """With STORYFORGE_SECRET_KEY set, rotation is skipped."""
-        from services.auth import jwt_manager as jm
-
-        key_before = jm.get_current_key()
-        jm.rotate_key()  # Should be a no-op since env key is set
-        key_after = jm.get_current_key()
-        assert key_before == key_after  # env key doesn't change
-
-    def test_maybe_rotate_returns_false_with_env_key(self):
-        from services.auth import jwt_manager as jm
-
-        result = jm._store.maybe_rotate()
-        assert result is False  # env key → no rotation
-
-    def test_token_contains_exp_and_iat(self):
-        from services.auth.jwt_manager import sign_token, verify_token
-
-        token = sign_token({"sub": "u1"}, expiry=3600)
-        payload = verify_token(token)
-        assert "exp" in payload
-        assert "iat" in payload
-        assert payload["exp"] > int(time.time())
-
-    def test_token_max_age_rejected(self):
-        """Token with very old iat should be rejected if MAX_TOKEN_AGE exceeded."""
-        from services.auth import jwt_manager as jm
-        from services._jwt_helpers import b64url_encode, sign_input
-
-        key_bytes = jm.get_current_key()
-        old_iat = int(time.time()) - (jm.MAX_TOKEN_AGE + 100)
-        payload = {
-            "sub": "u1",
-            "username": "old_user",
-            "iat": old_iat,
-            "exp": int(time.time()) + 3600,  # still valid exp
-        }
-        header = b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
-        body = b64url_encode(json.dumps(payload).encode())
-        signing_input = f"{header}.{body}"
-        sig = sign_input(signing_input, key_bytes)
-        token = f"{signing_input}.{sig}"
-        with pytest.raises(ValueError, match="age|expired|Invalid"):
-            jm.verify_token(token)
-
-    def test_verify_malformed_payload(self):
-        from services.auth import jwt_manager as jm
-        from services._jwt_helpers import b64url_encode, sign_input
-
-        key_bytes = jm.get_current_key()
-        header = b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}).encode())
-        # Invalid JSON in payload
-        bad_body = base64.urlsafe_b64encode(b"not_json").rstrip(b"=").decode()
-        signing_input = f"{header}.{bad_body}"
-        sig = sign_input(signing_input, key_bytes)
-        token = f"{signing_input}.{sig}"
-        with pytest.raises(ValueError):
-            jm.verify_token(token)

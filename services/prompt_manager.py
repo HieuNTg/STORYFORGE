@@ -9,6 +9,8 @@ from typing import Optional
 
 import yaml
 
+from services.infra.bundled_data import bundled_data_dir
+
 logger = logging.getLogger(__name__)
 
 # Maps prompt name -> constant name in services.prompts
@@ -49,7 +51,9 @@ class PromptManager:
     is used. This guarantees 100% backward compatibility.
     """
 
-    def __init__(self, prompts_dir: str = "data/prompts") -> None:
+    def __init__(self, prompts_dir: str | None = None) -> None:
+        if prompts_dir is None:
+            prompts_dir = str(bundled_data_dir() / "prompts")
         self._prompts_dir = prompts_dir
         # Cache: (prompt_name, version) -> dict payload
         self._cache: dict[tuple[str, str], dict] = {}
@@ -138,7 +142,7 @@ class PromptManager:
         return dirs[0]
 
     def _load_yaml(self, prompt_name: str, version: str) -> Optional[dict]:
-        """Load prompt from ``data/prompts/{version}/{prompt_name}.yaml``.
+        """Load prompt from ``<prompts_dir>/{version}/{prompt_name}.yaml``.
 
         Returns None if the file doesn't exist or can't be parsed.
         """

@@ -1,8 +1,8 @@
 # Frontend Security — API Key Handling (Phase 3)
 
 Scope: audits the planned Settings/Providers/Export pages in `frontend/` (Next.js App
-Router) against the StoryForge open-source, self-hosted deployment model. Targets the
-spec at `plans/260519-1908-ui-rebuild-react-shadcn/phase-03-settings-providers-export.md`.
+Router) against the StoryForge open-source, self-hosted deployment model. (The phase-3 UI
+spec it was written against was an internal plan and is not part of the repository.)
 
 This is a **single-user, self-hosted, same-origin** application. Threat model is NOT
 multi-tenant SaaS. Host compromise = game over (out of scope).
@@ -52,7 +52,7 @@ multi-tenant SaaS. Host compromise = game over (out of scope).
 | F9 | `<input type="text">` instead of `type="password"` | Visible on screen; OS-level screenshot redaction often skips text inputs | Open (Frontend) | `MaskedInput` must default to `type="password"`. Reveal toggle allowed (button changes to `type="text"`), but default state and after-blur state must be `password`. After save, force back to `password`. |
 | F10 | React DevTools shows component state plaintext | Anyone with devtools (incl. user during support session) sees key | **Accepted** | DevTools = trusted local user. Document the risk. Mitigation if needed later: `useRef` instead of `useState` for the key, but breaks controlled-input pattern. Not worth the cost for OSS. |
 | F11 | Browser autofill / password manager save prompt | OS prompts to save key into keychain | Open (Frontend) | Add `autoComplete="off"` + `name="storyforge-api-key"` (non-standard name) on key inputs. Add `data-1p-ignore` and `data-lpignore="true"` for 1Password / LastPass. Document that users may still choose to save to keychain. |
-| F12 | CSRF missing on `PUT /api/config` | CSRF via malicious site (low risk same-origin, but cheap to fix) | **Mitigated** | `lib/api/client.ts:71-72` reads `csrf_token` cookie and injects `X-CSRF-Token`. `middleware/csrf.py` enforces double-submit on non-GET, exempts only `/docs`, `/redoc`, `/openapi.json`, `/api/health`, `/mcp/`. `/api/config` is not exempt — confirmed enforced. |
+| F12 | CSRF missing on `PUT /api/config` | CSRF via malicious site (low risk same-origin, but cheap to fix) | **Mitigated** | `lib/api/client.ts:71-72` reads `csrf_token` cookie and injects `X-CSRF-Token`. `middleware/csrf.py` enforces double-submit on non-GET, exempts `/api/health`, `/mcp/` and, only when `STORYFORGE_DEBUG=1`, `/docs`, `/redoc`, `/openapi.json`. `/api/config` is not exempt — confirmed enforced. |
 | F13 | Error response body echoed verbatim to user toast | Backend error may include key fragment if validation regex echoes input | Open (Frontend) | `apiFetch` already wraps errors in `ApiError`. Settings page must show `err.message` only when the message is from `error.code` enum, not raw validator text. Better: map error codes to localized Vietnamese strings, ignore raw `details`. |
 | F14 | Wizard dismiss flag uses `localStorage` | Not a leak — just verifying it doesn't store the key | **Mitigated** | Legacy `web/js/pages/settings.ts:447-471` only persists a `forge_wizard_dismissed` boolean. Port must not extend this to persist key/profile data. |
 | F15 | Provider table shows masked key in cell text | Visual exposure during screen-share is intended; ensure source value is the masked echo, never the plaintext form value | Open (Frontend) | `ProviderRow` reads `api_key_masked` from `GET /api/config` response only. Never re-renders the plaintext value the user just typed. After save, refetch and re-render from masked echo. |
@@ -157,7 +157,7 @@ Exit non-zero on any match → wire into CI later if desired.
 - CSRF middleware (`middleware/csrf.py`) is enforced for `/api/config` PUT. Keep it.
 - If multi-tenant deployment is ever proposed, **this entire document needs revision**.
   Notable gaps for that scenario:
-  - No auth on `/api/config` routes (OSS-by-design; RBAC stubs exist in `api/config_routes.py:1-34` but are wired off).
+  - No auth on `/api/config` routes (by design; there is no multi-user auth, only the optional `STORYFORGE_ACCESS_TOKEN`).
   - `provider_status_routes.py:_get_api_keys_from_config()` reads env vars including
     `ANTHROPIC_API_KEY`, `GOOGLE_AI_API_KEY`, `ZAI_API_KEY` — fine for single-user,
     catastrophic for multi-tenant.

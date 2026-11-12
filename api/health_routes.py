@@ -4,8 +4,7 @@
 /api/health/deep   — probes each subsystem and returns per-component status.
 
 Component checks:
-  database   — executes a trivial SELECT 1 via SQLAlchemy (sync engine).
-  redis      — PING via redis-py if REDIS_URL is configured.
+  database   — executes a trivial SELECT 1 on the SQLite file (sync engine).
   disk       — reports free bytes on the data directory partition.
   memory     — reports RSS and available system memory via psutil if installed,
                otherwise falls back to /proc/meminfo on Linux.
@@ -22,12 +21,17 @@ import threading
 import time
 from typing import Any
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from fastapi.responses import JSONResponse
+
+from middleware.access import require_access
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(tags=["health"])
+router = APIRouter(
+    tags=["health"],
+    dependencies=[Depends(require_access)],
+)
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -35,51 +39,33 @@ router = APIRouter(tags=["health"])
 
 # Lock required: concurrent deep-health requests may race on lazy engine init,
 # causing duplicate create_engine() calls or partial reads of _health_engine.
+# The engine is rebuilt when STORYFORGE_DB_PATH moves.
 _health_engine = None
+_health_engine_url: str | None = None
 _health_engine_lock = threading.Lock()
 
 
 def _check_database() -> dict[str, Any]:
-    """Try a SELECT 1 via SQLAlchemy synchronous engine."""
-    global _health_engine
+    """Try a SELECT 1 on the SQLite database via a synchronous engine."""
+    global _health_engine, _health_engine_url
     try:
-        from sqlalchemy import create_engine, text
+        from sqlalchemy import text
+
+        from services.infra.db_paths import make_sync_engine, sync_url
 
         with _health_engine_lock:
-            if _health_engine is None:
-                db_url = os.environ.get("DATABASE_URL", "sqlite:///data/storyforge.db")
-                sync_db_url = db_url.replace(
-                    "postgresql+asyncpg://", "postgresql+psycopg2://", 1
-                )
-                _health_engine = create_engine(
-                    sync_db_url,
-                    pool_pre_ping=True,
-                    connect_args={"check_same_thread": False}
-                    if "sqlite" in sync_db_url
-                    else {},
-                )
+            url = sync_url()
+            if _health_engine is None or _health_engine_url != url:
+                if _health_engine is not None:
+                    _health_engine.dispose()
+                _health_engine = make_sync_engine()
+                _health_engine_url = url
             engine = _health_engine
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
         return {"status": "ok"}
     except Exception as exc:
         logger.warning("Health/deep: database check failed: %s", exc)
-        return {"status": "error", "detail": str(exc)}
-
-
-def _check_redis() -> dict[str, Any]:
-    """PING the configured Redis instance."""
-    redis_url = os.environ.get("REDIS_URL", "")
-    if not redis_url:
-        return {"status": "not_configured"}
-    try:
-        import redis
-
-        client = redis.from_url(redis_url, socket_connect_timeout=2, socket_timeout=2)
-        client.ping()
-        return {"status": "ok"}
-    except Exception as exc:
-        logger.warning("Health/deep: redis check failed: %s", exc)
         return {"status": "error", "detail": str(exc)}
 
 
@@ -170,14 +156,13 @@ async def deep_health() -> JSONResponse:
     Returns HTTP 200 when all critical components are healthy,
     HTTP 503 when any critical component (database, disk) is degraded.
 
-    Non-critical components (redis, memory, llm) are reported but do not
+    Non-critical components (memory, llm) are reported but do not
     affect the top-level HTTP status code.
     """
     start = time.monotonic()
 
     checks: dict[str, Any] = {
         "database": _check_database(),
-        "redis": _check_redis(),
         "disk": _check_disk(),
         "memory": _check_memory(),
         "llm": _check_llm(),
@@ -188,18 +173,12 @@ async def deep_health() -> JSONResponse:
     overall = "degraded" if critical_failed else "ok"
     status_code = 503 if critical_failed else 200
 
-    # Scaling readiness: Redis required for multi-instance shared state
-    redis_ok = checks["redis"]["status"] == "ok"
-    db_ok = checks["database"]["status"] == "ok"
-    scale_ready = redis_ok and db_ok
-
     return JSONResponse(
         status_code=status_code,
         content={
             "status": overall,
             "checked_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
             "duration_ms": round((time.monotonic() - start) * 1000, 1),
-            "scale_ready": scale_ready,
             "components": checks,
         },
     )

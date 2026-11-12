@@ -3,10 +3,14 @@
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from middleware.auth_middleware import get_current_user
+from middleware.access import require_access
 from services.ab_testing import manager
 
-router = APIRouter(prefix="/ab", tags=["ab-testing"])
+router = APIRouter(
+    prefix="/ab",
+    tags=["ab-testing"],
+    dependencies=[Depends(require_access)],
+)
 
 
 class CreateExperimentBody(BaseModel):
@@ -25,7 +29,7 @@ class ResultBody(BaseModel):
 
 
 @router.post("/experiments", status_code=201)
-def create_experiment(body: CreateExperimentBody, _user=Depends(get_current_user)):
+def create_experiment(body: CreateExperimentBody):
     """Create a new A/B experiment."""
     try:
         experiment_id = manager.create_experiment(body.name, body.variants)
@@ -52,7 +56,7 @@ def assign_variant(experiment_id: str, body: AssignBody):
 
 @router.post("/experiments/{experiment_id}/result", status_code=201)
 def record_result(
-    experiment_id: str, body: ResultBody, _user=Depends(get_current_user)
+    experiment_id: str, body: ResultBody
 ):
     """Record an outcome for a session."""
     try:

@@ -109,8 +109,8 @@ class TestTargetedRevisionContract:
 
 
 def _gate_branches():
-    """Every `if <targeted>: ... else: <wholesale>` in run_full_pipeline."""
-    tree = ast.parse(inspect.cleandoc(inspect.getsource(ol.run_full_pipeline)))
+    """Every `if <targeted>: ... else: <wholesale>` in the run_full_pipeline body."""
+    tree = ast.parse(inspect.cleandoc(inspect.getsource(ol._run_full_pipeline_body)))
     found = []
     for node in ast.walk(tree):
         if not isinstance(node, ast.If):
@@ -160,5 +160,5 @@ class TestBothGatesTryTargetedFirst:
         assert wholesale not in in_body
 
     def test_both_gates_call_the_targeted_helper(self):
-        source = inspect.getsource(ol.run_full_pipeline)
+        source = inspect.getsource(ol._run_full_pipeline_body)
         assert source.count("_targeted_gate_revision(") == 2

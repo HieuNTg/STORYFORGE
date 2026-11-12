@@ -4,38 +4,28 @@ Covers:
 - IP extraction logic (_get_ip)
 - Tier classification (_get_tier)
 - In-memory rate limiting (_check_rate_limit_memory, _evict_expired_entries)
-- Redis rate limiting (_check_rate_limit_redis) with graceful fallback
 - RateLimitMiddleware.dispatch (429, Retry-After, exempt paths)
-- InMemoryRateLimiter service class (is_allowed, get_remaining)
-- RedisRateLimiter service class (fallback on unavailable)
 """
 
 from __future__ import annotations
 
 import time
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import Request
 from fastapi.responses import JSONResponse
 
-# Reset module-level globals between tests that mutate them. The Redis
-# client globals live in the backends module — _get_redis reads its own
-# module's globals, so rebinding must happen there, not on the re-export.
-import middleware._rate_limit_backends as rl_backends
 import middleware.rate_limiter as rl_mod
 from middleware.rate_limiter import (
     RateLimitMiddleware,
     _check_rate_limit_memory,
-    _check_rate_limit_redis,
     _evict_expired_entries,
     _get_ip,
     _get_tier,
     _LIMITS,
     _WINDOW_SECONDS,
 )
-from services._rate_limiter_inmemory import InMemoryRateLimiter
-from services._rate_limiter_redis_impl import RedisRateLimiter
 
 
 # ---------------------------------------------------------------------------
@@ -245,67 +235,6 @@ class TestEvictExpiredEntries:
 
 
 # ---------------------------------------------------------------------------
-# TestCheckRateLimitRedis
-# ---------------------------------------------------------------------------
-
-
-class TestCheckRateLimitRedis:
-    def setup_method(self):
-        _clear_state()
-        # Reset Redis state so _get_redis() is re-evaluated
-        rl_backends._redis_client = None
-        rl_backends._redis_init_attempted = False
-
-    def test_falls_back_to_memory_when_no_redis_url(self):
-        """When REDIS_URL is absent, _get_redis returns None → memory fallback."""
-        with patch.dict("os.environ", {}, clear=True):
-            # First request should be allowed via memory fallback
-            result = _check_rate_limit_redis("192.0.2.1", "default")
-        assert result is True
-
-    def test_falls_back_to_memory_on_redis_connection_error(self):
-        rl_backends._redis_init_attempted = False
-        with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
-            with patch("redis.from_url", side_effect=Exception("connection refused")):
-                result = _check_rate_limit_redis("192.0.2.2", "default")
-        assert result is True  # memory fallback allowed
-
-    def test_uses_redis_when_available(self):
-        mock_redis = MagicMock()
-        mock_redis.ping.return_value = True
-        mock_redis.eval.return_value = 1  # first request
-        rl_backends._redis_client = mock_redis
-        rl_backends._redis_init_attempted = True
-
-        with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
-            result = _check_rate_limit_redis("192.0.2.3", "default")
-        assert result is True
-        mock_redis.eval.assert_called_once()
-
-    def test_blocks_when_redis_returns_over_limit(self):
-        mock_redis = MagicMock()
-        mock_redis.ping.return_value = True
-        mock_redis.eval.return_value = _LIMITS["default"] + 1
-        rl_backends._redis_client = mock_redis
-        rl_backends._redis_init_attempted = True
-
-        with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
-            result = _check_rate_limit_redis("192.0.2.4", "default")
-        assert result is False
-
-    def test_falls_back_to_memory_on_redis_eval_error(self):
-        mock_redis = MagicMock()
-        mock_redis.ping.return_value = True
-        mock_redis.eval.side_effect = Exception("NOSCRIPT")
-        rl_backends._redis_client = mock_redis
-        rl_backends._redis_init_attempted = True
-
-        with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
-            result = _check_rate_limit_redis("192.0.2.5", "default")
-        assert result is True  # memory fallback
-
-
-# ---------------------------------------------------------------------------
 # TestRateLimitMiddlewareDispatch
 # ---------------------------------------------------------------------------
 
@@ -313,8 +242,6 @@ class TestCheckRateLimitRedis:
 class TestRateLimitMiddlewareDispatch:
     def setup_method(self):
         _clear_state()
-        rl_backends._redis_client = None
-        rl_backends._redis_init_attempted = False
 
     def _make_middleware(self):
         app = AsyncMock()
@@ -441,115 +368,3 @@ class TestRateLimitMiddlewareDispatch:
         call_next = AsyncMock()
         await mw.dispatch(req, call_next)
         call_next.assert_not_awaited()
-
-
-# ---------------------------------------------------------------------------
-# TestInMemoryRateLimiter (service class)
-# ---------------------------------------------------------------------------
-
-
-class TestInMemoryRateLimiter:
-    def test_is_allowed_first_request(self):
-        limiter = InMemoryRateLimiter()
-        assert limiter.is_allowed("key1", limit=5, window_seconds=60) is True
-
-    def test_is_allowed_up_to_limit(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(5):
-            assert limiter.is_allowed("key2", limit=5, window_seconds=60) is True
-
-    def test_is_blocked_over_limit(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(5):
-            limiter.is_allowed("key3", limit=5, window_seconds=60)
-        assert limiter.is_allowed("key3", limit=5, window_seconds=60) is False
-
-    def test_get_remaining_full_at_start(self):
-        limiter = InMemoryRateLimiter()
-        assert limiter.get_remaining("fresh-key", limit=10, window_seconds=60) == 10
-
-    def test_get_remaining_decrements(self):
-        limiter = InMemoryRateLimiter()
-        limiter.is_allowed("dec-key", limit=10, window_seconds=60)
-        assert limiter.get_remaining("dec-key", limit=10, window_seconds=60) == 9
-
-    def test_get_remaining_zero_when_exhausted(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(10):
-            limiter.is_allowed("ex-key", limit=10, window_seconds=60)
-        assert limiter.get_remaining("ex-key", limit=10, window_seconds=60) == 0
-
-    def test_resets_after_window_expires(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(5):
-            limiter.is_allowed("win-key", limit=5, window_seconds=60)
-        # Backdate the window start
-        with limiter._lock:
-            limiter._state["win-key"][1] -= 61
-        assert limiter.is_allowed("win-key", limit=5, window_seconds=60) is True
-
-    def test_independent_keys_do_not_interfere(self):
-        limiter = InMemoryRateLimiter()
-        for _ in range(5):
-            limiter.is_allowed("key-a", limit=5, window_seconds=60)
-        assert limiter.is_allowed("key-b", limit=5, window_seconds=60) is True
-
-
-# ---------------------------------------------------------------------------
-# TestRedisRateLimiter (service class)
-# ---------------------------------------------------------------------------
-
-
-class TestRedisRateLimiter:
-    def test_falls_back_to_inmemory_when_redis_unavailable(self):
-        with patch("redis.from_url", side_effect=Exception("refused")):
-            limiter = RedisRateLimiter("redis://localhost:6379")
-        assert limiter._healthy is False
-        # Should still work via in-memory fallback
-        assert limiter.is_allowed("fallback-key", limit=5, window_seconds=60) is True
-
-    def test_is_healthy_when_redis_connects(self):
-        mock_client = MagicMock()
-        mock_client.ping.return_value = True
-        mock_client.script_load.return_value = "abc123"
-        with patch("redis.from_url", return_value=mock_client):
-            limiter = RedisRateLimiter("redis://localhost:6379")
-        assert limiter._healthy is True
-
-    def test_is_allowed_via_redis_within_limit(self):
-        mock_client = MagicMock()
-        mock_client.ping.return_value = True
-        mock_client.script_load.return_value = "abc123"
-        mock_client.evalsha.return_value = 1
-        with patch("redis.from_url", return_value=mock_client):
-            limiter = RedisRateLimiter("redis://localhost:6379")
-            result = limiter.is_allowed("rkey", limit=10, window_seconds=60)
-        assert result is True
-
-    def test_is_blocked_when_redis_returns_over_limit(self):
-        mock_client = MagicMock()
-        mock_client.ping.return_value = True
-        mock_client.script_load.return_value = "abc123"
-        mock_client.evalsha.return_value = 11
-        with patch("redis.from_url", return_value=mock_client):
-            limiter = RedisRateLimiter("redis://localhost:6379")
-            result = limiter.is_allowed("rkey2", limit=10, window_seconds=60)
-        assert result is False
-
-    def test_get_remaining_falls_back_when_unhealthy(self):
-        with patch("redis.from_url", side_effect=Exception("refused")):
-            limiter = RedisRateLimiter("redis://localhost:6379")
-        remaining = limiter.get_remaining("rkey3", limit=10, window_seconds=60)
-        # Fallback in-memory: no usage yet, so full limit remains
-        assert remaining == 10
-
-    def test_degrades_to_inmemory_on_evalsha_error(self):
-        mock_client = MagicMock()
-        mock_client.ping.return_value = True
-        mock_client.script_load.return_value = "abc123"
-        mock_client.evalsha.side_effect = Exception("NOSCRIPT")
-        with patch("redis.from_url", return_value=mock_client):
-            limiter = RedisRateLimiter("redis://localhost:6379")
-            result = limiter.is_allowed("rkey4", limit=10, window_seconds=60)
-        # After error, healthy=False → memory fallback used → allowed
-        assert result is True

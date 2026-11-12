@@ -2,6 +2,7 @@
 
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from services.llm.run_context import submit_with_context
 
 from models.schemas import (
     ChapterOutline,
@@ -130,15 +131,17 @@ def process_chapter_post_write(
     summary_f = (
         None
         if cached_summary
-        else executor.submit(summarize_chapter, llm, chapter.content)
+        else submit_with_context(executor, summarize_chapter, llm, chapter.content)
     )
-    states_f = executor.submit(
+    states_f = submit_with_context(
+        executor,
         extract_character_states, llm, chapter.content, characters
     )
     events_f = (
         None
         if cached_events
-        else executor.submit(
+        else submit_with_context(
+            executor,
             extract_plot_events, llm, chapter.content, outline.chapter_number
         )
     )

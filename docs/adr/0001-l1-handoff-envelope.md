@@ -2,7 +2,7 @@
 
 **Status:** Accepted
 **Date:** 2026-05-04
-**Sprint:** [Sprint 1 — L1→L2 Handoff Envelope](../../plans/260503-2317-l1-l2-handoff-envelope/README.md)
+**Sprint:** Sprint 1 — L1→L2 Handoff Envelope (the sprint plan was internal and is not part of the repository)
 
 ## Context
 
@@ -59,8 +59,4 @@ Every model in this module uses `extra="forbid"`. L1 cannot smuggle untyped fiel
 
 ## References
 
-- Plan: [`plans/260503-2317-l1-l2-handoff-envelope/README.md`](../../plans/260503-2317-l1-l2-handoff-envelope/README.md)
-- Schema: [`plans/260503-2317-l1-l2-handoff-envelope/schema.md`](../../plans/260503-2317-l1-l2-handoff-envelope/schema.md)
-- Phases: [`plans/260503-2317-l1-l2-handoff-envelope/phases.md`](../../plans/260503-2317-l1-l2-handoff-envelope/phases.md)
-- Migration: [`plans/260503-2317-l1-l2-handoff-envelope/migration.md`](../../plans/260503-2317-l1-l2-handoff-envelope/migration.md)
-- Risks: [`plans/260503-2317-l1-l2-handoff-envelope/risks.md`](../../plans/260503-2317-l1-l2-handoff-envelope/risks.md)
+- The sprint plan, schema, phase, migration and risk notes were internal working documents and are not part of the repository; this ADR records the decisions.

@@ -67,7 +67,7 @@ def _profile(name, base_url):
 class TestTestConnectionMessage:
     def test_failure_names_the_broken_provider(self, _wire):
         _wire(
-            [_profile("Gemini Web", "http://localhost:8000/v1"),
+            [_profile("Local server", "http://localhost:8000/v1"),
              _profile("Google Gemini", "https://generativelanguage.googleapis.com/v1beta/openai/")],
             {
                 "http://localhost:8000/v1": (True, "OK"),
@@ -86,7 +86,7 @@ class TestTestConnectionMessage:
 
     def test_all_ok_keeps_the_success_message(self, _wire):
         _wire(
-            [_profile("Gemini Web", "http://localhost:8000/v1")],
+            [_profile("Local server", "http://localhost:8000/v1")],
             {"http://localhost:8000/v1": (True, "OK")},
         )
         out = config_routes.test_connection()
@@ -97,7 +97,7 @@ class TestTestConnectionMessage:
         disabled = _profile("CustomOrca", "https://api.orcarouter.ai/v1")
         disabled["enabled"] = False
         _wire(
-            [_profile("Gemini Web", "http://localhost:8000/v1"), disabled],
+            [_profile("Local server", "http://localhost:8000/v1"), disabled],
             {"http://localhost:8000/v1": (True, "OK")},
         )
         out = config_routes.test_connection()

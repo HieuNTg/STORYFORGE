@@ -4,17 +4,17 @@ Starts FastAPI, mounts API routes and static files.
 The UI is served by Next.js from frontend/ (run separately on :3000).
 
 CORS policy:
-  Allowed origins are read from the STORYFORGE_ALLOWED_ORIGINS env var
-  (comma-separated list). Defaults to localhost:7860 only.
+  Allowed origins are the local frontend (:3001) and API (:7860) plus any
+  listed in the STORYFORGE_ALLOWED_ORIGINS env var (comma-separated).
   Wildcard "*" is intentionally NOT used — set explicit origins for production.
 """
 
 import logging
-import logging.handlers
 import os
 import sys
 import time
 import warnings
+from pathlib import Path
 
 warnings.filterwarnings(
     "ignore",
@@ -31,30 +31,12 @@ from fastapi.staticfiles import StaticFiles
 from config import ConfigManager
 from services.gzipped_static_files import GzippedStaticFiles
 
-# Logging
+# Logging: stdout plus a rotating file under data/logs (in Docker that is the
+# storyforge-data volume; the working directory itself is read-only there).
 from services.structured_logger import configure_logging
 
-configure_logging()
-
-# Replace the plain FileHandler with a RotatingFileHandler
-# so log files never grow unbounded (D4: log rotation).
-_root_logger = logging.getLogger()
-for _h in list(_root_logger.handlers):
-    if isinstance(_h, logging.FileHandler) and not isinstance(
-        _h, logging.handlers.RotatingFileHandler
-    ):
-        _fmt = _h.formatter
-        _root_logger.removeHandler(_h)
-        _h.close()
-        _rotating = logging.handlers.RotatingFileHandler(
-            "storyforge.log",
-            maxBytes=10 * 1024 * 1024,  # 10 MB per file
-            backupCount=5,
-            encoding="utf-8",
-        )
-        _rotating.setFormatter(_fmt)
-        _root_logger.addHandler(_rotating)
-        break
+LOG_FILE = Path(__file__).resolve().parent / "data" / "logs" / "storyforge.log"
+configure_logging(log_file=LOG_FILE)
 
 logger = logging.getLogger(__name__)
 
@@ -65,106 +47,94 @@ _START_TIME = time.time()
 # CORS configuration helpers
 # ---------------------------------------------------------------------------
 #
-# SEC-5 CORS Audit (Sprint 15) — verified safe:
-#   - No wildcard '*' is used in production. Wildcard entries in
-#     STORYFORGE_ALLOWED_ORIGINS are detected and rejected with a warning.
-#   - Default fallback is localhost:7860 only (safe for development).
-#   - Production deployments MUST set STORYFORGE_ALLOWED_ORIGINS to the
-#     explicit list of frontend origins, e.g.:
-#       STORYFORGE_ALLOWED_ORIGINS=https://app.storyforge.io,https://www.storyforge.io
-#   - Credentials are allowed (allow_credentials=True), requiring explicit
-#     origins — this is incompatible with '*' by the CORS spec.
+# The allow list lives in middleware/hosts.py (the branch WebSocket checks
+# Origin against the same list); re-exported here for callers of app.py.
+#   - No wildcard '*': wildcard entries in STORYFORGE_ALLOWED_ORIGINS are
+#     dropped with a warning (credentials are allowed, which '*' forbids).
+#   - Defaults: the frontend on :3001 and the API on :7860, by name and IP;
+#     STORYFORGE_ALLOWED_ORIGINS adds to them.
 #   - Allowed methods: GET, POST, PUT, DELETE, OPTIONS (no TRACE/CONNECT).
-#   - Allowed headers: Authorization, Content-Type, Accept (minimal set).
 #
-_DEFAULT_ORIGINS = ["http://localhost:7860", "http://127.0.0.1:7860"]
+from middleware.hosts import _DEFAULT_ORIGINS, _get_allowed_origins  # noqa: F401
+
+# Keep in step with pyproject.toml and CHANGELOG.md (tests/test_version.py).
+APP_VERSION = "2.0.0"
+
+# ---------------------------------------------------------------------------
+# Bind address and exposure guard
+# ---------------------------------------------------------------------------
+
+_LOOPBACK_BIND_HOSTS = {"127.0.0.1", "localhost", "::1", "[::1]"}
 
 
-def _get_allowed_origins() -> list[str]:
-    """Read allowed CORS origins from STORYFORGE_ALLOWED_ORIGINS env var.
+def resolve_bind() -> tuple[str, int]:
+    """(host, port) from STORYFORGE_HOST / STORYFORGE_PORT; loopback:7860 by default."""
+    host = os.environ.get("STORYFORGE_HOST", "").strip() or "127.0.0.1"
+    raw_port = os.environ.get("STORYFORGE_PORT", "").strip() or "7860"
+    try:
+        port = int(raw_port)
+    except ValueError:
+        logger.error("STORYFORGE_PORT=%r is not a port number", raw_port)
+        raise SystemExit(2) from None
+    return host, port
 
-    Falls back to localhost:7860 defaults. Rejects wildcard '*' with a warning.
 
-    Production usage:
-        export STORYFORGE_ALLOWED_ORIGINS="https://app.storyforge.io,https://cdn.storyforge.io"
+def check_exposure(host: str, token: str | None, in_container: bool) -> None:
+    """Refuse to serve a non-loopback address without an access token.
+
+    Binding 0.0.0.0 (or a LAN IP) with no STORYFORGE_ACCESS_TOKEN would hand
+    every API route, provider keys included, to the whole network, so that
+    exits with code 2. Inside a container the bind is always 0.0.0.0 and the
+    real exposure is decided by the published port (compose publishes on
+    127.0.0.1), so there it is only a warning.
     """
-    raw = os.environ.get("STORYFORGE_ALLOWED_ORIGINS", "")
-    if raw.strip():
-        origins = [o.strip() for o in raw.split(",") if o.strip()]
-        if "*" in origins:
-            logger.warning(
-                "STORYFORGE_ALLOWED_ORIGINS contains '*' — ignoring and using "
-                "safe defaults instead. Set explicit origins for production."
-            )
-            return _DEFAULT_ORIGINS
-        return origins
-    return _DEFAULT_ORIGINS
+    if host.strip().lower() in _LOOPBACK_BIND_HOSTS or token:
+        return
+    if in_container:
+        logger.warning(
+            "Listening on %s without STORYFORGE_ACCESS_TOKEN. This is safe only "
+            "while the container port is published on 127.0.0.1. Set "
+            "STORYFORGE_ACCESS_TOKEN before publishing it to a network.",
+            host,
+        )
+        return
+    logger.error(
+        "Refusing to start: STORYFORGE_HOST=%s is reachable from other machines "
+        "and STORYFORGE_ACCESS_TOKEN is not set. Set STORYFORGE_ACCESS_TOKEN, or "
+        "bind to 127.0.0.1.",
+        host,
+    )
+    raise SystemExit(2)
 
 
 def _preflight_check() -> bool:
-    """Validate DB and Redis connectivity before starting the server.
+    """Check that the SQLite database is reachable before starting the server.
 
-    Returns True if all required services are reachable, False otherwise.
-
-    DB failure is always fatal. Redis failure is fatal only when
-    STORYFORGE_REDIS_REQUIRED=1, otherwise it is logged as a warning.
+    Returns True when the database answers, False otherwise (fatal).
     """
-    from api.health_routes import _check_database, _check_redis
+    from api.health_routes import _check_database
 
-    all_ok = True
-
-    # --- Database (required) ---
     db_result = _check_database()
-    db_status = db_result.get("status")
-    if db_status == "ok":
+    if db_result.get("status") == "ok":
         logger.info("Preflight: database OK")
-    elif db_status == "not_configured":
-        logger.info("Preflight: database not configured — skipping")
-    else:
-        logger.error(
-            "Preflight: database UNREACHABLE (%s) — cannot start",
-            db_result.get("detail", db_status),
-        )
-        all_ok = False
-
-    # --- Redis (optional unless STORYFORGE_REDIS_REQUIRED=1) ---
-    redis_result = _check_redis()
-    redis_status = redis_result.get("status")
-    redis_required = os.environ.get("STORYFORGE_REDIS_REQUIRED", "").lower() in (
-        "1",
-        "true",
+        return True
+    logger.error(
+        "Preflight: database UNREACHABLE (%s) — cannot start",
+        db_result.get("detail", db_result.get("status")),
     )
-
-    if redis_status == "ok":
-        logger.info("Preflight: Redis OK")
-    elif redis_status == "not_configured":
-        logger.info("Preflight: Redis not configured — running without cache")
-    elif redis_required:
-        logger.error(
-            "Preflight: Redis UNREACHABLE (%s) and STORYFORGE_REDIS_REQUIRED=1 — cannot start",
-            redis_result.get("detail", redis_status),
-        )
-        all_ok = False
-    else:
-        logger.warning(
-            "Preflight: Redis unavailable (%s) — continuing without cache (set "
-            "STORYFORGE_REDIS_REQUIRED=1 to make this fatal)",
-            redis_result.get("detail", redis_status),
-        )
-
-    return all_ok
+    return False
 
 
-def main():
-    """Launch StoryForge — Alpine.js Web UI at /."""
+def create_app() -> FastAPI:
+    """Build the StoryForge FastAPI app: middleware, routes, static mounts."""
     from api import api_router
 
-    # STORYFORGE_ENABLE_DOCS defaults to "1" (enabled). Set to "0" in production
-    # to hide /docs and /redoc from the public route inventory.
-    _docs_enabled = os.environ.get("STORYFORGE_ENABLE_DOCS", "1") not in (
-        "0",
-        "false",
-        "no",
+    # API docs (/docs, /redoc, /openapi.json) only under STORYFORGE_DEBUG=1
+    # (scripts/dev.py sets it). Off by default: no public route inventory.
+    _docs_enabled = os.environ.get("STORYFORGE_DEBUG", "").strip().lower() in (
+        "1",
+        "true",
+        "yes",
     )
     main_app = FastAPI(
         title="StoryForge",
@@ -173,9 +143,10 @@ def main():
             "Generate long-form Vietnamese stories with multi-layer pipeline: "
             "story generation, drama simulation, and video storyboarding."
         ),
-        version="3.0.0",
+        version=APP_VERSION,
         docs_url="/docs" if _docs_enabled else None,
         redoc_url="/redoc" if _docs_enabled else None,
+        openapi_url="/openapi.json" if _docs_enabled else None,
         openapi_tags=[
             {
                 "name": "pipeline",
@@ -195,19 +166,65 @@ def main():
             },
             {"name": "metrics", "description": "System performance metrics"},
             {"name": "dashboard", "description": "Dashboard summary data"},
-            {"name": "auth", "description": "Authentication and user management"},
+            {
+                "name": "session",
+                "description": "Optional access token (STORYFORGE_ACCESS_TOKEN) session cookie",
+            },
             {"name": "ab", "description": "A/B testing for pipeline variants"},
             {"name": "branch", "description": "Story branching and alternate paths"},
             {"name": "audio", "description": "Text-to-speech and audio generation"},
         ],
     )
 
-    # --- GZip compression (≥1KB responses; HTML/JS/CSS shrink ~5–7×) ---
-    main_app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+    # --- Middleware. Starlette makes the LAST add_middleware() call the
+    # outermost layer, so they are added innermost first. Effective order,
+    # outer → inner (pinned by tests/test_middleware_order.py):
+    #
+    #   TrustedHosts → TraceID → CORS → BodySize → SecurityHeaders → CSRF
+    #   → Access → RateLimit → Sanitization → Audit → Metrics → GZip
+    #
+    # - TrustedHosts first: DNS-rebinding requests (bad Host or, behind the
+    #   Next proxy, bad X-Forwarded-Host) and writes with a foreign Origin
+    #   are rejected before any other layer runs (middleware/hosts.py).
+    # - TraceID next: every response past the Host check carries
+    #   X-Request-ID (413/403/401/429 rejections included), and every inner
+    #   log line can read it.
+    # - CORS outside every layer that can reject, so rejections stay
+    #   readable by the browser.
+    # - BodySize before anything reads or answers on the body.
+    # - Access after CSRF/before RateLimit: covers /media and WebSocket
+    #   upgrades (API routers use the require_access dependency).
+    from middleware.access import AccessMiddleware
+    from middleware.audit_middleware import AuditMiddleware
+    from middleware.body_limit import BodySizeLimitMiddleware
+    from middleware.csrf import CSRFMiddleware
+    from middleware.hosts import TrustedHostsMiddleware
+    from middleware.metrics_middleware import MetricsMiddleware
+    from middleware.rate_limiter import RateLimitMiddleware
+    from middleware.sanitization import SanitizationMiddleware
+    from middleware.security_headers import SecurityHeadersMiddleware
+    from middleware.trace_id import TraceIDMiddleware
 
-    # --- CORS middleware (restrictive: explicit origins only, no wildcard) ---
     allowed_origins = _get_allowed_origins()
     logger.info(f"CORS allowed origins: {allowed_origins}")
+
+    # GZip (≥1KB responses; HTML/JS/CSS shrink ~5–7×) — innermost.
+    main_app.add_middleware(GZipMiddleware, minimum_size=1024, compresslevel=6)
+    main_app.add_middleware(MetricsMiddleware)
+    main_app.add_middleware(AuditMiddleware)
+    # Prompt-injection detection on JSON bodies.
+    main_app.add_middleware(SanitizationMiddleware)
+    # In-memory, per-IP.
+    main_app.add_middleware(RateLimitMiddleware)
+    # Optional access token for /media/* and WebSocket upgrades.
+    main_app.add_middleware(AccessMiddleware)
+    # Double-submit cookie; the docs routes are exempt only when they exist.
+    main_app.add_middleware(CSRFMiddleware, exempt_docs=_docs_enabled)
+    # CSP, X-Frame-Options, etc.
+    main_app.add_middleware(SecurityHeadersMiddleware)
+    # 10 MB request bodies; stream-safe (middleware/body_limit.py).
+    main_app.add_middleware(BodySizeLimitMiddleware)
+    # Explicit origins only, no wildcard.
     main_app.add_middleware(
         CORSMiddleware,
         allow_origins=allowed_origins,
@@ -215,41 +232,8 @@ def main():
         allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
         allow_headers=["Authorization", "Content-Type", "Accept", "X-CSRF-Token"],
     )
-
-    # --- CSRF protection middleware (double-submit cookie) ---
-    from middleware.csrf import CSRFMiddleware
-
-    main_app.add_middleware(CSRFMiddleware)
-
-    # --- Request trace ID middleware (must be outermost so all downstream layers see it) ---
-    from middleware.trace_id import TraceIDMiddleware
-
     main_app.add_middleware(TraceIDMiddleware)
-
-    # --- Security headers middleware (CSP, X-Frame-Options, etc.) ---
-    from middleware.security_headers import SecurityHeadersMiddleware
-
-    main_app.add_middleware(SecurityHeadersMiddleware)
-
-    # --- Input sanitization middleware (prompt injection detection) ---
-    from middleware.sanitization import SanitizationMiddleware
-
-    main_app.add_middleware(SanitizationMiddleware)
-
-    # --- Rate limiting middleware (Redis or in-memory, per-IP) ---
-    from middleware.rate_limiter import RateLimitMiddleware
-
-    main_app.add_middleware(RateLimitMiddleware)
-
-    # --- Audit logging middleware ---
-    from middleware.audit_middleware import AuditMiddleware
-
-    main_app.add_middleware(AuditMiddleware)
-
-    # --- Request metrics middleware ---
-    from middleware.metrics_middleware import MetricsMiddleware
-
-    main_app.add_middleware(MetricsMiddleware)
+    main_app.add_middleware(TrustedHostsMiddleware)  # outermost
 
     from errors.exceptions import StoryForgeError
     from errors.handlers import storyforge_error_handler
@@ -289,7 +273,7 @@ def main():
         start_job_reaper()
         logger.info("Pipeline job reaper started")
 
-        # One-shot: encrypt secrets that were written while no key was loaded.
+        # One-shot: encrypt any plaintext secrets left in config.json.
         try:
             from config.persistence import CONFIG_FILE
             from services.secret_manager import migrate_plaintext_secrets
@@ -298,14 +282,6 @@ def main():
                 logger.info("Migrated plaintext secrets in %s to encrypted", CONFIG_FILE)
         except Exception as e:
             logger.warning("Secret migration skipped: %s", e)
-
-        # FlowKit needs no startup work any more. It used to open a SQLite jobs
-        # database and start a background task that woke every
-        # flowkit_veo_poll_interval seconds, for the lifetime of the process, to
-        # poll Veo video jobs — on every install with FlowKit enabled, which is
-        # the image path everyone uses. Video is out of the product; the loop and
-        # its database went with it. Image generation is synchronous over the
-        # extension WebSocket and never used either.
 
     # Graceful shutdown: cancel and await active pipeline tasks
     @main_app.on_event("shutdown")
@@ -316,18 +292,6 @@ def main():
         from api.pipeline_job_registry import shutdown_job_reaper
 
         await shutdown_job_reaper()
-
-        try:
-            from services.media.flow_service import flow_service
-
-            if flow_service.active_ws is not None:
-                try:
-                    await flow_service.active_ws.close()
-                except Exception:
-                    pass
-                flow_service.clear_active_ws()
-        except Exception:
-            logger.exception("FlowKit shutdown failed")
 
     # Plugins. Eleven hook call sites sit on the hot path — every score, every
     # genre-rule lookup, every export — and load_all() was never called, so the
@@ -351,25 +315,6 @@ def main():
     # stream pair, only to set a Deprecation header on the paths nobody called.
     # (/api/v1/eval is unaffected: that prefix belongs to eval_routes itself.)
 
-    # --- Body size limit (outermost — runs first, blocks oversized requests early) ---
-    from starlette.middleware.base import BaseHTTPMiddleware
-    from fastapi import Request
-    from starlette.responses import JSONResponse as _SJSONResponse
-
-    MAX_BODY_SIZE = 10 * 1024 * 1024  # 10 MB
-
-    class BodySizeLimitMiddleware(BaseHTTPMiddleware):
-        async def dispatch(self, request: Request, call_next):
-            content_length = request.headers.get("content-length")
-            if content_length and int(content_length) > MAX_BODY_SIZE:
-                return _SJSONResponse(
-                    status_code=413,
-                    content={"detail": "Request body too large. Maximum size is 10MB."},
-                )
-            return await call_next(request)
-
-    main_app.add_middleware(BodySizeLimitMiddleware)
-
     # Static files (locales only — UI served by Next.js from frontend/)
     base_dir = os.path.dirname(os.path.abspath(__file__))
     locales_dir = os.path.join(base_dir, "locales")
@@ -389,7 +334,7 @@ def main():
     os.makedirs(media_root, exist_ok=True)
     main_app.mount("/media", StaticFiles(directory=media_root), name="media")
 
-    # Health check — lightweight with cached DB/Redis probes (30s TTL)
+    # Health check — lightweight with a cached DB probe (30s TTL)
     from fastapi.responses import JSONResponse as _JSONResponse
 
     _health_cache: dict = {}
@@ -406,56 +351,59 @@ def main():
 
     @main_app.get("/api/health")
     async def health():
-        from api.health_routes import _check_database, _check_redis
+        from api.health_routes import _check_database
 
         cfg = ConfigManager()
         llm_ok = bool(cfg.llm.api_key)
 
         db_status = _cached_check("database", _check_database)
-        redis_status = _cached_check("redis", _check_redis)
-
-        db_ok = db_status.get("status") == "ok"
-        redis_str = redis_status.get("status", "unknown")
-        # Redis is optional (Phase 3) — report "fallback" not "error" when not required
-        if redis_str == "error" and os.environ.get(
-            "STORYFORGE_REDIS_REQUIRED", ""
-        ).lower() not in ("1", "true"):
-            redis_str = "fallback"
-
-        degraded = not db_ok and db_status.get("status") != "not_configured"
+        degraded = db_status.get("status") != "ok"
         status = "degraded" if degraded else "ok"
 
         return _JSONResponse(
             status_code=503 if degraded else 200,
             content={
                 "status": status,
-                "version": "3.0",
+                "version": APP_VERSION,
                 "uptime_seconds": round(time.time() - _START_TIME, 1),
                 "services": {
                     "llm": llm_ok,
                     "database": db_status.get("status", "unknown"),
-                    "redis": redis_str,
                 },
             },
         )
 
-    _secret = os.environ.get("STORYFORGE_SECRET_KEY", "")
-    if _secret in ("", "change-me-in-production"):
-        logger.warning(
-            "STORYFORGE_SECRET_KEY is not set or still default — "
-            "secrets at rest will NOT be encrypted. "
-            "Set a strong key for production use."
-        )
+    return main_app
+
+
+def main():
+    """Launch the StoryForge backend API."""
+    from middleware.access import access_token
+
+    # Before anything else: a non-loopback bind without a token never starts.
+    host, port = resolve_bind()
+    check_exposure(
+        host, access_token(), os.environ.get("STORYFORGE_IN_CONTAINER") == "1"
+    )
+
+    # Fail at boot (not inside a request) if the encryption key is unusable.
+    from services.secret_manager import ensure_secret_key
+
+    ensure_secret_key()
+
+    main_app = create_app()
 
     if not _preflight_check():
         logger.error("Preflight checks failed — aborting startup")
         sys.exit(1)
 
     logger.info(
-        "StoryForge backend API at http://localhost:7860 — "
-        "UI runs separately at http://localhost:3001 (cd frontend && npm run dev -- --port 3001)"
+        "StoryForge backend API at http://%s:%d — UI runs separately at "
+        "http://localhost:3001 (cd frontend && npm run dev -- --port 3001)",
+        host,
+        port,
     )
-    uvicorn.run(main_app, host="0.0.0.0", port=7860, log_level="info")
+    uvicorn.run(main_app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

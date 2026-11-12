@@ -4,10 +4,8 @@ from __future__ import annotations
 
 import os
 import sys
-import threading
 from typing import TYPE_CHECKING
 
-import pytest
 from unittest.mock import MagicMock, patch
 
 if TYPE_CHECKING:
@@ -22,10 +20,6 @@ def _make_orchestrator(session_id: str = "test-session") -> PipelineOrchestrator
 
     # Patch constructor-level heavy deps
     with (
-        patch(
-            "pipeline.orchestrator._make_redis_client",
-            side_effect=RuntimeError("no redis"),
-        ),
         patch("pipeline.orchestrator.ConfigManager"),
         patch("pipeline.orchestrator.StoryGenerator"),
         patch("pipeline.orchestrator.StoryAnalyzer"),
@@ -52,19 +46,12 @@ class TestPipelineOrchestratorInit:
         assert orch.session_id  # not empty
         assert len(orch.session_id) > 8  # looks like a UUID
 
-    def test_redis_unavailable_uses_memory_fallback(self):
-        orch = _make_orchestrator()
-        assert orch._redis is None  # no Redis connection
-
-    def test_output_is_pipeline_output(self):
-        from models.schemas import PipelineOutput
-
-        orch = _make_orchestrator()
-        assert isinstance(orch.output, PipelineOutput)
-
-    def test_lock_is_reentrant(self):
-        orch = _make_orchestrator()
-        assert isinstance(orch._lock, type(threading.RLock()))
+    def test_state_lives_in_per_instance_memory_store(self):
+        a = _make_orchestrator("a")
+        b = _make_orchestrator("b")
+        assert not hasattr(a, "_redis")
+        assert isinstance(a._memory_store, dict)
+        assert a._memory_store is not b._memory_store
 
     def test_checkpoint_dir_class_attribute(self):
         from pipeline.orchestrator import PipelineOrchestrator, CHECKPOINT_DIR
@@ -73,7 +60,7 @@ class TestPipelineOrchestratorInit:
 
 
 class TestMemoryFallbackStore:
-    """In-memory fallback for Redis ops."""
+    """Per-instance in-memory state store."""
 
     def test_store_set_and_get(self):
         orch = _make_orchestrator("s1")
@@ -169,32 +156,3 @@ class TestSessionKey:
         assert "abc123" in key
         assert "output" in key
         assert key.startswith("storyforge:")
-
-
-class TestRedisRequired:
-    """STORYFORGE_REDIS_REQUIRED env flag causes exception when Redis unavailable."""
-
-    def test_redis_required_raises_on_missing(self):
-        from pipeline.orchestrator import PipelineOrchestrator
-
-        with (
-            pytest.raises(Exception),
-            patch(
-                "pipeline.orchestrator._make_redis_client",
-                side_effect=RuntimeError("no redis"),
-            ),
-            patch("pipeline.orchestrator.ConfigManager"),
-            patch("pipeline.orchestrator.StoryGenerator"),
-            patch("pipeline.orchestrator.StoryAnalyzer"),
-            patch("pipeline.orchestrator.DramaSimulator"),
-            patch("pipeline.orchestrator.StoryEnhancer"),
-            patch("pipeline.orchestrator.MediaProducer"),
-            patch("pipeline.orchestrator.PipelineExporter"),
-            patch("pipeline.orchestrator.CheckpointManager"),
-            patch("pipeline.orchestrator.StoryContinuation"),
-        ):
-            os.environ["STORYFORGE_REDIS_REQUIRED"] = "true"
-            try:
-                PipelineOrchestrator(session_id="x")
-            finally:
-                os.environ.pop("STORYFORGE_REDIS_REQUIRED", None)

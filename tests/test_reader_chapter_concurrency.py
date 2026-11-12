@@ -13,13 +13,13 @@ regression), and one chapter failing must not cost the others their art.
 
 import os
 import threading
-import time
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import pytest
 
 import services.handlers as handlers_mod
+from tests.concurrency_probe import InFlightProbe
 
 
 def _chapter(n: int):
@@ -74,36 +74,29 @@ def _run(orch, comic_impl, workers=4):
 class TestChaptersRunConcurrently:
     def test_six_chapters_do_not_take_six_round_trips(self, _stub_env):
         sub = _stub_env
+        probe = InFlightProbe(rendezvous=4)
 
-        def _slow(ch, **kw):
-            time.sleep(0.1)
-            return [os.path.join(sub, f"ch{ch.chapter_number:02d}_panel01.png")]
+        def _comic(ch, **kw):
+            with probe:
+                return [os.path.join(sub, f"ch{ch.chapter_number:02d}_panel01.png")]
 
-        started = time.monotonic()
-        paths, _ = _run(_orch(6), _slow, workers=4)
-        elapsed = time.monotonic() - started
+        paths, _ = _run(_orch(6), _comic, workers=4)
 
         assert len(paths) == 6
-        assert elapsed < 0.45, f"serial would take ~0.6s, took {elapsed:.2f}s"
+        assert probe.peak == 4, f"only {probe.peak} chapter(s) overlapped with 4 workers"
 
     def test_worker_count_is_bounded_by_config(self, _stub_env):
         sub = _stub_env
-        live = 0
-        peak = 0
-        lock = threading.Lock()
+        # Ask for one more than the limit: every call stays in flight until a
+        # third joins (only an unbounded pool lets one in) or 0.2 s passes.
+        probe = InFlightProbe(rendezvous=3, timeout=0.2)
 
         def _meter(ch, **kw):
-            nonlocal live, peak
-            with lock:
-                live += 1
-                peak = max(peak, live)
-            time.sleep(0.05)
-            with lock:
-                live -= 1
-            return [os.path.join(sub, f"ch{ch.chapter_number:02d}_panel01.png")]
+            with probe:
+                return [os.path.join(sub, f"ch{ch.chapter_number:02d}_panel01.png")]
 
         _run(_orch(8), _meter, workers=2)
-        assert peak <= 2, f"{peak} chapters ran at once against a limit of 2"
+        assert probe.peak == 2, f"{probe.peak} chapters ran at once against a limit of 2"
 
     def test_one_worker_still_works(self, _stub_env):
         sub = _stub_env
@@ -119,12 +112,16 @@ class TestChaptersRunConcurrently:
 
 class TestOrderAndIsolation:
     def test_paths_come_back_in_chapter_order(self, _stub_env):
-        """Chapter 1 is slowest, yet must still lead the gallery."""
+        """Chapter 1 finishes last, yet must still lead the gallery."""
         sub = _stub_env
+        others_done = threading.Semaphore(0)
 
         def _staggered(ch, **kw):
             if ch.chapter_number == 1:
-                time.sleep(0.15)
+                for _ in range(3):
+                    others_done.acquire(timeout=10)
+            else:
+                others_done.release()
             return [os.path.join(sub, f"ch{ch.chapter_number:02d}_panel01.png")]
 
         paths, _ = _run(_orch(4), _staggered, workers=4)

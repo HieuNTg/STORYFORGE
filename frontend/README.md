@@ -14,8 +14,8 @@ Next.js (App Router) UI for StoryForge. It talks to the FastAPI backend at `http
 ## Dev
 
 ```bash
-# from repo root: start backend + frontend in two PowerShell windows
-./dev.ps1
+# from repo root: start backend + frontend together (stdlib launcher)
+python scripts/dev.py
 
 # or run frontend manually alongside `python app.py`
 cd frontend
@@ -31,7 +31,7 @@ npm test           # vitest + RTL
 ```
 app/                     # App Router pages (shell routes: forge, library, reader, branching, simulation, settings)
 components/
-  settings/              # Settings tab forms (General, API keys/provider quick-add, Advanced L1/L2, Flowkit)
+  settings/              # Settings tab forms (General, API keys/provider quick-add, Advanced L1/L2)
   reader/                # Library-backed reader start screen + chapter reader
   branching/             # Library-backed branch starter + branch tree
   simulation/            # Library/story/character-driven simulation setup
@@ -48,7 +48,7 @@ lib/
 - Schema source of truth lives in backend Pydantic. Mirror in `lib/schemas/*.ts` with `z.object(...).strict()`; `.default()` keeps fields optional in inputs but populated in parsed outputs.
 - Forms use `pickDirty()` to PATCH only changed fields (delta PATCH against `/api/config`, `/api/stories/{id}`, etc.).
 - Long-lived components that mirror server state must derive `initial` via `useMemo` and key resets on a stable `JSON.stringify(initial)` so background refetches don't clobber in-flight edits.
-- Provider-specific config panels (e.g., [`FlowkitSettings`](components/settings/FlowkitSettings.tsx)) mount conditionally and own their own RHF instance, leaving the General tab's delta-save flow untouched.
+- Provider-specific config panels (e.g., a future per-provider panel) mount conditionally and own their own RHF instance, leaving the General tab's delta-save flow untouched.
 
 ## Notes
 

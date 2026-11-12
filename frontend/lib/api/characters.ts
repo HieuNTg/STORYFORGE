@@ -79,7 +79,7 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 /**
  * Queue portrait generation for every character of a story at once.
  *
- * Fire-and-forget on the backend (mirrors extract-story): FlowKit serializes
+ * Fire-and-forget on the backend (mirrors extract-story): Image providers serialize
  * portraits (~25-30s each), so the server kicks the whole batch off the request
  * path and returns immediately. Use {@link waitForAllAvatars} to poll for the
  * results. Returns the number of portraits the backend accepted.
@@ -100,7 +100,7 @@ export async function generateAllCharacterAvatars(
  *
  * `onTick` fires after each poll with the current name→URL map so the caller can
  * surface portraits as they land and show "done/total" progress. Resolves with
- * the last map seen — partial if some portraits never arrived (e.g. FlowKit
+ * the last map seen — partial if some portraits never arrived (e.g. provider
  * disabled), so the caller can decide success vs. partial.
  */
 export async function waitForAllAvatars(
@@ -157,14 +157,14 @@ async function pollForNewAvatar(
 }
 
 /**
- * Regenerate a single character portrait via FlowKit (story-scoped, no backend
+ * Regenerate a single character portrait via the image provider (story-scoped, no backend
  * store needed). Returns the fresh, cache-busted `/media` URL. Slow (~25-30s);
  * the caller shows a spinner.
  *
  * Dev-proxy resilience: in `next dev` the request crosses the rewrite proxy,
  * which resets long upstream connections (~30s) with "socket hang up" -> HTTP
  * 500 even though the backend keeps generating and writes the portrait to disk.
- * The backend route only ever returns 200 / 502 (FlowKit unavailable) / 504
+ * The backend route only ever returns 200 / 502 (provider unavailable) / 504
  * (its own timeout) — so a 500, or a raw network throw, means the proxy dropped
  * the response, NOT that generation failed. In that case we recover by polling
  * the on-disk avatar until the new file appears. Production serves a same-origin

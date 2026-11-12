@@ -5,9 +5,16 @@ stays thin. Maps the configured base_url (primary + fallback_models) to a
 provider type and fills gaps from well-known environment variables.
 """
 
+import ipaddress
 import logging
+import os
+from urllib.parse import urlparse
 
 logger = logging.getLogger(__name__)
+
+# Provider keys the fallback chain picks up from the environment.
+_ENV_KEYS = ("ANTHROPIC_API_KEY", "GOOGLE_AI_API_KEY", "ZAI_API_KEY")
+_LOCAL_NAMES = {"localhost", "host.docker.internal"}
 
 
 def get_api_keys_from_config() -> dict[str, str]:
@@ -55,8 +62,6 @@ def get_api_keys_from_config() -> dict[str, str]:
                 keys.setdefault("zai", fb_key)
 
         # Check environment for additional keys
-        import os
-
         if "ANTHROPIC_API_KEY" in os.environ and "anthropic" not in keys:
             keys["anthropic"] = os.environ["ANTHROPIC_API_KEY"]
         if "GOOGLE_AI_API_KEY" in os.environ and "google" not in keys:
@@ -68,3 +73,63 @@ def get_api_keys_from_config() -> dict[str, str]:
     except Exception as e:
         logger.warning(f"Failed to get API keys from config: {e}")
         return {}
+
+
+def _is_local_endpoint(base_url: str) -> bool:
+    """True for a model server on this machine or the LAN, which may need no key:
+    loopback names and IPs, ``host.docker.internal``, private/link-local IPs."""
+    host = (urlparse(base_url or "").hostname or "").lower().rstrip(".")
+    if not host:
+        return False
+    if host in _LOCAL_NAMES:
+        return True
+    try:
+        ip = ipaddress.ip_address(host)
+    except ValueError:
+        return False
+    return ip.is_loopback or ip.is_private or ip.is_link_local
+
+
+def _pool_key(item) -> str:
+    if isinstance(item, str):
+        return item
+    if isinstance(item, dict):
+        return item.get("key") or item.get("api_key") or ""
+    return ""
+
+
+def has_usable_llm_key(llm) -> bool:
+    """False only when generation cannot authenticate anywhere.
+
+    Any non-empty key counts (primary, layer 1/2, the ``api_keys`` pool, a
+    fallback profile, a provider key from the environment), and so does any
+    endpoint on this machine or the LAN (local Ollama / LM Studio need no key).
+    Deliberately permissive: it exists to turn the first run without a key
+    into a clear message, not to second-guess a configured setup.
+    """
+    if any(
+        getattr(llm, f, "") for f in ("api_key", "layer1_api_key", "layer2_api_key")
+    ):
+        return True
+    if any(_pool_key(item) for item in getattr(llm, "api_keys", None) or []):
+        return True
+    fallbacks = [fb for fb in getattr(llm, "fallback_models", None) or [] if isinstance(fb, dict)]
+    if any(fb.get("api_key") for fb in fallbacks):
+        return True
+    if any(os.environ.get(k, "").strip() for k in _ENV_KEYS):
+        return True
+    urls = [
+        getattr(llm, f, "") or ""
+        for f in ("base_url", "layer1_base_url", "layer2_base_url", "cheap_base_url")
+    ] + [fb.get("base_url") or "" for fb in fallbacks]
+    return any(_is_local_endpoint(u) for u in urls)
+
+
+def ensure_llm_key() -> None:
+    """Route dependency: raise ``ApiKeyMissing`` (400 ``api_key_missing``)
+    before a run starts when no usable key exists."""
+    from config import ConfigManager
+    from errors.exceptions import ApiKeyMissing
+
+    if not has_usable_llm_key(ConfigManager().llm):
+        raise ApiKeyMissing()

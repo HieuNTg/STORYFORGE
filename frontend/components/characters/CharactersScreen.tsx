@@ -21,7 +21,7 @@ import { useLibraryStore, rehydrateLibrary } from "@/stores/library-store";
 import { CharacterList, type CharacterListItemMeta } from "./CharacterList";
 import { CharacterDetail } from "./CharacterDetail";
 import { CreateCharacterForm } from "./CreateCharacterForm";
-import type { ForgeCharacter, Story } from "@/types/story";
+import type { ForgeCharacter } from "@/types/story";
 import {
   extractStoryCharacters,
   generateAllCharacterAvatars,
@@ -63,22 +63,27 @@ export function CharactersScreen() {
   const updateStory = useLibraryStore((s) => s.updateStory);
   const queryClient = useQueryClient();
 
-  const [storyId, setStoryId] = React.useState<string | null>(null);
-  const [selectedName, setSelectedName] = React.useState<string | null>(null);
+  const [pickedStoryId, setStoryId] = React.useState<string | null>(null);
+  const [pickedName, setSelectedName] = React.useState<string | null>(null);
   const [searchQuery, setSearchQuery] = React.useState("");
 
   React.useEffect(() => {
     rehydrateLibrary();
   }, []);
 
-  React.useEffect(() => {
-    if (!storyId && stories.length) setStoryId(stories[0].id);
-  }, [storyId, stories]);
+  // Derived: the user's pick, else the first story.
+  const storyId = pickedStoryId ?? stories[0]?.id ?? null;
 
   const activeStory = React.useMemo(
     () => stories.find((s) => s.id === storyId) ?? null,
     [storyId, stories],
   );
+
+  // Derived: the user's pick if it still exists, else the first character.
+  const selectedName =
+    pickedName && activeStory?.characters.some((c) => c.name === pickedName)
+      ? pickedName
+      : (activeStory?.characters[0]?.name ?? null);
 
   const { profiles } = useCharacterProfiles(storyId);
 
@@ -157,15 +162,6 @@ export function CharactersScreen() {
     }
   }, [activeStory, isExtracting, updateStory, t]);
 
-  React.useEffect(() => {
-    if (!activeStory) {
-      setSelectedName(null);
-      return;
-    }
-    if (selectedName && activeStory.characters.some((c) => c.name === selectedName)) return;
-    setSelectedName(activeStory.characters[0]?.name ?? null);
-  }, [activeStory, selectedName]);
-
   const handleCreated = React.useCallback(
     (character: ForgeCharacter) => {
       if (!storyId) return;
@@ -217,7 +213,7 @@ export function CharactersScreen() {
   }, [queryClient, storyId]);
 
   // Bulk avatar generation: queue every character on the backend (fire-and-
-  // forget — FlowKit serializes ~25-30s/portrait, so holding one request for
+  // forget — image providers can take ~25-30s/portrait, so holding one request for
   // all of them would trip the dev proxy), then poll until each file lands,
   // surfacing portraits on the list as they arrive.
   const [isGeneratingAll, setIsGeneratingAll] = React.useState(false);

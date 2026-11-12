@@ -16,6 +16,7 @@ from services.llm_client import LLMClient
 from services import prompts as prompt_templates
 from pipeline.layer2_enhance.genre_drama_rules import get_genre_enhancement_hints
 from config import ConfigManager
+from services.llm.run_context import run_in_thread
 
 # Consistency Engine (A-E improvements)
 try:
@@ -930,9 +931,9 @@ class StoryEnhancer:
             f"✨ Đang tăng cường kịch tính {total_chapters} chương (parallel, {max_workers} workers)..."
         )
 
-        # enhance_chapter() wraps blocking LLM calls; run_in_executor offloads each to the
-        # default thread pool while asyncio.gather dispatches all coroutines concurrently.
-        loop = asyncio.get_running_loop()
+        # enhance_chapter() wraps blocking LLM calls; run_in_thread offloads each to the
+        # default thread pool (keeping the run's context, i.e. its cost wallet) while
+        # asyncio.gather dispatches all coroutines concurrently.
         chapters_list = list(draft.chapters)
 
         # max_workers was read only to print the line above: the gather below
@@ -946,8 +947,7 @@ class StoryEnhancer:
             ch_num = chapter.chapter_number
             try:
                 async with semaphore:
-                    result = await loop.run_in_executor(
-                        None,
+                    result = await run_in_thread(
                         self.enhance_chapter,
                         chapter,
                         sim_result,
@@ -1410,8 +1410,6 @@ class StoryEnhancer:
                 f"across {len(sim_result.events)} events (agent multipliers embedded)"
             )
 
-        loop = asyncio.get_running_loop()
-
         # Idea header for re-enhancement rewrites — preserve proper nouns / gimmicks
         try:
             from services.text_utils import build_idea_header
@@ -1435,7 +1433,7 @@ class StoryEnhancer:
                 f"🔄 Feedback round {round_num}: re-enhancing {len(weak_analyses)} weak chapters (parallel)"
             )
 
-            # L2-A: Parallel feedback rewrite — blocking LLM calls offloaded via run_in_executor.
+            # L2-A: Parallel feedback rewrite — blocking LLM calls offloaded via run_in_thread.
             def _rewrite_one(analysis: dict) -> tuple[int, Chapter | None]:
                 ch_num = analysis["chapter_number"]
                 # B5: lookup by chapter_number (may be non-contiguous in continuation)
@@ -1512,7 +1510,7 @@ class StoryEnhancer:
             try:
                 pairs = await asyncio.gather(
                     *[
-                        loop.run_in_executor(None, _rewrite_one, a)
+                        run_in_thread(_rewrite_one, a)
                         for a in weak_analyses
                     ]
                 )

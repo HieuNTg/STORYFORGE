@@ -2,62 +2,63 @@ import path from "node:path";
 import type { NextConfig } from "next";
 import createNextIntlPlugin from "next-intl/plugin";
 
-const isDev = process.env.NODE_ENV !== "production";
-
 const withNextIntl = createNextIntlPlugin("./lib/i18n/request.ts");
 
-// Static export (`output: 'export'`) is required for prod (FE served by FastAPI).
-// But it bails when server code reads `cookies()` (next-intl locale lookup).
-// Gate it behind an env flag so `next dev` keeps cookie-based locale switching,
-// and CI/prod opts in via `NEXT_OUTPUT_EXPORT=1 npm run build`.
-const wantsExport = process.env.NEXT_OUTPUT_EXPORT === "1";
+// Where the FastAPI backend lives. Read at build time and baked into the
+// rewrites: `next dev` uses the default, the Docker image is built with
+// API_ORIGIN=http://api:7860 (docker/web.Dockerfile).
+const apiOrigin = process.env.API_ORIGIN ?? "http://localhost:7860";
 
 const nextConfig: NextConfig = {
-  ...(wantsExport ? { output: "export" as const } : {}),
+  // `node server.js` from .next/standalone is the production server (Docker).
+  output: "standalone",
   trailingSlash: true,
+  // Serve paths as requested instead of 308-redirecting `/api/x` to `/api/x/`
+  // before the rewrite below: the hop re-sends every API POST body, and a
+  // client that does not follow redirects (curl, scripts) gets an empty 308.
+  // The app's own links already end in "/".
+  skipTrailingSlashRedirect: true,
   images: { unoptimized: true },
   turbopack: { root: path.resolve(__dirname) },
-  // Disable Next's gzip compression in dev. The dev `rewrites()` proxy below
-  // buffers the ENTIRE response body to gzip it whenever the client sends
-  // `Accept-Encoding: gzip` — which every browser always does. That buffering
-  // defeats SSE: `text/event-stream` frames from `/api/pipeline/run` and
-  // `/api/forge/sentence/stream` only flushed to the browser when the stream
-  // closed, so the pipeline UI sat frozen ("stuck at Outline") for the whole
-  // run and then populated all at once on `done`. The FastAPI backend already
-  // excludes `text/event-stream` from its own GZipMiddleware; the proxy was the
-  // sole culprit. curl masked it by not sending `Accept-Encoding` by default.
-  // Prod is a static export served by FastAPI (no Next server, no proxy), so
-  // `compress` has no effect there — gating on dev keeps the switch honest.
-  compress: !isDev,
-  // The dev `rewrites()` proxy below kills any upstream request that takes
-  // longer than Next's default 30s (`proxy-request.js`: `proxyTimeout || 30000`),
-  // and the browser sees a bare `socket hang up` / ECONNRESET that the UI can
-  // only report as "Internal Server Error" — indistinguishable from a real
-  // backend fault. StoryForge legitimately exceeds 30s on a single request:
-  // `POST /api/config/test-connection` against a slow provider (the local
-  // Gemini/Qwen bridge drives a real browser, ~45s) and long SSE pipeline runs.
-  // Raise the ceiling in dev so slow-but-working calls report the truth.
-  // Prod is a static export served by FastAPI — no Next server, no proxy.
-  ...(isDev ? { experimental: { proxyTimeout: 10 * 60_000 } } : {}),
-  // Dev-only proxy to the FastAPI backend on :7860.
-  // Note: rewrites() is ignored when `output: 'export'` runs at build time;
-  // it remains effective for `next dev`.
+  // Never gzip. The rewrites() proxy buffers the whole response body to gzip it
+  // whenever the client sends `Accept-Encoding: gzip` (every browser does),
+  // which holds back `text/event-stream` frames from `/api/pipeline/run` and
+  // `/api/forge/sentence/stream` until the stream closes. FastAPI already
+  // compresses its own non-SSE responses.
+  compress: false,
+  experimental: {
+    // The rewrites() proxy drops any upstream request slower than Next's
+    // default 30s with a bare `socket hang up`. Test-connection against a slow
+    // provider and long SSE pipeline runs legitimately take longer.
+    proxyTimeout: 600_000, // 10 minutes
+  },
+  // Hardening headers on every page. The UI must never be framed by another
+  // site (clickjacking); proxied /api and /media responses keep the API's own
+  // values, which the proxy copies over these.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "same-origin" },
+        ],
+      },
+    ];
+  },
+  // The browser only ever talks to this server; /api and /media (generated
+  // images) are proxied to the backend.
   async rewrites() {
-    if (!isDev) return [];
     return [
       {
         source: "/api/:path*",
-        destination: "http://localhost:7860/api/:path*",
+        destination: `${apiOrigin}/api/:path*`,
       },
-      // On-disk media (generated portraits, chapter images) is served by the
-      // FastAPI `/media` static mount. Without this rewrite an <img src="/media/…">
-      // resolves against the Next dev origin (:3001) and 404s, so character
-      // avatars and reader reference images never render in dev. In prod the FE
-      // is a static export served BY FastAPI (same origin), so no proxy is
-      // needed there — this block is dev-only (rewrites() returns [] when !isDev).
       {
         source: "/media/:path*",
-        destination: "http://localhost:7860/media/:path*",
+        destination: `${apiOrigin}/media/:path*`,
       },
     ];
   },

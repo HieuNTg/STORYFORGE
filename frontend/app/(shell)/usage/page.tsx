@@ -5,8 +5,9 @@
  *
  * Data: `GET /api/usage/session` via `useUsageSession`.
  *  - staleTime 60s
- *  - RBAC-gated in production: on 403/network failure we render demo data
- *    with a clear banner saying "Backend endpoint pending / unavailable".
+ *  - If the request fails (network error, or 401 while the access token is
+ *    still locked) we render demo data with a clear banner saying
+ *    "Backend endpoint pending / unavailable".
  *
  * Daily breakdown: the backend has no `/api/usage/daily`. The chart uses
  * model-level totals for now and surfaces the same banner when no breakdown

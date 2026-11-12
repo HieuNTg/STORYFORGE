@@ -1,133 +1,23 @@
-"""Additional coverage tests for structured_output, secret_manager, token_counter, story_analytics."""
+"""Additional coverage tests for secret_manager, token_counter, story_analytics."""
 
 from __future__ import annotations
 
 import os
 import sys
 import pytest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 
 # ============================================================
-# services/structured_output.py — 61 statements, 15%
-# ============================================================
-
-
-class TestStructuredOutput:
-    """Tests for structured output utilities."""
-
-    def test_detect_provider_openai(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("https://api.openai.com/v1") == "openai"
-
-    def test_detect_provider_openrouter(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("https://openrouter.ai/api/v1") == "openrouter"
-
-    def test_detect_provider_anthropic(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("https://api.anthropic.com") == "anthropic"
-
-    def test_detect_provider_gemini(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("https://generativelanguage.googleapis.com") == "google"
-
-    def test_detect_provider_ollama(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("http://localhost:11434") == "ollama"
-
-    def test_detect_provider_empty(self):
-        from services.structured_output import _detect_provider
-
-        assert _detect_provider("") == "openai"
-
-    def test_extract_json_direct(self):
-        from services.structured_output import _extract_json
-
-        result = _extract_json('{"key": "value", "num": 42}')
-        assert result["key"] == "value"
-        assert result["num"] == 42
-
-    def test_extract_json_from_text(self):
-        from services.structured_output import _extract_json
-
-        result = _extract_json('Some text before {"key": "value"} and after')
-        assert result["key"] == "value"
-
-    def test_extract_json_trailing_comma(self):
-        from services.structured_output import _extract_json
-
-        try:
-            result = _extract_json('{"key": "value",}')
-            assert isinstance(result, dict)
-        except ValueError:
-            pass  # acceptable if repair fails
-
-    def test_extract_json_no_json_raises(self):
-        from services.structured_output import _extract_json
-
-        with pytest.raises(ValueError):
-            _extract_json("No JSON here at all")
-
-    def test_validate_schema_all_keys_present(self):
-        from services.structured_output import _validate_schema
-
-        data = {"a": 1, "b": 2, "c": 3}
-        schema = {"a": None, "b": None}
-        missing = _validate_schema(data, schema)
-        assert missing == []
-
-    def test_validate_schema_missing_key(self):
-        from services.structured_output import _validate_schema
-
-        data = {"a": 1}
-        schema = {"a": None, "b": None}
-        missing = _validate_schema(data, schema)
-        assert "b" in missing
-
-    def test_generate_structured_mocked(self):
-        from services.structured_output import generate_structured
-
-        mock_client = MagicMock()
-        mock_client.generate.return_value = '{"result": "test", "score": 5}'
-
-        # Patch via the module-level import inside the function
-        import services.llm_client as llm_module
-
-        original_cls = llm_module.LLMClient
-        llm_module.LLMClient = lambda: mock_client
-        try:
-            result = generate_structured(
-                prompt="Test prompt",
-                schema={"result": None, "score": None},
-            )
-            assert isinstance(result, dict)
-        except Exception:
-            pass  # acceptable if schema validation fails
-        finally:
-            llm_module.LLMClient = original_cls
-
-    def test_generate_structured_json_extraction(self):
-        """Test _extract_json with structured generate directly."""
-        from services.structured_output import _extract_json
-
-        # Simulate LLM response with embedded JSON
-        text = 'Here is the response: {"result": "pass", "score": 4.5}'
-        result = _extract_json(text)
-        assert result["result"] == "pass"
-        assert result["score"] == pytest.approx(4.5)
-
-
-# ============================================================
 # services/secret_manager.py — 82 statements, 18%
 # ============================================================
+
+
+from cryptography.fernet import Fernet as _Fernet  # noqa: E402
+
+_FK = _Fernet.generate_key().decode()
 
 
 class TestSecretManager:
@@ -158,14 +48,14 @@ class TestSecretManager:
         assert _is_sensitive("base_url") is False
         assert _is_sensitive("temperature") is False
 
-    def test_encrypt_value_no_key(self):
-        """Without STORYFORGE_SECRET_KEY, encrypt_value returns plaintext."""
+    def test_encrypt_value_no_env_key_still_encrypts(self):
+        """Without STORYFORGE_SECRET_KEY the auto-generated key is used."""
         from services.secret_manager import encrypt_value
 
         with patch.dict(os.environ, {}, clear=False):
             os.environ.pop("STORYFORGE_SECRET_KEY", None)
             result = encrypt_value("my-secret")
-        assert result == "my-secret"
+        assert result.startswith("ENC:")
 
     def test_encrypt_value_empty_string(self):
         from services.secret_manager import encrypt_value
@@ -176,7 +66,7 @@ class TestSecretManager:
     def test_encrypt_decrypt_roundtrip(self):
         from services.secret_manager import encrypt_value, decrypt_value
 
-        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "test-key-1234"}):
+        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": _FK}):
             encrypted = encrypt_value("my-secret-value")
             assert encrypted.startswith("ENC:")
             decrypted = decrypt_value(encrypted)
@@ -192,7 +82,7 @@ class TestSecretManager:
     def test_encrypt_sensitive_fields(self):
         from services.secret_manager import encrypt_sensitive_fields
 
-        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "test-key-1234"}):
+        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": _FK}):
             data = {"api_key": "sk-test", "model": "gpt-4o", "token": "hf-token"}
             result = encrypt_sensitive_fields(data)
             assert result["api_key"].startswith("ENC:")
@@ -205,27 +95,12 @@ class TestSecretManager:
             decrypt_sensitive_fields,
         )
 
-        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "test-key-5678"}):
+        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": _FK}):
             original = {"api_key": "sk-test-123", "model": "gpt-4o"}
             encrypted = encrypt_sensitive_fields(original)
             decrypted = decrypt_sensitive_fields(encrypted)
             assert decrypted["api_key"] == "sk-test-123"
             assert decrypted["model"] == "gpt-4o"
-
-    def test_get_fernet_returns_none_without_key(self):
-        from services.secret_manager import _get_fernet
-
-        with patch.dict(os.environ, {}, clear=False):
-            os.environ.pop("STORYFORGE_SECRET_KEY", None)
-            result = _get_fernet()
-        assert result is None
-
-    def test_get_fernet_returns_fernet_with_key(self):
-        from services.secret_manager import _get_fernet
-
-        with patch.dict(os.environ, {"STORYFORGE_SECRET_KEY": "test-key"}):
-            result = _get_fernet()
-        assert result is not None
 
 
 # ============================================================
@@ -339,18 +214,6 @@ class TestStoryAnalyticsExtended:
         result = StoryAnalytics.analyze_story(story)
         assert "total_words" in result
 
-    def test_emotion_arc_detection(self):
-        from services.story_analytics import StoryAnalytics
-
-        chapter_content = (
-            "Hắn cảm thấy vui mừng và hạnh phúc. Nhưng sau đó buồn bã đau khổ."
-        )
-        from models.schemas import Chapter
-
-        chapter = Chapter(chapter_number=1, title="Ch1", content=chapter_content)
-        stats = StoryAnalytics.analyze_chapter(chapter)
-        assert isinstance(stats, dict)
-
     def test_paragraph_count(self):
         from services.story_analytics import StoryAnalytics
         from models.schemas import Chapter
@@ -410,159 +273,12 @@ class TestVoiceManager:
 
 
 # ============================================================
-# pipeline/agents — additional agents
-# ============================================================
-
-
-class TestPipelineAgents:
-    """Tests for various pipeline agents."""
-
-    def test_editor_in_chief_import(self):
-        from pipeline.agents.editor_in_chief import EditorInChiefAgent
-
-        assert EditorInChiefAgent is not None
-
-    def test_dialogue_expert_import(self):
-        from pipeline.agents.dialogue_expert import DialogueExpertAgent
-
-        assert DialogueExpertAgent is not None
-
-    def test_continuity_checker_import(self):
-        from pipeline.agents.continuity_checker import ContinuityCheckerAgent
-
-        assert ContinuityCheckerAgent is not None
-
-    def test_pacing_analyzer_import(self):
-        from pipeline.agents.pacing_analyzer import PacingAnalyzerAgent
-
-        assert PacingAnalyzerAgent is not None
-
-    def test_drama_critic_name(self):
-        from pipeline.agents.drama_critic import DramaCriticAgent
-
-        assert isinstance(DramaCriticAgent.name, str)
-
-    def test_all_agents_have_layers(self):
-        """Each agent should define which layers it operates on."""
-        agent_classes = []
-        try:
-            from pipeline.agents.drama_critic import DramaCriticAgent
-
-            agent_classes.append(DramaCriticAgent)
-            from pipeline.agents.editor_in_chief import EditorInChiefAgent
-
-            agent_classes.append(EditorInChiefAgent)
-            from pipeline.agents.dialogue_expert import DialogueExpertAgent
-
-            agent_classes.append(DialogueExpertAgent)
-        except ImportError:
-            pass
-
-        for cls in agent_classes:
-            assert hasattr(cls, "layers"), f"{cls.__name__} missing layers attribute"
-            assert isinstance(cls.layers, list)
-
-
-# ============================================================
-# api/analytics_routes.py — additional routes
-# ============================================================
-
-
-class TestAnalyticsRoutes:
-    """Tests for analytics API routes."""
-
-    def test_analytics_router_exists(self):
-        from api.analytics_routes import router
-
-        assert router is not None
-
-    def test_analytics_routes_registered(self):
-        from api.analytics_routes import router
-
-        routes = [r.path for r in router.routes]
-        assert len(routes) >= 0  # just verify import works
-
-
-# ============================================================
-# api/dashboard_routes.py — dashboard routes
-# ============================================================
-
-
-class TestDashboardRoutes:
-    """Tests for dashboard API routes."""
-
-    def test_dashboard_router_exists(self):
-        from api.dashboard_routes import router
-
-        assert router is not None
-
-
-# ============================================================
-# services/pipeline/eval_pipeline.py — 130 statements, 14%
-# ============================================================
-
-
-class TestEvalPipeline:
-    """Tests for eval pipeline."""
-
-    def test_import(self):
-        try:
-            import services.pipeline.eval_pipeline as ep
-
-            assert ep is not None
-        except ImportError:
-            pytest.skip("eval_pipeline not available")
-
-    def test_classes_exist(self):
-        try:
-            import services.pipeline.eval_pipeline as ep
-            import inspect
-
-            classes = [name for name, obj in inspect.getmembers(ep, inspect.isclass)]
-            assert len(classes) >= 0
-        except ImportError:
-            pytest.skip("eval_pipeline not available")
-
-
-# ============================================================
-# services/pipeline/scoring_calibration_service.py — 89 statements, 6%
-# ============================================================
-
-
-class TestScoringCalibration:
-    """Tests for scoring calibration."""
-
-    def test_import(self):
-        try:
-            import services.pipeline.scoring_calibration_service as scs
-
-            assert scs is not None
-        except ImportError:
-            pytest.skip("scoring_calibration_service not available")
-
-    def test_classes_exist(self):
-        try:
-            import services.pipeline.scoring_calibration_service as scs
-            import inspect
-
-            classes = [name for name, obj in inspect.getmembers(scs, inspect.isclass)]
-            assert len(classes) >= 0
-        except ImportError:
-            pytest.skip("scoring_calibration_service not available")
-
-
-# ============================================================
 # services/pipeline/branch_narrative.py — 80 statements, 27%
 # ============================================================
 
 
 class TestBranchNarrative:
     """Tests for branch narrative service."""
-
-    def test_import(self):
-        from services.pipeline.branch_narrative import BranchManager
-
-        assert BranchManager is not None
 
     def test_public_node_helper(self):
         from services.pipeline.branch_narrative import _public_node

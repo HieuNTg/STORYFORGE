@@ -23,11 +23,14 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel
 
 from api.export_routes import _get_story_data
-from middleware.rbac import Permission, require_permission_if_enabled
+from middleware.access import require_access
 
 logger = logging.getLogger(__name__)
-router = APIRouter(prefix="/quality", tags=["quality"])
-_READ_STORIES = Depends(require_permission_if_enabled(Permission.READ_STORIES))
+router = APIRouter(
+    prefix="/quality",
+    tags=["quality"],
+    dependencies=[Depends(require_access)],
+)
 
 
 class OverallQuality(BaseModel):
@@ -157,8 +160,8 @@ def _summarize_quality(output) -> Optional[dict]:
     }
 
 
-@router.get("", dependencies=[_READ_STORIES])
-@router.get("/", dependencies=[_READ_STORIES])
+@router.get("")
+@router.get("/")
 def get_quality_summaries() -> dict:
     """Batch summary for the library list — one entry per checkpoint file.
 
@@ -202,7 +205,7 @@ def get_quality_summaries() -> dict:
 
 
 @router.get(
-    "/{session_id}", response_model=QualityResponse, dependencies=[_READ_STORIES]
+    "/{session_id}", response_model=QualityResponse
 )
 async def get_quality(session_id: str) -> QualityResponse:
     """Return per-chapter quality scores for a session or checkpoint.

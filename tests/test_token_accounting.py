@@ -39,6 +39,24 @@ class TestVietnameseAwareEstimation:
         assert len(text) // 8 < est < len(text)
 
 
+    def test_english_estimate_unchanged_by_vi_threshold(self):
+        text = "The quick brown fox jumps over the lazy dog. " * 20
+        assert _estimate_tokens(text) == len(text) // 4
+
+    @staticmethod
+    def _mixed(n_diacritic: int, total: int = 1000) -> str:
+        return "ạ" * n_diacritic + "a" * (total - n_diacritic)
+
+    def test_no_cliff_around_old_threshold(self):
+        low = _estimate_tokens(self._mixed(140))
+        high = _estimate_tokens(self._mixed(160))
+        assert abs(high - low) / low < 0.10
+
+    def test_estimate_is_monotonic_in_diacritic_share(self):
+        ests = [_estimate_tokens(self._mixed(n)) for n in range(0, 1001, 10)]
+        assert all(b >= a for a, b in zip(ests, ests[1:]))
+
+
 class TestProviderUsageCapture:
     def test_openai_shaped_usage_is_captured(self):
         out: dict = {}
@@ -155,6 +173,22 @@ class TestStreamingIsCosted:
         wallet.assert_called_once()
         _cost, tokens = wallet.call_args[0][:2]
         assert tokens > 0, "the streamed body must count toward the budget"
+
+    def test_stream_charges_the_run_bound_at_stream_start(self):
+        """Task 12: the stream charges the run it started under, by explicit id."""
+        with patch("services.llm.client._record_trace_call"), patch(
+            "services.llm.client.LLMClient.charge_wallet"
+        ) as wallet:
+            self._client()._account_for_stream(
+                model="m",
+                label="primary:m",
+                messages=[{"role": "user", "content": "viết chương"}],
+                text=VI_SAMPLE,
+                duration_ms=10,
+                run_id="run-S",
+            )
+
+        assert wallet.call_args.kwargs["run_id"] == "run-S"
 
     def test_budget_exception_propagates(self):
         """A cap breach must abort the run, not be swallowed as telemetry."""

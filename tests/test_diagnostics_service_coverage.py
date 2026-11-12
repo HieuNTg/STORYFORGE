@@ -3,7 +3,7 @@
 The dict-branches in the service can't be reached on SQLite end-to-end (JSON
 columns round-trip as strings on raw SQL read — see e2e test docstring). To
 cover those branches we stub `_sync_engine` with a fake engine that returns
-already-decoded dicts, mirroring native PostgreSQL JSONB behaviour.
+already-decoded dicts (as a driver with native JSON decoding would).
 """
 
 from __future__ import annotations
@@ -23,8 +23,7 @@ from services import diagnostics_service
 def temp_db(tmp_path, monkeypatch):
     db_path = tmp_path / "diagsvc.db"
     db_url = f"sqlite:///{db_path}"
-    monkeypatch.setenv("DATABASE_URL", db_url)
-    monkeypatch.setattr(diagnostics_service, "_DB_URL", db_url)
+    monkeypatch.setenv("STORYFORGE_DB_PATH", str(db_path))
     engine = create_engine(db_url, connect_args={"check_same_thread": False})
     for table in (Story.__table__, Chapter.__table__, PipelineRun.__table__):
         table.create(engine, checkfirst=True)

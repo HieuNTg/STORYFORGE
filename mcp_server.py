@@ -27,9 +27,10 @@ MANUAL TEST (no Claude Desktop needed)
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}' | python mcp_server.py
 """
 
+import asyncio
 import json
-import os
 import sys
+import threading
 import uuid
 import logging
 from typing import Any
@@ -42,62 +43,18 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # ---------------------------------------------------------------------------
-# Graceful redis import
+# Job store — in-memory dict (one local process)
 # ---------------------------------------------------------------------------
-try:
-    import redis as _redis_lib
-
-    _REDIS_AVAILABLE = True
-except ImportError:
-    _redis_lib = None  # type: ignore[assignment]
-    _REDIS_AVAILABLE = False
-
-# ---------------------------------------------------------------------------
-# Job store — Redis-backed when REDIS_URL is set, else in-memory dict
-# ---------------------------------------------------------------------------
-_REDIS_URL = os.environ.get("REDIS_URL", "").strip()
-_JOB_TTL = 86400  # 24 hours
-_JOB_PREFIX = "mcp_job:"
-
-_jobs: dict[str, dict] = {}  # fallback in-memory store
-_redis_client = None
-
-if _REDIS_URL and _REDIS_AVAILABLE:
-    try:
-        _redis_client = _redis_lib.from_url(_REDIS_URL, decode_responses=True)
-        _redis_client.ping()
-        logger.warning("MCP job store: Redis connected (%s)", _REDIS_URL.split("@")[-1])
-    except Exception as _e:
-        logger.warning(
-            "MCP job store: Redis unavailable (%s), using in-memory fallback.", _e
-        )
-        _redis_client = None
+_jobs: dict[str, dict] = {}
 
 
 def _get_job(job_id: str) -> "dict | None":
     """Retrieve job data by id."""
-    if _redis_client is not None:
-        try:
-            raw = _redis_client.get(f"{_JOB_PREFIX}{job_id}")
-            if raw:
-                return json.loads(raw)
-            return None
-        except Exception as e:
-            logger.warning("Redis get_job error: %s", e)
-            return _jobs.get(job_id)
     return _jobs.get(job_id)
 
 
 def _set_job(job_id: str, data: dict) -> None:
     """Persist job data."""
-    if _redis_client is not None:
-        try:
-            _redis_client.setex(
-                f"{_JOB_PREFIX}{job_id}", _JOB_TTL, json.dumps(data, ensure_ascii=False)
-            )
-            return
-        except Exception as e:
-            logger.warning("Redis set_job error: %s", e)
     _jobs[job_id] = data
 
 
@@ -197,6 +154,62 @@ TOOLS = [
 # ---------------------------------------------------------------------------
 
 
+def _run_job(story_id: str, params: dict, orchestrator_factory=None) -> None:
+    """Run one pipeline job (thread target). Never mutates the global config."""
+    try:
+        from config import ConfigManager
+        from config.config import run_scope
+
+        if orchestrator_factory is None:
+            from pipeline.orchestrator import PipelineOrchestrator
+
+            orchestrator_factory = PipelineOrchestrator
+
+        genre = params.get("genre", "Tiên Hiệp")
+        job = _get_job(story_id) or {}
+        job["status"] = "running"
+        _set_job(story_id, job)
+
+        cfg = ConfigManager().snapshot()
+        cfg.pipeline.language = params.get("language", "vi")
+        with run_scope(cfg):
+            orch = orchestrator_factory()
+
+            def _progress(msg):
+                j = _get_job(story_id) or {}
+                j.setdefault("logs", []).append(msg)
+                if "Layer 1 hoàn tất" in msg:
+                    j["progress"] = 0.33
+                elif "Layer 2 hoàn tất" in msg:
+                    j["progress"] = 0.66
+                elif "PIPELINE HOÀN TẤT" in msg:
+                    j["progress"] = 1.0
+                _set_job(story_id, j)
+
+            out = asyncio.run(
+                orch.run_full_pipeline(
+                    title=params.get("title") or f"{genre} Story",
+                    genre=genre,
+                    idea=params.get("idea") or f"Một câu chuyện {genre} hấp dẫn",
+                    num_chapters=params.get("num_chapters", 5),
+                    progress_callback=_progress,
+                    enable_media=False,
+                )
+            )
+        job = _get_job(story_id) or {}
+        job["status"] = out.status
+        job["progress"] = 1.0
+        if out.enhanced_story:
+            job["chapter_count"] = len(out.enhanced_story.chapters)
+        _set_job(story_id, job)
+    except Exception as e:
+        job = _get_job(story_id) or {}
+        job["status"] = "error"
+        job["error"] = str(e)
+        _set_job(story_id, job)
+        logger.exception("Pipeline error in MCP job %s", story_id)
+
+
 def _handle_generate_story(args: dict) -> dict:
     """Queue a pipeline job and return a story_id."""
     genre = args.get("genre", "Tiên Hiệp")
@@ -217,63 +230,14 @@ def _handle_generate_story(args: dict) -> dict:
     }
     _set_job(story_id, initial_data)
 
-    # NOTE: Full pipeline runs are blocking and take minutes.
-    # In production, spawn a background thread/worker here.
-    # For this POC we return immediately with "queued" status.
-    try:
-        import threading
-        from pipeline.orchestrator import PipelineOrchestrator
-        from config import ConfigManager
-
-        def _run():
-            try:
-                job = _get_job(story_id) or {}
-                job["status"] = "running"
-                _set_job(story_id, job)
-
-                cfg = ConfigManager()
-                cfg.pipeline.language = language
-                orch = PipelineOrchestrator()
-
-                def _progress(msg):
-                    j = _get_job(story_id) or {}
-                    j.setdefault("logs", []).append(msg)
-                    if "Layer 1 hoàn tất" in msg:
-                        j["progress"] = 0.33
-                    elif "Layer 2 hoàn tất" in msg:
-                        j["progress"] = 0.66
-                    elif "PIPELINE HOÀN TẤT" in msg:
-                        j["progress"] = 1.0
-                    _set_job(story_id, j)
-
-                out = orch.run_full_pipeline(
-                    title=title or f"{genre} Story",
-                    genre=genre,
-                    idea=idea or f"Một câu chuyện {genre} hấp dẫn",
-                    num_chapters=num_chapters,
-                    progress_callback=_progress,
-                    enable_media=False,
-                )
-                job = _get_job(story_id) or {}
-                job["status"] = out.status
-                job["progress"] = 1.0
-                if out.enhanced_story:
-                    job["chapter_count"] = len(out.enhanced_story.chapters)
-                _set_job(story_id, job)
-            except Exception as e:
-                job = _get_job(story_id) or {}
-                job["status"] = "error"
-                job["error"] = str(e)
-                _set_job(story_id, job)
-                logger.exception("Pipeline error in MCP job %s", story_id)
-
-        t = threading.Thread(target=_run, daemon=True)
-        t.start()
-    except ImportError as e:
-        job = _get_job(story_id) or {}
-        job["status"] = "error"
-        job["error"] = f"Pipeline unavailable: {e}"
-        _set_job(story_id, job)
+    params = {
+        "genre": genre,
+        "num_chapters": num_chapters,
+        "language": language,
+        "idea": idea,
+        "title": title,
+    }
+    threading.Thread(target=_run_job, args=(story_id, params), daemon=True).start()
 
     current = _get_job(story_id) or initial_data
     return {
