@@ -27,8 +27,10 @@ MANUAL TEST (no Claude Desktop needed)
 echo '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2024-11-05","capabilities":{},"clientInfo":{"name":"test","version":"0.1"}}}' | python mcp_server.py
 """
 
+import asyncio
 import json
 import sys
+import threading
 import uuid
 import logging
 from typing import Any
@@ -152,6 +154,62 @@ TOOLS = [
 # ---------------------------------------------------------------------------
 
 
+def _run_job(story_id: str, params: dict, orchestrator_factory=None) -> None:
+    """Run one pipeline job (thread target). Never mutates the global config."""
+    try:
+        from config import ConfigManager
+        from config.config import run_scope
+
+        if orchestrator_factory is None:
+            from pipeline.orchestrator import PipelineOrchestrator
+
+            orchestrator_factory = PipelineOrchestrator
+
+        genre = params.get("genre", "Tiên Hiệp")
+        job = _get_job(story_id) or {}
+        job["status"] = "running"
+        _set_job(story_id, job)
+
+        cfg = ConfigManager().snapshot()
+        cfg.pipeline.language = params.get("language", "vi")
+        with run_scope(cfg):
+            orch = orchestrator_factory()
+
+            def _progress(msg):
+                j = _get_job(story_id) or {}
+                j.setdefault("logs", []).append(msg)
+                if "Layer 1 hoàn tất" in msg:
+                    j["progress"] = 0.33
+                elif "Layer 2 hoàn tất" in msg:
+                    j["progress"] = 0.66
+                elif "PIPELINE HOÀN TẤT" in msg:
+                    j["progress"] = 1.0
+                _set_job(story_id, j)
+
+            out = asyncio.run(
+                orch.run_full_pipeline(
+                    title=params.get("title") or f"{genre} Story",
+                    genre=genre,
+                    idea=params.get("idea") or f"Một câu chuyện {genre} hấp dẫn",
+                    num_chapters=params.get("num_chapters", 5),
+                    progress_callback=_progress,
+                    enable_media=False,
+                )
+            )
+        job = _get_job(story_id) or {}
+        job["status"] = out.status
+        job["progress"] = 1.0
+        if out.enhanced_story:
+            job["chapter_count"] = len(out.enhanced_story.chapters)
+        _set_job(story_id, job)
+    except Exception as e:
+        job = _get_job(story_id) or {}
+        job["status"] = "error"
+        job["error"] = str(e)
+        _set_job(story_id, job)
+        logger.exception("Pipeline error in MCP job %s", story_id)
+
+
 def _handle_generate_story(args: dict) -> dict:
     """Queue a pipeline job and return a story_id."""
     genre = args.get("genre", "Tiên Hiệp")
@@ -172,63 +230,14 @@ def _handle_generate_story(args: dict) -> dict:
     }
     _set_job(story_id, initial_data)
 
-    # NOTE: Full pipeline runs are blocking and take minutes.
-    # In production, spawn a background thread/worker here.
-    # For this POC we return immediately with "queued" status.
-    try:
-        import threading
-        from pipeline.orchestrator import PipelineOrchestrator
-        from config import ConfigManager
-
-        def _run():
-            try:
-                job = _get_job(story_id) or {}
-                job["status"] = "running"
-                _set_job(story_id, job)
-
-                cfg = ConfigManager()
-                cfg.pipeline.language = language
-                orch = PipelineOrchestrator()
-
-                def _progress(msg):
-                    j = _get_job(story_id) or {}
-                    j.setdefault("logs", []).append(msg)
-                    if "Layer 1 hoàn tất" in msg:
-                        j["progress"] = 0.33
-                    elif "Layer 2 hoàn tất" in msg:
-                        j["progress"] = 0.66
-                    elif "PIPELINE HOÀN TẤT" in msg:
-                        j["progress"] = 1.0
-                    _set_job(story_id, j)
-
-                out = orch.run_full_pipeline(
-                    title=title or f"{genre} Story",
-                    genre=genre,
-                    idea=idea or f"Một câu chuyện {genre} hấp dẫn",
-                    num_chapters=num_chapters,
-                    progress_callback=_progress,
-                    enable_media=False,
-                )
-                job = _get_job(story_id) or {}
-                job["status"] = out.status
-                job["progress"] = 1.0
-                if out.enhanced_story:
-                    job["chapter_count"] = len(out.enhanced_story.chapters)
-                _set_job(story_id, job)
-            except Exception as e:
-                job = _get_job(story_id) or {}
-                job["status"] = "error"
-                job["error"] = str(e)
-                _set_job(story_id, job)
-                logger.exception("Pipeline error in MCP job %s", story_id)
-
-        t = threading.Thread(target=_run, daemon=True)
-        t.start()
-    except ImportError as e:
-        job = _get_job(story_id) or {}
-        job["status"] = "error"
-        job["error"] = f"Pipeline unavailable: {e}"
-        _set_job(story_id, job)
+    params = {
+        "genre": genre,
+        "num_chapters": num_chapters,
+        "language": language,
+        "idea": idea,
+        "title": title,
+    }
+    threading.Thread(target=_run_job, args=(story_id, params), daemon=True).start()
 
     current = _get_job(story_id) or initial_data
     return {
