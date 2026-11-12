@@ -1169,12 +1169,13 @@ async def collaborative_chapter(body: CollaborativeChapterRequest):
         raise HTTPException(status_code=404, detail="Checkpoint not found")
 
     orch = PipelineOrchestrator()
-    draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+    # Orchestrator wrappers, not orch.continuation: polish_chapter runs inside
+    # the run's cost wallet.
+    draft = orch.load_from_checkpoint(str(checkpoint_path))
     if draft is None:
         raise HTTPException(status_code=404, detail="Failed to load checkpoint")
 
     session_id = str(uuid.uuid4())
-    cont = orch.continuation
 
     if body.polish_level not in ("light", "medium", "heavy"):
         raise HTTPException(
@@ -1191,7 +1192,7 @@ async def collaborative_chapter(body: CollaborativeChapterRequest):
 
     def run_polish():
         try:
-            draft = cont.polish_chapter(
+            draft = orch.polish_chapter(
                 chapter_number=body.chapter_number,
                 user_text=body.user_text,
                 title=body.title,
@@ -1294,12 +1295,13 @@ async def check_consistency(body: ConsistencyCheckRequest):
         raise HTTPException(status_code=404, detail="Checkpoint not found")
 
     orch = PipelineOrchestrator()
-    draft = orch.continuation.load_from_checkpoint(str(checkpoint_path))
+    # Orchestrator wrappers, not orch.continuation: the check calls the LLM
+    # and runs inside the run's cost wallet.
+    draft = orch.load_from_checkpoint(str(checkpoint_path))
     if draft is None:
         raise HTTPException(status_code=404, detail="Failed to load checkpoint")
 
     session_id = str(uuid.uuid4())
-    cont = orch.continuation
 
     msg_queue: _queue.Queue = _queue.Queue()
 
@@ -1311,7 +1313,7 @@ async def check_consistency(body: ConsistencyCheckRequest):
     def run_check():
         try:
             chapters_to_check = body.chapter_numbers if body.chapter_numbers else None
-            report = cont.check_consistency(
+            report = orch.check_consistency(
                 chapter_numbers=chapters_to_check,
                 progress_callback=progress_cb,
             )

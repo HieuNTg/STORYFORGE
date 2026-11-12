@@ -44,7 +44,8 @@ First Docker-first, local self-hosted release. This is a breaking release: authe
 
 - **Cost caps now work** -- the `llm.max_*` caps were never enforced before; they now apply per run, across thread hops, resume and continuation entry points
 - **MCP `generate_story`** now awaits the pipeline, so jobs actually run
-- **`/continue/select-path` and `/paths`** run inside the run's cost wallet
+- **Every continuation entry point runs inside the run's cost wallet**: `/continue/select-path`, `/continue/paths`, `/collaborative-chapter` (polish) and `/check-consistency`
+- **`/regenerate-chapter` and `/insert-chapter` work again** -- they called orchestrator methods that did not exist
 - **Per-chapter L1 checkpoint resume** saves the live draft, so a resume continues from it
 - **LLM calls read the run's model and key**, not the client's cached ones
 - **Forge stream** always settles and never re-POSTs

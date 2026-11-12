@@ -439,3 +439,38 @@ class PipelineOrchestrator:
         self.output = self.continuation.output
         self._sync_output()
         return result
+
+    def regenerate_chapter(self, chapter_number: int, **kwargs) -> StoryDraft:
+        """Rewrite one chapter in place (see StoryContinuation.regenerate_chapter)."""
+        self._sync_output()
+        with self._wallet_scope():
+            result = self.continuation.regenerate_chapter(chapter_number, **kwargs)
+        self.output = self.continuation.output
+        self._sync_output()
+        return result
+
+    def insert_chapter(self, insert_after: int, **kwargs) -> StoryDraft:
+        """Write a new chapter after `insert_after` (see StoryContinuation.insert_chapter)."""
+        self._sync_output()
+        with self._wallet_scope():
+            result = self.continuation.insert_chapter(insert_after, **kwargs)
+        self.output = self.continuation.output
+        self._sync_output()
+        return result
+
+    def polish_chapter(self, chapter_number: int, user_text: str, **kwargs) -> StoryDraft:
+        """Polish a user-written chapter (see StoryContinuation.polish_chapter)."""
+        self._sync_output()
+        with self._wallet_scope():
+            result = self.continuation.polish_chapter(chapter_number, user_text, **kwargs)
+        self.output = self.continuation.output
+        self._sync_output()
+        return result
+
+    def check_consistency(self, chapter_numbers: list[int] | None = None, progress_callback=None):
+        """Consistency report for the loaded story (LLM work, so in the wallet)."""
+        self._sync_output()
+        with self._wallet_scope():
+            return self.continuation.check_consistency(
+                chapter_numbers=chapter_numbers, progress_callback=progress_callback
+            )
