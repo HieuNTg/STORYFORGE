@@ -26,7 +26,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1 \
-    HF_HOME=/app/data/cache/huggingface \n    STORYFORGE_BUNDLED_DATA_DIR=/app/bundled
+    HF_HOME=/app/data/cache/huggingface \
+    STORYFORGE_BUNDLED_DATA_DIR=/app/bundled
 
 # Bind-mount the wheels instead of copying them so they never become a layer.
 # --no-compile: the ~400 MB of .pyc files would push the image past 2.5 GB;
