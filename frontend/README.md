@@ -14,8 +14,8 @@ Next.js (App Router) UI for StoryForge. It talks to the FastAPI backend at `http
 ## Dev
 
 ```bash
-# from repo root: start backend + frontend in two PowerShell windows
-./dev.ps1
+# from repo root: start backend + frontend together (stdlib launcher)
+python scripts/dev.py
 
 # or run frontend manually alongside `python app.py`
 cd frontend

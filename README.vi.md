@@ -1,33 +1,23 @@
 <h1 align="center">StoryForge</h1>
 
-<p align="center"><strong>Tạo truyện bằng AI với mô phỏng kịch tính đa tác nhân</strong></p>
+<p align="center"><strong>Tạo truyện bằng AI với mô phỏng kịch tính đa tác tử</strong></p>
 
 <p align="center">
-  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.10%2B-3776AB?logo=python&logoColor=white" alt="Python 3.10+" /></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python 3.11+" /></a>
   <a href="https://fastapi.tiangolo.com"><img src="https://img.shields.io/badge/FastAPI-009688?logo=fastapi&logoColor=white" alt="FastAPI" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-MIT-green" alt="MIT License" /></a>
   <a href="README.md">English</a>
 </p>
 
 <p align="center">
-  Biến một câu ý tưởng thành tiểu thuyết mạng tiếng Việt hoàn chỉnh, giàu kịch tính — kèm hình ảnh nhân vật nhất quán, phông cảnh điện ảnh, dùng được mọi LLM tương thích OpenAI. Tự host.
-</p>
-
-<p align="center">
   <img src="assets/screenshots/v3-forge.png" alt="StoryForge" width="100%" />
 </p>
 
----
+StoryForge biến một câu ý tưởng thành một bộ web novel hoàn chỉnh. Mỗi nhân vật là một tác tử tự chủ: tranh luận, kết minh, phản bội nhau qua nhiều vòng mô phỏng kịch tính, rồi truyện được viết lại quanh những xung đột đó. Chạy ngay trên máy của bạn bằng Docker, dùng được mọi LLM tương thích OpenAI (đám mây hoặc local), dữ liệu nằm trong volume cục bộ. Ưu tiên tiếng Việt, hỗ trợ thêm các thể loại và ngôn ngữ khác.
 
-## Tại sao
+## Ảnh mẫu
 
-Hầu hết công cụ viết AI cho ra truyện phẳng. StoryForge biến mỗi nhân vật thành **tác nhân tự trị** — tranh luận, liên minh, phản bội trong vòng mô phỏng đa tác nhân — phát lộ xung đột tác giả chưa từng lên kế hoạch, rồi tự viết lại quanh chúng cho đến khi đạt ngưỡng chất lượng.
-
----
-
-## Ảnh minh hoạ
-
-Do chính pipeline sinh ra — **chân dung nhân vật nhất quán** (cùng một gương mặt xuyên suốt mọi chương) kèm **phông cảnh điện ảnh**, cho một truyện tiên hiệp tiếng Việt. Tất cả render local miễn phí.
+Chân dung nhân vật nhất quán (cùng một gương mặt qua các chương) và nền cảnh do pipeline tạo cho một truyện tiên hiệp.
 
 <table>
   <tr>
@@ -38,123 +28,127 @@ Do chính pipeline sinh ra — **chân dung nhân vật nhất quán** (cùng m�
 </table>
 
 <p align="center">
-  <img src="assets/samples/scene-courtyard-duel.png" width="300" alt="Phông cảnh điện ảnh — quyết đấu giữa sân tại hoàng hôn" /><br/>
-  <sub>Phông cảnh — vẫn các nhân vật đó, giữ nhất quán qua từng chương · <a href="#tạo-hình-ảnh">cách thiết lập ↓</a></sub>
+  <img src="assets/samples/scene-courtyard-duel.png" width="300" alt="Nền cảnh: quyết đấu ở sân viện lúc hoàng hôn" />
 </p>
 
----
+## Bắt đầu nhanh
 
-## Cài đặt nhanh
+Bạn cần [Docker](https://docs.docker.com/get-docker/) có Compose, và API key của một nhà cung cấp LLM (hoặc model local, xem bên dưới).
 
 ```bash
 git clone https://github.com/HieuNTg/STORYFORGE.git
 cd STORYFORGE
-pip install -r requirements.txt
-cd frontend && npm install && cd ..
-
-# Windows PowerShell: tự mở backend + frontend trong hai cửa sổ
-./dev.ps1
+docker compose up -d
 ```
 
-Vẫn có thể chạy thủ công: `python app.py` cho API (`:7860`) và `cd frontend && npm run dev -- --port 3001` cho UI (`:3001`).
+Mở **http://localhost:3001**, vào **Settings → API Keys**, thêm nhà cung cấp và model, rồi dùng **Forge** để tạo truyện.
 
-Sau đó mở **http://localhost:3001/forge/** → **Cài đặt → Khóa API** (thêm provider + chọn model) → **Khai sinh** → **Chạy** → **Thư viện / Đọc truyện / Phân nhánh / Mô phỏng** → **Xuất** (PDF/EPUB/HTML/ZIP).
+- Lần build đầu biên dịch từ mã nguồn, mất khoảng 10 phút (PyTorch bản CPU). Các lần khởi động sau nhanh hơn nhiều.
+- Cổng chỉ bind vào `127.0.0.1`: web ở `3001`, API ở `7860`.
+- Dữ liệu nằm trong hai volume Docker: `storyforge-data` (`/app/data`: `config.json`, API key đã mã hóa, `.secret_key` tự sinh, cơ sở dữ liệu SQLite, cache, log) và `storyforge-output` (`/app/output`: file được tạo ra). `docker compose down` giữ lại dữ liệu; `docker compose down -v` sẽ xóa.
+- Image dựng sẵn (`compose.release.yaml`, chọn bản bằng `STORYFORGE_VERSION`) sẽ có khi bản phát hành đầu tiên được công bố.
 
----
+## Dùng model local
+
+Chạy [Ollama](https://ollama.com) trên máy chủ, tải một model, rồi chọn preset Ollama trong **Settings**. Từ trong container, máy chủ được gọi qua:
+
+```
+http://host.docker.internal:11434/v1
+```
+
+Ollama chấp nhận bất kỳ API key không rỗng nào.
 
 ## Tính năng
 
-- **Pipeline 2 lớp** — L1 tạo truyện → L2 mô phỏng kịch tính, có checkpoint, SSE streaming, L3 đánh bóng giác quan tuỳ chọn
-- **13 tác nhân chuyên biệt** — drama critic, editor, pacing, dialogue, reader simulator, …; chấm 6 chiều + tự sửa bằng LLM-as-judge
-- **Tiếng Việt mặc định** — tên VN; tuỳ chọn phong cách Trung (tiên hiệp / kiếm hiệp / tu tiên / wuxia / xianxia) và Fantasy phương Tây / Sci-Fi; arc scale theo số chương
-- **Tiếp tục truyện** — preview đa hướng, outline editor, viết cộng tác, kiểm tra nhất quán, chèn chương giữa truyện, sửa hồi tố
-- **Luồng dựa trên thư viện local** — Đọc truyện, Phân nhánh, Mô phỏng và Nhân vật đều bắt đầu bằng chọn truyện đã lưu trong thư viện; không dùng session giả `demo` hoặc text rời rạc.
-- **Branch reader** — CYOA do LLM sinh, cây SVG + minimap, undo/redo, bookmarks, WebSocket multi-user, xuất EPUB cây
-- **Hình ảnh nhân vật nhất quán** — cùng một gương mặt xuyên suốt mọi chương (consistency bằng ảnh tham chiếu / IP-Adapter) cùng phông cảnh điện ảnh. Sinh miễn phí qua HuggingFace FLUX; trả phí qua DALL·E / Seedream. Xem [Ảnh minh hoạ](#ảnh-minh-hoạ) và [bảng thiết lập bên dưới](#tạo-hình-ảnh).
-- **Provider profile + dropdown model** — Cài đặt có thẻ thêm nhanh cho Gemini, Anthropic, OpenAI, OpenRouter Free, Z.AI và Kyma. Model được chọn bằng dropdown (Gemini/Gemma, OpenRouter free text models, OpenAI/Anthropic, fallback GLM/Qwen/DeepSeek); cheap/L1/L2 cũng chọn từ provider đã cấu hình thay vì nhập tay.
-- **Mọi LLM tương thích OpenAI** — OpenAI, Gemini, Anthropic, OpenRouter, Z.AI, Kyma, Ollama, custom; rate-limit switch chủ động, routing theo latency, định tuyến cheap/premium, cache SQLite
-- **Bảo mật** — CSRF double-submit, body cap 10 MB, middleware chặn prompt injection, mã hoá secrets at-rest
+- **Pipeline hai tầng**: L1 tạo truyện, sau đó L2 mô phỏng kịch tính, có checkpoint và truyền tiến trình theo thời gian thực.
+- **9 tác tử**: 8 lớp con của `BaseAgent` (character specialist, continuity checker, dialogue balance, dialogue expert, drama critic, editor in chief, pacing analyzer, style consistency) cộng reader simulator. Kết quả được đánh giá và tự chỉnh sửa theo ngưỡng chất lượng.
+- **Ưu tiên tiếng Việt**: mặc định tên và văn phong Việt; có thêm thể loại tiên hiệp / võ hiệp / huyền huyễn và phương Tây / khoa học viễn tưởng.
+- **Công cụ viết tiếp**: viết tiếp truyện, chỉnh dàn ý, kiểm tra nhất quán, chèn giữa truyện.
+- **Trình đọc rẽ nhánh**: truyện tương tác do LLM sinh ra, có cây rẽ nhánh và xuất EPUB của cây.
+- **Truyện tranh**: tạo các khung truyện tranh cho truyện/chương trong thư viện (cần provider ảnh).
+- **Chân dung nhân vật**: ảnh nhân vật nhất quán (xem bên dưới).
+- **Xuất file**: PDF, EPUB, DOCX, HTML, gói ZIP (TXT / Markdown / JSON / HTML) và gói sẵn cho Wattpad.
+- **Mọi LLM tương thích OpenAI**: OpenAI, Gemini, Anthropic, OpenRouter, Z.AI, Ollama hoặc endpoint tùy chỉnh, có dự phòng và cache phản hồi.
 
----
+## Provider ảnh
+
+Mặc định tắt ảnh (chỉ văn bản). Chọn provider trong **Settings → API Keys**, hoặc đặt `image_provider` trong `data/config.json`.
+
+| Provider | Cần | Chi phí | Ghi chú |
+|----------|-----|---------|---------|
+| `none` | không | miễn phí | Mặc định. Không gọi tạo ảnh. |
+| `huggingface` | `hf_token` | gói miễn phí | FLUX.1-schnell qua HF Inference API. |
+| `dalle` | `image_api_key` (+ tùy chọn `image_api_url`) | trả phí | Endpoint tương thích OpenAI / Azure. |
+| `sd-api` | endpoint Stable Diffusion API | tùy | SD API tự host hoặc dịch vụ ngoài. |
+| `seedream` | `seedream_api_key`, `seedream_api_url` | trả phí | ByteDance Seedream; engine mặc định cho nhất quán nhân vật. |
+| `replicate` | `replicate_api_key` | trả phí | Chỉ dùng cho nhất quán nhân vật (`character_consistency_provider`); không dùng để tạo ảnh thông thường. |
+
+Nhất quán nhân vật dùng chân dung đầu tiên của nhân vật làm ảnh tham chiếu: bật `enable_character_consistency` và đặt `character_consistency_provider` là `seedream` hoặc `replicate`.
+
+Các engine ảnh tự động hóa phiên web tiêu dùng (FlowKit, Gemini Web, Codex image, Qwen local) đã bị gỡ vì nguy cơ khóa tài khoản.
 
 ## Cấu hình
 
-Tab Cài đặt lưu vào `data/config.json`. Khi `STORYFORGE_SECRET_KEY` được đặt,
-các trường nhạy cảm trong file này sẽ được mã hoá. Biến môi trường chính:
+Cài đặt được lưu trong `data/config.json` (trong volume `storyforge-data`) và chỉnh ở trang Settings. Biến môi trường là tùy chọn:
 
 | Biến | Mục đích |
 |------|----------|
-| `STORYFORGE_API_KEY` / `STORYFORGE_BASE_URL` / `STORYFORGE_MODEL` | key provider, base URL tương thích OpenAI, model chính |
-| `STORYFORGE_SECRET_KEY` | khoá mã hoá/ký — **bắt buộc đặt trong production** để mã hoá secrets |
-| `STORYFORGE_AUTH_REQUIRED` | `1` = bật JWT/RBAC cho các API nhạy cảm |
-| `REDIS_URL` | bắt buộc khi chạy nhiều instance (`NUM_WORKERS>1`) — chia sẻ cache/session |
-| `STORYFORGE_ALLOWED_ORIGINS` | CORS origins (phân cách bằng phẩy) |
-| `STORYFORGE_HANDOFF_STRICT` | `1` = fail-fast khi tín hiệu L1→L2 malformed (mặc định: warn) |
-| `STORYFORGE_SEMANTIC_STRICT` | `1` = fail-fast khi foreshadowing không có payoff (mặc định: warn) |
-| `CHROMA_PERSIST_DIR` / `CHROMA_COLLECTION_NAME` | persistence cho RAG |
+| `STORYFORGE_ACCESS_TOKEN` | Token dùng chung, tùy chọn. Khi đặt, giao diện hiện màn hình mở khóa. |
+| `STORYFORGE_ALLOWED_HOSTS` | Tên Host được chấp nhận thêm, phân tách bằng dấu phẩy (chỉ tên, không có cổng hay ký tự đại diện). |
+| `STORYFORGE_ALLOWED_ORIGINS` | Origin CORS bổ sung, phân tách bằng dấu phẩy. |
+| `STORYFORGE_SECRET_KEY` | Khóa Fernet tùy chọn để mã hóa key đã lưu. Nếu không đặt, khóa tự sinh trong `data/.secret_key`. |
+| `STORYFORGE_DEBUG` | Bật tài liệu API tại `/docs`. |
+| `STORYFORGE_DB_PATH` | Đường dẫn cơ sở dữ liệu SQLite. |
+| `STORYFORGE_HOST` / `STORYFORGE_PORT` | Địa chỉ và cổng khi chạy từ mã nguồn (mặc định `127.0.0.1` / `7860`). |
 
-Override model theo lớp, drama ceiling, batch size, voice-revert anchoring, … nằm trong `config/defaults.py` (`PipelineConfig`) và tab Cài đặt. Prompt tác nhân chỉnh trong `data/prompts/agent_prompts.yaml`.
+`compose.yaml` cũng tự đặt `STORYFORGE_IN_CONTAINER`; bạn không cần chỉnh biến này.
 
-### Tạo hình ảnh
+## Chi phí
 
-Ảnh **mặc định tắt** (`image_provider = none` → chỉ văn bản). Chọn provider trong **Cài đặt → Khóa API → Provider hình ảnh**, hoặc đặt trong `data/config.json`:
+StoryForge là phần mềm miễn phí, nhưng **bạn trả tiền cho nhà cung cấp LLM (và ảnh)** cho mỗi lệnh gọi, và một truyện dài tạo ra rất nhiều lệnh gọi. Đặt ngân sách bằng các giới hạn theo mỗi lần chạy `llm.max_cost_per_run_usd`, `llm.max_total_tokens_per_run` và `llm.max_calls_per_run` (`0` là tắt giới hạn). Trang Settings chưa hiển thị các giá trị này, hãy sửa trong `data/config.json`. Trang **Usage** cho biết lượng token đã dùng.
 
-| Provider | Thiết lập | Chi phí | Ghi chú |
-|----------|-----------|---------|---------|
-| `none` | — | — | Mặc định. Không gọi sinh ảnh. |
-| `huggingface` | Đặt `hf_token` | **Free tier** | `FLUX.1-schnell` qua HF Inference API — đường miễn phí dễ nhất. |
-| `dalle` | Đặt `image_api_key` (+ `image_api_url` tuỳ chọn) | Trả phí | Endpoint ảnh tương thích OpenAI / Azure. |
-| `seedream` | Đặt `seedream_api_key` + `seedream_api_url` | Trả phí | Seedream (ByteDance); cũng là engine consistency mặc định. |
+## Quyền riêng tư và bảo mật
 
-**Nhất quán nhân vật** — đặt `enable_character_consistency = true` để dùng chân dung đầu tiên của nhân vật làm ảnh tham chiếu, giữ cùng gương mặt qua mọi chương (`character_consistency_provider`: `seedream` hoặc `replicate`). Phong cách hình do `image_prompt_style` quyết định (mặc định `cinematic`), tỉ lệ chân dung mặc định `9:16`. [Các chân dung mẫu phía trên](#ảnh-minh-hoạ) được tạo theo cách này.
+- Mọi thứ nằm trên máy bạn. Lưu lượng ra ngoài chỉ gồm các nhà cung cấp LLM và ảnh mà bạn cấu hình.
+- Mặc định hệ thống chỉ lắng nghe trên localhost và không có đăng nhập.
+- Muốn truy cập từ thiết bị khác trong mạng LAN, hãy đổi cổng bind **và** đặt `STORYFORGE_ACCESS_TOKEN` (cùng `STORYFORGE_ALLOWED_HOSTS` cho tên bạn dùng). Xem [docs/self-hosting.md](docs/self-hosting.md). Không mở ra internet.
+- API key được mã hóa khi lưu. Báo lỗ hổng bảo mật theo [SECURITY.md](SECURITY.md).
 
-### Route UI hiện tại
+## Phát triển
 
-| Route | Mục đích | Ghi chú |
-|-------|----------|---------|
-| `/library/` | Thư viện truyện local | Nguồn truyện cho reader, branching, simulation và character tools |
-| `/forge/` | Khai sinh truyện từ một câu | Chạy pipeline tạo truyện chính |
-| `/reader/` | Chọn truyện/chương | Mở `/reader/[storyId]/[chapterId]` sau khi chọn truyện local |
-| `/branching/` | Tạo phiên phân nhánh | Chọn truyện local rồi tạo session thật `/branching/[sessionId]/` |
-| `/simulation/` | Setup sân khấu hội thoại | Chọn truyện local + nhân vật; transcript simulation bật qua config |
-| `/characters/` | Danh sách/chi tiết/tạo nhân vật | Story picker controlled, lấy dữ liệu từ thư viện |
-| `/settings/` | Chung, Khóa API, L1/L2 | Provider nhanh, dropdown model, select style ảnh |
-| `/providers/` | Bảng trạng thái provider | Chỉ hiện provider profile đã cấu hình; ẩn dòng Primary/Mặc định legacy |
-
-
-### Test marker
+Python 3.11+ và Node 24.
 
 ```bash
-pytest tests/ -v -m "not calibration and not bench"   # subset chạy nhanh
-pytest tests/ -v -m calibration                       # calibration model thật
+python scripts/dev.py        # chạy API và dev server Next.js
 ```
 
----
+Chạy test:
 
-## Kiến trúc
+```bash
+pip install -r requirements.lock.txt -r requirements-test.txt --extra-index-url https://download.pytorch.org/whl/cpu
+python -m pytest -q -m "not calibration and not bench and not perf"
 
-```mermaid
-flowchart LR
-    idea([Ý tưởng]) --> L1[L1<br/>Tạo truyện]
-    L1 --> L2[L2<br/>Tăng kịch tính]
-    L2 --> media[Hình ảnh · Xuất]
-    media --> out([PDF · EPUB · HTML · ZIP])
+cd frontend && npm ci && npx vitest run
 ```
 
-Tín hiệu L1→L2: `conflict_web` + `foreshadowing_plan` chảy vào simulator; `arc_waypoints` + `threads` đi vào analyzer/enhancer; `voice_fingerprints` giữ giọng nhân vật xuyên các lượt rewrite L2.
+Xem [CONTRIBUTING.md](CONTRIBUTING.md) và [ARCHITECTURE.md](ARCHITECTURE.md). Giấy phép [MIT](LICENSE).
 
-Xem [`docs/system-architecture.md`](docs/system-architecture.md) cho luồng đầy đủ.
+## Các route giao diện
 
----
-
-## Tài liệu
-
-- [`docs/`](docs/README.md) — index đầy đủ (kiến trúc, code standards, deployment)
-- [`docs/adr/`](docs/adr/) — architecture decision records
-- [CONTRIBUTING.md](CONTRIBUTING.md) — cài đặt dev, code style, quy trình PR
-
----
-
-## Giấy phép
-
-[MIT](LICENSE) — Bản quyền 2026 StoryForge Contributors
+| Route | Chức năng |
+|-------|-----------|
+| `/forge` | Tạo truyện từ một câu và theo dõi pipeline chạy. |
+| `/library` | Các truyện đã lưu; điểm xuất phát của hầu hết công cụ khác. |
+| `/reader` | Đọc truyện theo từng chương, có đánh dấu. |
+| `/branching` | Bắt đầu và chơi các phiên truyện rẽ nhánh. |
+| `/simulation` | Thiết lập mô phỏng kịch tính nhiều nhân vật cho một truyện. |
+| `/characters` | Xem, sửa và tạo nhân vật, chân dung. |
+| `/continue` | Viết tiếp một truyện đã hoàn thành. |
+| `/export` | Xuất truyện ra PDF, EPUB, DOCX, HTML hoặc ZIP. |
+| `/analytics` | Chất lượng, số từ, chương, sự kiện và đồ thị nhân vật của từng truyện. |
+| `/gallery` | Truyện được chia sẻ công khai từ instance này. |
+| `/providers` | Trạng thái các hồ sơ nhà cung cấp LLM đã cấu hình. |
+| `/settings` | Nhà cung cấp LLM, model, provider ảnh và cài đặt pipeline. |
+| `/usage` | Mức dùng token và chi phí. |
+| `/account` | Tóm tắt cục bộ: số truyện đã tạo và token đã dùng. |
+| `/guide` | Hướng dẫn sử dụng trong ứng dụng. |
