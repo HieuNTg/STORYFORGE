@@ -1,98 +1,60 @@
 # Security Policy
 
-## Supported Versions
+## Reporting a vulnerability
 
-Only the latest stable release receives security patches.
+Please do not open a public issue for a security problem.
 
-| Version | Supported          |
-| ------- | ------------------ |
-| 1.0.x   | Yes                |
-| < 1.0   | No (end-of-life)   |
+Use GitHub's private vulnerability reporting: open the **Security** tab of this
+repository, choose **Report a vulnerability**, and describe the issue. Include
+what is affected, steps to reproduce, and the impact you see. This is a
+volunteer-maintained project, so replies are best effort; we aim to acknowledge
+a report within a few days and to coordinate disclosure with you once a fix is
+ready.
 
----
+## Supported versions
 
-## Reporting a Vulnerability
+Security fixes go to the latest release and to `main`. Older releases are not
+patched; update to the latest one.
 
-**Please do not open a public GitHub issue for security vulnerabilities.**
+## Security model
 
-### Option 1 — GitHub Security Advisories (preferred)
+StoryForge is built to run on your own machine. What it protects, and how:
 
-Use the private disclosure channel built into this repository:
-1. Go to the **Security** tab of this repository.
-2. Click **"Report a vulnerability"**.
-3. Fill in the form with as much detail as possible.
+- **Loopback only by default.** The Docker compose files publish the API (7860)
+  and the web UI (3001) on `127.0.0.1` only. Outside Docker, the API binds to
+  `127.0.0.1` and refuses to start on any other address unless an access token
+  is set. Requests are checked against an allow-list of `Host` headers and of
+  browser `Origin` values (extend them with `STORYFORGE_ALLOWED_HOSTS` and
+  `STORYFORGE_ALLOWED_ORIGINS`).
+- **Optional shared access token.** Set `STORYFORGE_ACCESS_TOKEN` to require it
+  on every API call. The browser UI trades the token for an httponly session
+  cookie. Sessions are not individually revocable; rotating the token revokes
+  all of them. There are no user accounts or roles.
+- **API keys are encrypted at rest.** Keys saved in Settings are stored in
+  `data/config.json` encrypted with a Fernet key. The key is generated on first
+  start and saved to `data/.secret_key` (or supplied through
+  `STORYFORGE_SECRET_KEY`). Back it up with `config.json`; without it saved keys
+  cannot be read.
+- **Keys follow the provider host.** If you change the provider base URL to a
+  different host, the stored key is not sent there; you must enter the key again.
+  Base URLs that point at private network addresses are blocked unless you opt in
+  (`STORYFORGE_ALLOW_PRIVATE_BASE_URL`); `host.docker.internal` is the one
+  built-in exception, for local model servers.
+- **No web-session providers.** StoryForge only talks to API providers with an
+  API key you supply. It does not drive consumer web logins or browser sessions.
 
-### Option 2 — Email
+If you expose the app beyond your machine (see `docs/self-hosting.md`), set an
+access token and put it behind a network you trust; it is not hardened for the
+open internet.
 
-Send a report to **security@storyforge.dev** with the subject line:
-`[SECURITY] <brief description>`
+## In scope
 
-Include:
-- A description of the vulnerability and its potential impact
-- Steps to reproduce (proof-of-concept preferred)
-- Any relevant logs, screenshots, or code snippets
-- Your preferred credit name/handle (optional)
+Authentication or Host/Origin bypass, SSRF, path traversal, leaking stored API
+keys through logs or responses, XSS or CSRF with real impact, and remote code
+execution.
 
-Encrypt sensitive reports with our PGP key (available on request).
+## Out of scope
 
----
-
-## Response Timeline
-
-| Milestone              | Target SLA         |
-| ---------------------- | ------------------ |
-| Acknowledgment         | 48 hours           |
-| Initial assessment     | 7 days             |
-| Patch / mitigation     | 30 days (critical: 7 days) |
-| Public disclosure      | After patch ships  |
-
-We follow **coordinated disclosure**: we will work with you to agree on a
-disclosure date once a fix is ready. We will not disclose your report publicly
-without your consent before the patch is released.
-
----
-
-## What Qualifies as a Security Issue
-
-- Remote code execution (RCE) or arbitrary command injection
-- Authentication bypass or privilege escalation
-- Server-Side Request Forgery (SSRF) that exposes internal services
-- Insecure direct object references leaking user data
-- API key / secret exposure through logs or responses
-- Path traversal giving read/write access outside intended directories
-- Cross-Site Scripting (XSS) or Cross-Site Request Forgery (CSRF) with real impact
-- SQL injection or NoSQL injection
-- Denial-of-service via resource exhaustion (unauthenticated)
-- Insecure deserialization leading to code execution
-
----
-
-## Out of Scope
-
-The following are **not** considered security vulnerabilities for this project:
-
-- Bugs that require physical access to the server
-- Issues in third-party services (OpenRouter, OpenAI, etc.) — report those upstream
-- Self-XSS requiring the attacker to already have account access
-- Theoretical vulnerabilities with no practical exploit path
-- Rate-limit bypasses that require a valid authenticated session
-- Missing security headers on static assets served from localhost
-- Outdated dependency versions with no known exploitable path
-- Social engineering or phishing attacks
-
----
-
-## Credit Policy
-
-We gratefully acknowledge responsible reporters. With your permission, we will:
-
-- Add your name / handle to the release notes and CHANGELOG under "Security"
-- List you in the **Hall of Fame** section of this document (future)
-
-We do not currently offer a monetary bug bounty.
-
----
-
-## Hall of Fame
-
-_No entries yet. Be the first responsible reporter!_
+Issues that need physical or shell access to the host, vulnerabilities in the
+LLM providers or other third-party services (report those upstream), and
+findings with no practical exploit path.

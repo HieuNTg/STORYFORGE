@@ -14,7 +14,7 @@
  * once; the backend returns 202 + `job_id` and runs generation off the request
  * thread. We poll for accreting `chapter_images` and persist each illustrated
  * chapter incrementally, so the run survives proxy timeouts and renders panels
- * as they land. See docs/comic-async-generation-phase-b-proposal.md §2.6.
+ * as they land.
  *
  * Per-chapter state is derived from `Story.chapters[i].images` (non-empty =>
  * already illustrated). The primary button flips label between "tạo mới" and

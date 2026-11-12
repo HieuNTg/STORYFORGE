@@ -200,7 +200,7 @@ function toLibraryImagePayload(story: Story): LibraryImagePayload["story"] {
 // thread. It accepts the job and returns 202 + `job_id` immediately; the work
 // runs server-side and the client polls `GET .../jobs/{job_id}` until a
 // terminal state, persisting accreting `chapter_images` to localStorage as
-// chapters land. See docs/comic-async-generation-phase-b-proposal.md §2.1–2.6.
+// chapters land.
 // ---------------------------------------------------------------------------
 
 /** 202 body from POST /api/images/library/generate (LibraryJobAcceptedResponse). */

@@ -7,7 +7,57 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ---
 
-## [Unreleased]
+## [2.0.0] - Unreleased
+
+First Docker-first, local self-hosted release. This is a breaking release: authentication, several providers and non-SQLite storage are gone. The owner confirms the version number at tagging time.
+
+### Added
+
+- **One-command Docker run** -- `docker compose up -d --build`, then open http://localhost:3001. Both ports are published on 127.0.0.1 only; data lives in the `storyforge-data` and `storyforge-output` volumes. `compose.release.yaml` runs prebuilt images via `STORYFORGE_VERSION`
+- **Self-hosting guide** (`docs/self-hosting.md`) covering install, update, backup/restore, reset, LAN exposure, local LLMs and troubleshooting
+- **Optional shared access token** (`STORYFORGE_ACCESS_TOKEN`) with an httponly session cookie and an unlock screen in the UI
+- **Host and Origin checks** with `STORYFORGE_ALLOWED_HOSTS` / `STORYFORGE_ALLOWED_ORIGINS`
+- **Auto-generated encryption key** saved to `data/.secret_key`, validated at boot
+- **Cross-platform dev launcher** `scripts/dev.py`
+- **CI** running lint, tests and dependency audits on every push and pull request
+- **Per-run config snapshot** so a run keeps the settings it started with
+
+### Changed
+
+- **SQLite-only storage** -- Redis, Postgres and Alembic are removed. Existing SQLite databases keep the old unused `user_id` columns and `users` table; they are harmless
+- **Multi-user JWT/RBAC auth replaced by the optional access token** (breaking)
+- **API binds to loopback by default** and refuses a non-loopback bind without an access token
+- **Stricter API hardening** -- corrected middleware order, a stream-safe request body limit and a tighter CSP
+- **Changing the provider host requires re-entering the API key**
+- **Vietnamese token estimate** uses a continuous blend instead of a step threshold
+- **Dependencies** -- Next.js patched, shadcn moved to dev dependencies, lint errors cleared, and a fresh install now resolves and passes the suite
+- **README rewritten** for the Docker-first release; `scripts/dev.py` replaces `dev.ps1`
+- **Internal plans, specs and the worklog are removed from the tree** (they remain in git history); `docs/deployment-production.md` is replaced by `docs/self-hosting.md`
+
+### Removed
+
+- **FlowKit, qwen-local, Codex-image and Gemini Web providers** (breaking). A `data/config.json` that selects one loads with the image provider set to `none`
+- **Settings for the removed web-session providers** in the UI
+- Discarded per-chapter L1 reviews, debug probes and dead modules
+
+### Fixed
+
+- **Cost caps now work** -- the `llm.max_*` caps were never enforced before; they now apply per run, across thread hops, resume and continuation entry points
+- **MCP `generate_story`** now awaits the pipeline, so jobs actually run
+- **`/continue/select-path` and `/paths`** run inside the run's cost wallet
+- **Per-chapter L1 checkpoint resume** saves the live draft, so a resume continues from it
+- **LLM calls read the run's model and key**, not the client's cached ones
+- **Forge stream** always settles and never re-POSTs
+- **Unlock screen** shows an error when unlocking fails for reasons other than a wrong token
+
+### Security
+
+- Loopback binding, Host/Origin enforcement and the optional access token (see `SECURITY.md`)
+- API keys encrypted at rest with a generated Fernet key; the key file is published without overwriting an existing one. Old SHA-256-derived keys are not migrated, so re-enter your API keys after upgrading
+- Pool keys are pinned to the old host, and the full origin is compared when the provider host changes
+- Patched Next.js and dependency audits in CI
+
+## Earlier unreleased changes (included in 2.0.0)
 
 ### Added
 

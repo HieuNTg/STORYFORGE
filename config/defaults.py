@@ -416,7 +416,7 @@ class PipelineConfig:
 
     # Agentic repair loop — replaces the four post-write rewrite passes above
     # (payoff, consistency, pacing, length) with one bounded loop that carries
-    # every constraint into a single rewrite. Spec: docs/agentic-repair-loop-spec.md.
+    # every constraint into a single rewrite.
     #
     # Why it exists: those four passes each regenerate the whole chapter knowing
     # only their own concern, so the payoff rewrite could shorten a chapter below

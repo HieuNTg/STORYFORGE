@@ -1,4 +1,4 @@
-"""Integration check for TEST_PLAN §3.1 — the craft lane runs end to end.
+"""Integration check — the craft lane runs end to end.
 
 The unit tests in `test_agent_lane_config.py` drive a mocked panel, which proves
 the config field exists but not that the eight real agents, the DAG tiers and the

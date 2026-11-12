@@ -1,6 +1,6 @@
 """Data contracts for the L1 chapter repair loop.
 
-See `docs/agentic-repair-loop-spec.md`. These types are deliberately plain
+These types are deliberately plain
 dataclasses: the repair loop must stay testable without an LLM in the room.
 """
 
