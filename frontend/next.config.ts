@@ -32,6 +32,22 @@ const nextConfig: NextConfig = {
     // provider and long SSE pipeline runs legitimately take longer.
     proxyTimeout: 600_000, // 10 minutes
   },
+  // Hardening headers on every page. The UI must never be framed by another
+  // site (clickjacking); proxied /api and /media responses keep the API's own
+  // values, which the proxy copies over these.
+  async headers() {
+    return [
+      {
+        source: "/:path*",
+        headers: [
+          { key: "X-Frame-Options", value: "DENY" },
+          { key: "Content-Security-Policy", value: "frame-ancestors 'none'" },
+          { key: "X-Content-Type-Options", value: "nosniff" },
+          { key: "Referrer-Policy", value: "same-origin" },
+        ],
+      },
+    ];
+  },
   // The browser only ever talks to this server; /api and /media (generated
   // images) are proxied to the backend.
   async rewrites() {
