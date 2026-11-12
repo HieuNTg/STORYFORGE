@@ -8,10 +8,11 @@ StoryForge runs on one machine: a FastAPI backend (`app.py`, default `127.0.0.1:
 api/            FastAPI routers, session endpoints, SSE/WebSocket helpers
 app.py          create_app(): routers, middleware, error handlers, entry point
 config/         ConfigManager (snapshot + run scope), defaults, presets, persistence
-data/           Runtime state (contents gitignored): storyforge.db, config.json,
-                .secret_key, llm_cache.db, embedding_cache.db, logs/storyforge.log
+data/           Runtime files (gitignored): storyforge.db, config.json,
+                .secret_key, llm_cache.db, embedding_cache.db, logs/storyforge.log.
+                Shipped prompts/, evals/, templates/ are tracked.
 docker/         api.Dockerfile, web.Dockerfile (compose.yaml, compose.release.yaml at root)
-docs/           Standards, system architecture, ADRs, specs
+docs/           Code standards, frontend security/accessibility notes, ADRs
 errors/         StoryForgeError types and handlers
 frontend/       Next.js UI (own AGENTS.md)
 middleware/     Hosts, trace id, body limit, security headers, CSRF, access, rate limit,
@@ -36,7 +37,7 @@ Measured file counts (`git ls-files <dir> | wc -l`): `pipeline/layer1_story` 75,
 
 `StoryGenerator` (`generator.py`) turns a title/genre/idea into a draft: theme and premise, characters and story bible, outline, scene decomposition and beats, chapter writing (batched, optionally parallel), plus validators for pacing, dialogue, timeline, plot threads and foreshadowing. Post-write repair (`repair/`) is one bounded loop instead of several independent full-chapter rewrites: a collector gathers findings (payoff, name, location, length, plus pacing, arc and critique as constraints), a planner builds one plan, and a single rewrite carries every constraint at once. The verifier is always a deterministic detector (word count, consistency validators, embedding-based payoff check), never an LLM grading its own prose. The candidate is kept only if it scores better than the original, otherwise it is reverted; when the budget is spent with findings left, the legacy passes run as a fallback. Config: `enable_agentic_repair` (on by default), `repair_max_rounds`, `repair_budget_calls`; kill switch `STORYFORGE_AGENTIC_REPAIR=0`.
 
-An optional Layer 3 sensory polish pass (`enable_l3_sensory_polish`, off by default) refines prose after L2 without changing plot or drama.
+A Layer 3 sensory polish pass (`pipeline/layer2_enhance/sensory_polish.py`, flag `enable_sensory_polish`, on by default) adds sensory detail to prose after L2 without changing plot or drama.
 
 ### Layer 2: enhancement (`pipeline/layer2_enhance/`)
 
@@ -44,7 +45,7 @@ An optional Layer 3 sensory polish pass (`enable_l3_sensory_polish`, off by defa
 
 ### Handoff and persistence
 
-L1 to L2 data moves through the models in `models/handoff_schemas.py` (`PipelineOutput`, `StoryDraft`, ...), validated by `pipeline/handoff_gate.py`. Checkpoints are files under `output/<story>/checkpoints/`.
+L1 to L2 data moves as `StoryDraft` / `PipelineOutput` (`models/schemas.py`) plus the typed envelope in `models/handoff_schemas.py` (`L1Handoff`, `NegotiatedChapterContract`, `ConflictWeb`, ...), validated by `pipeline/handoff_gate.py`. Checkpoints are files under `output/<story>/checkpoints/`.
 
 ```
 User input -> API route -> PipelineOrchestrator
@@ -85,7 +86,7 @@ Route modules (see each file for endpoints): `forge_routes` (sentence forge, syn
 
 ## Frontend (`frontend/`)
 
-Next.js 16 App Router, React 19, Tailwind v4, Zustand stores (`stores/`), React Query, SSE helpers in `lib/sse/`. Pages live in `app/(shell)/`: forge, library, reader, branching, characters, continue, simulation, export, gallery, settings, providers, usage, guide. The production image proxies `/api/*` to the API service; SSE responses must not be gzipped or buffered (see comments in `next.config.ts`).
+Next.js 16 App Router, React 19, Tailwind v4, Zustand stores (`stores/`), React Query, SSE helpers in `lib/sse/`. Pages live in `app/(shell)/`: forge, library, reader, branching, characters, account, analytics, continue, simulation, export, gallery, settings, providers, usage, guide. The production image proxies `/api/*` to the API service; SSE responses must not be gzipped or buffered (see comments in `next.config.ts`).
 
 ## Entry points and environment
 

@@ -12,7 +12,7 @@ The repo has roughly 120 files in `pipeline/layer1_story` + `layer2_enhance`, 12
 
 ## Pipeline in one paragraph
 
-API route -> `PipelineOrchestrator` (`pipeline/orchestrator.py`) -> Layer 1 `StoryGenerator` (`pipeline/layer1_story/generator.py`, 75 files) -> checkpoint -> Layer 2 `StoryEnhancer` / `DramaSimulator` (`pipeline/layer2_enhance/`, 27 files) -> exporters / media. The L1 -> L2 handoff uses the schemas in `models/handoff_schemas.py`, persisted as checkpoint files under `output/` (SQLite for app state). Eight debate agents live in `pipeline/agents/`. Post-write repair lives in `pipeline/layer1_story/repair/` (see `ARCHITECTURE.md`).
+API route -> `PipelineOrchestrator` (`pipeline/orchestrator.py`) -> Layer 1 `StoryGenerator` (`pipeline/layer1_story/generator.py`, 75 files) -> checkpoint -> Layer 2 `StoryEnhancer` / `DramaSimulator` (`pipeline/layer2_enhance/`, 27 files) -> exporters / media. The L1 -> L2 handoff uses the schemas in `models/schemas.py` (`StoryDraft`, `PipelineOutput`) and `models/handoff_schemas.py` (`L1Handoff` envelope), persisted as checkpoint files under `output/` (SQLite for app state). Eight debate agents live in `pipeline/agents/`. Post-write repair lives in `pipeline/layer1_story/repair/` (see `ARCHITECTURE.md`).
 
 Do not change prompts, quality thresholds or the L1/L2 generation flow as a side effect of unrelated work.
 
@@ -45,5 +45,5 @@ Pytest blocks real network access (mock LLM calls), enforces a 60% coverage floo
 - Optional access token: `STORYFORGE_ACCESS_TOKEN` plus the `sf_session` cookie (`middleware/access.py`, `api/session_routes.py`). `/docs`, `/redoc`, `/openapi.json` exist only with `STORYFORGE_DEBUG=1`.
 - Middleware order is pinned by `tests/test_middleware_order.py`; read `app.py` `create_app` before adding or moving one.
 - There are no Redis, Postgres, Alembic, multi-user auth or versioned (`v1`) API layers; do not reintroduce them.
-- Never commit secrets, `.env`, `data/` contents or personal absolute paths.
+- Never commit secrets, `.env`, runtime files under `data/` (DBs, `config.json`, `.secret_key`, logs, caches; the shipped `data/prompts`, `data/evals`, `data/templates` are tracked) or personal absolute paths.
 - Frontend is Next.js 16 and React 19; APIs differ from older versions, so check `frontend/AGENTS.md` and the installed docs before writing UI code.
