@@ -18,7 +18,7 @@ asgiref==3.11.1
     # via opentelemetry-instrumentation-asgi
 backoff==2.2.1
     # via posthog
-bcrypt==4.3.0
+bcrypt==5.0.0
     # via chromadb
 blis==1.3.4
     # via thinc
