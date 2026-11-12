@@ -6,6 +6,7 @@ rather than implementation details.
 """
 
 import asyncio
+import contextlib
 import logging
 import threading as _threading
 import time
@@ -489,11 +490,20 @@ async def run_full_pipeline(
     always close it — a finished (or crashed) run must not leave its counters
     behind. ``current_run_id`` is a contextvar: awaits and ``asyncio.gather``
     inherit it, and thread hops go through ``services.llm.run_context``.
+
+    Task 13: the run also enters ``run_scope(self.config)`` — the snapshot
+    the orchestrator took at construction — so every ``ConfigManager()`` in
+    the run reads it, not the live settings ``PUT /api/config`` may change.
     """
+    from config.config import ConfigManager, run_scope
     from services.llm.run_context import run_wallet_scope
 
     _run_id = getattr(self, "session_id", "") or uuid.uuid4().hex[:8]
-    with run_wallet_scope(_run_id):
+    _cfg = getattr(self, "config", None)
+    _cfg_scope = (
+        run_scope(_cfg) if isinstance(_cfg, ConfigManager) else contextlib.nullcontext()
+    )
+    with _cfg_scope, run_wallet_scope(_run_id):
         return await _run_full_pipeline_body(
             self,
             title=title,

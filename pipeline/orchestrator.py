@@ -10,6 +10,7 @@ for all pipeline operations.  Heavy layer-execution logic lives in:
   - orchestrator_media.py        — MediaProducer (images)
 """
 
+import contextlib
 import logging
 import threading
 import uuid
@@ -21,6 +22,7 @@ from pipeline.layer2_enhance.analyzer import StoryAnalyzer
 from pipeline.layer2_enhance.simulator import DramaSimulator
 from pipeline.layer2_enhance.enhancer import StoryEnhancer
 from config import ConfigManager
+from config.config import run_scope
 from pipeline.orchestrator_media import MediaProducer
 from pipeline.orchestrator_export import PipelineExporter
 from pipeline.orchestrator_checkpoint import CheckpointManager, CHECKPOINT_DIR
@@ -62,11 +64,18 @@ class PipelineOrchestrator:
     _MEMORY_STORE_MAX = 100
 
     def __init__(self, session_id: str = ""):
-        self.config = ConfigManager()
-        self.story_gen = StoryGenerator()
-        self.analyzer = StoryAnalyzer()
-        self.simulator = DramaSimulator()
-        self.enhancer = StoryEnhancer()
+        # Task 13: this orchestrator's runs read a private copy of the settings,
+        # taken now. A Settings save mid-run, or another run's per-run
+        # overrides, can no longer change it. Built inside an active run_scope,
+        # ConfigManager() is that scope's snapshot and this copies it.
+        self.config = ConfigManager().snapshot()
+        # Sub-components that cache ConfigManager() at construction (e.g.
+        # StoryGenerator.config) must hold this same snapshot.
+        with run_scope(self.config):
+            self.story_gen = StoryGenerator()
+            self.analyzer = StoryAnalyzer()
+            self.simulator = DramaSimulator()
+            self.enhancer = StoryEnhancer()
         self._lock = threading.RLock()
         self.session_id = session_id or str(uuid.uuid4())
         # P2: per-instance store + lock so concurrent sessions cannot see
@@ -150,13 +159,18 @@ class PipelineOrchestrator:
         self.continuation.checkpoint_manager.output = self.output
         self._save_output()
 
+    @contextlib.contextmanager
     def _wallet_scope(self):
-        """Per-run LLM cost wallet for an entry point that drives LLM work.
+        """Run scope for an entry point that drives LLM work.
 
+        Enters this orchestrator's config snapshot (Task 13: every
+        ``ConfigManager()`` inside reads it) and the per-run LLM cost wallet.
         Caps (max_cost_per_run_usd / tokens / calls) only apply inside a
-        wallet scope; outside one, charges are dropped.
+        wallet scope; outside one, charges are dropped. Both scopes nest.
         """
-        return run_wallet_scope(self.session_id or uuid.uuid4().hex[:8])
+        with run_scope(self.config):
+            with run_wallet_scope(self.session_id or uuid.uuid4().hex[:8]) as run_id:
+                yield run_id
 
     # ── Layer execution (implemented in orchestrator_layers.py) ─────────────
 
@@ -208,17 +222,18 @@ class PipelineOrchestrator:
         progress_callback=None,
     ) -> StoryDraft:
         """Chỉ chạy Layer 1."""
-        return _run_layer1_only(
-            self,
-            title=title,
-            genre=genre,
-            idea=idea,
-            style=style,
-            num_chapters=num_chapters,
-            num_characters=num_characters,
-            word_count=word_count,
-            progress_callback=progress_callback,
-        )
+        with run_scope(self.config):
+            return _run_layer1_only(
+                self,
+                title=title,
+                genre=genre,
+                idea=idea,
+                style=style,
+                num_chapters=num_chapters,
+                num_characters=num_characters,
+                word_count=word_count,
+                progress_callback=progress_callback,
+            )
 
     def run_layer2_only(
         self,
@@ -228,13 +243,14 @@ class PipelineOrchestrator:
         progress_callback=None,
     ) -> EnhancedStory:
         """Chỉ chạy Layer 2 trên bản thảo có sẵn."""
-        return _run_layer2_only(
-            self,
-            draft=draft,
-            num_sim_rounds=num_sim_rounds,
-            word_count=word_count,
-            progress_callback=progress_callback,
-        )
+        with run_scope(self.config):
+            return _run_layer2_only(
+                self,
+                draft=draft,
+                num_sim_rounds=num_sim_rounds,
+                word_count=word_count,
+                progress_callback=progress_callback,
+            )
 
     # ── Export wrappers (delegate to PipelineExporter) ───────────────────────
 

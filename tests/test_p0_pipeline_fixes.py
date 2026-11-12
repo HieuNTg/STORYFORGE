@@ -569,7 +569,10 @@ class TestFix8WalletIsolatedPerRun:
 
 
 def _capped_config(cost=0.0, tokens=0, calls=0):
-    """Set the wallet caps on the live config singleton (they live on ``llm``)."""
+    """Set the wallet caps on the live config singleton (they live on ``llm``).
+
+    An orchestrator built inside this block snapshots these caps (Task 13).
+    """
     from config import ConfigManager
 
     return patch.multiple(
@@ -616,12 +619,14 @@ class TestWalletScopeEntryPoints:
         from pipeline.orchestrator import PipelineOrchestrator
         from services.llm.client import LLMBudgetExceededError
 
-        orch = PipelineOrchestrator(session_id="run")
+        with _capped_config(cost=0.5):
+            # Task 13: the orchestrator snapshots the config (caps included)
+            # when it is built; its entry points then read that snapshot.
+            orch = PipelineOrchestrator(session_id="run")
         owner_name, attr = target.split(".")
         seen = {}
-        with (
-            _capped_config(cost=0.5),
-            patch.object(getattr(orch, owner_name), attr, side_effect=self._charging(seen)),
+        with patch.object(
+            getattr(orch, owner_name), attr, side_effect=self._charging(seen)
         ):
             with pytest.raises(LLMBudgetExceededError):
                 contextvars.Context().run(getattr(orch, method), **kwargs)

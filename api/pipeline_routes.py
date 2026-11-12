@@ -30,27 +30,17 @@ router = APIRouter(
 )
 
 
-def _apply_run_overrides(pipeline_cfg, overrides: dict) -> dict:
-    """Apply per-run flags to the shared config; return the previous values.
+def _apply_run_overrides(pipeline_cfg, overrides: dict) -> None:
+    """Apply per-run flags to one run's config snapshot.
 
-    Pass the result to `_restore_run_overrides` when the run ends. Concurrent
-    runs still share this config — 26 modules read the ConfigManager singleton
-    directly — so overlapping runs with different flags remain last-writer-wins.
-    Restoring at least keeps a finished run from dictating the next one, and
-    keeps its ad-hoc flags out of the next Settings save.
+    ``pipeline_cfg`` is ``orch.config.pipeline`` — the orchestrator's private
+    snapshot (Task 13), which the run reads through ``run_scope``. The flags
+    never touch the live settings, so concurrent runs cannot overwrite each
+    other, nothing has to be restored when the run ends, and a later Settings
+    save cannot persist them.
     """
-    previous = {key: getattr(pipeline_cfg, key) for key in overrides}
     for key, value in overrides.items():
         setattr(pipeline_cfg, key, value)
-    return previous
-
-
-def _restore_run_overrides(pipeline_cfg, previous: dict) -> None:
-    for key, value in (previous or {}).items():
-        try:
-            setattr(pipeline_cfg, key, value)
-        except Exception as exc:  # pragma: no cover — defensive
-            logger.warning("Could not restore config field %s: %s", key, exc)
 
 
 def _sanitize_summary(summary: dict) -> dict:
@@ -780,11 +770,10 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 progress_queue.put_nowait(("stream", sanitize_story_html(partial_text)))
                 last_stream_time[0] = now
 
-        # Per-run flags. These are applied to the process-wide ConfigManager
-        # singleton — 26 modules read it directly, so there is nowhere else to
-        # put them today — and restored in the `finally` below once the run
-        # ends. Without that restore they leaked into every later run in the
-        # process and the next Settings save persisted them to config.json.
+        # Per-run flags. They go onto this orchestrator's config snapshot
+        # (orch.config), which run_full_pipeline enters via run_scope — every
+        # ConfigManager() inside the run reads it. The live settings, other
+        # runs and the next Settings save never see them.
         _l1_master = body.enable_l1_consistency
         _run_overrides: dict = {
             # A master toggle turns the whole group on; otherwise each flag
@@ -820,9 +809,7 @@ async def run_pipeline(request: Request, body: PipelineRequest):
         ):
             _run_overrides["debate_mode"] = "lite"
 
-        _config_snapshot = _apply_run_overrides(
-            orch.config.pipeline, _run_overrides
-        )
+        _apply_run_overrides(orch.config.pipeline, _run_overrides)
 
         # Auto-generate title from idea if not provided
         story_title = body.title.strip() if body.title else ""
@@ -925,10 +912,6 @@ async def run_pipeline(request: Request, body: PipelineRequest):
                 caught_error[0] = "An unexpected error occurred. Please try again."
                 progress_queue.put_nowait(("error", caught_error[0]))
             finally:
-                # Hand the shared config back before anything else — a later
-                # Settings save must not persist this run's ad-hoc flags.
-                _restore_run_overrides(orch.config.pipeline, _config_snapshot)
-
                 # Persist final state into the registry so FE can recover via
                 # GET /api/pipeline/run/{session_id} even if SSE was lost.
                 final_summary = None
