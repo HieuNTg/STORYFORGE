@@ -10,11 +10,11 @@ CORS policy:
 """
 
 import logging
-import logging.handlers
 import os
 import sys
 import time
 import warnings
+from pathlib import Path
 
 warnings.filterwarnings(
     "ignore",
@@ -31,30 +31,12 @@ from fastapi.staticfiles import StaticFiles
 from config import ConfigManager
 from services.gzipped_static_files import GzippedStaticFiles
 
-# Logging
+# Logging: stdout plus a rotating file under data/logs (in Docker that is the
+# storyforge-data volume; the working directory itself is read-only there).
 from services.structured_logger import configure_logging
 
-configure_logging()
-
-# Replace the plain FileHandler with a RotatingFileHandler
-# so log files never grow unbounded (D4: log rotation).
-_root_logger = logging.getLogger()
-for _h in list(_root_logger.handlers):
-    if isinstance(_h, logging.FileHandler) and not isinstance(
-        _h, logging.handlers.RotatingFileHandler
-    ):
-        _fmt = _h.formatter
-        _root_logger.removeHandler(_h)
-        _h.close()
-        _rotating = logging.handlers.RotatingFileHandler(
-            "storyforge.log",
-            maxBytes=10 * 1024 * 1024,  # 10 MB per file
-            backupCount=5,
-            encoding="utf-8",
-        )
-        _rotating.setFormatter(_fmt)
-        _root_logger.addHandler(_rotating)
-        break
+LOG_FILE = Path(__file__).resolve().parent / "data" / "logs" / "storyforge.log"
+configure_logging(log_file=LOG_FILE)
 
 logger = logging.getLogger(__name__)
 

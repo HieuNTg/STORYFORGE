@@ -1,0 +1,21 @@
+# StoryForge: `docker compose up`, then open http://localhost:3001
+# Both ports are published on 127.0.0.1 only. Builds from this checkout; to run
+# a published release instead, see compose.release.yaml.
+services:
+  api:
+    image: storyforge-api
+    build: { context: ., dockerfile: docker/api.Dockerfile }
+    environment:
+      STORYFORGE_HOST: 0.0.0.0
+      STORYFORGE_IN_CONTAINER: "1"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    volumes: [storyforge-data:/app/data, storyforge-output:/app/output]
+    ports: ["127.0.0.1:7860:7860"]
+    healthcheck: { test: ["CMD", "python", "-c", "import urllib.request,sys; urllib.request.urlopen('http://127.0.0.1:7860/api/health')"] }
+  web:
+    image: storyforge-web
+    build: { context: frontend, dockerfile: ../docker/web.Dockerfile }
+    environment: { API_ORIGIN: http://api:7860 }
+    depends_on: { api: { condition: service_healthy } }
+    ports: ["127.0.0.1:3001:3000"]
+volumes: { storyforge-data: {}, storyforge-output: {} }

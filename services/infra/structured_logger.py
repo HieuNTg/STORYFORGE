@@ -5,10 +5,12 @@ Usage: LOG_FORMAT=json for JSON output, LOG_FORMAT=text (default) for human-read
 
 import json
 import logging
+import logging.handlers
 import os
 import re
 import sys
 from datetime import datetime, timezone
+from pathlib import Path
 
 # Patterns that may contain secrets — scrub values before writing to disk/stdout
 _REDACT_KEYS_RE = re.compile(
@@ -72,8 +74,12 @@ class JSONFormatter(logging.Formatter):
         return json.dumps(log_entry, ensure_ascii=False)
 
 
-def configure_logging():
-    """Configure root logging based on LOG_FORMAT env var."""
+def configure_logging(log_file: str | os.PathLike = "storyforge.log"):
+    """Configure root logging based on LOG_FORMAT env var.
+
+    Logs go to stdout and to ``log_file``, rotated at 10 MB with 5 backups.
+    The file's directory is created if missing.
+    """
     log_format = os.environ.get("LOG_FORMAT", "text").lower()
     root = logging.getLogger()
     root.setLevel(logging.INFO)
@@ -98,7 +104,14 @@ def configure_logging():
     handler.addFilter(redact)
     root.addHandler(handler)
     # File handler always uses text format for readability
-    file_handler = logging.FileHandler("storyforge.log", encoding="utf-8")
+    log_path = Path(log_file)
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    file_handler = logging.handlers.RotatingFileHandler(
+        log_path,
+        maxBytes=10 * 1024 * 1024,  # 10 MB per file
+        backupCount=5,
+        encoding="utf-8",
+    )
     file_handler.setFormatter(
         logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
     )
