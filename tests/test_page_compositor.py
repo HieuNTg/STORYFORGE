@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""Phase 3 — Page Compositor tests (comic-real-paneling spec §7).
+"""Page compositor tests.
 
 Runs the REAL compositor (no mocks — it's pure Pillow) on synthesised solid-color
 panel PNGs, then asserts structural properties rather than pixel-exact equality:
