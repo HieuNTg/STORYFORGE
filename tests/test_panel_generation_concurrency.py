@@ -60,7 +60,9 @@ class TestPanelsRunConcurrently:
     def test_worker_count_is_bounded_by_config(self):
         """Image endpoints rate-limit hard; an unbounded fan-out is a new bug."""
         gen, cfg = _generator(workers=2)
-        probe = InFlightProbe(rendezvous=2)
+        # Ask for one more than the limit: every call stays in flight until a
+        # third joins (only an unbounded pool lets one in) or 0.2 s passes.
+        probe = InFlightProbe(rendezvous=3, timeout=0.2)
 
         def _gen(prompt, filename, size):
             with probe:

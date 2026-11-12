@@ -87,7 +87,9 @@ class TestChaptersRunConcurrently:
 
     def test_worker_count_is_bounded_by_config(self, _stub_env):
         sub = _stub_env
-        probe = InFlightProbe(rendezvous=2)
+        # Ask for one more than the limit: every call stays in flight until a
+        # third joins (only an unbounded pool lets one in) or 0.2 s passes.
+        probe = InFlightProbe(rendezvous=3, timeout=0.2)
 
         def _meter(ch, **kw):
             with probe:

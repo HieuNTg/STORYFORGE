@@ -17,7 +17,9 @@ class TestThreadPoolMaxWorkersCap:
     def test_max_workers_respected_cap_at_config_value(self):
         """Workers must not exceed configured maximum."""
         MAX_CAP = 3
-        probe = InFlightProbe(rendezvous=MAX_CAP)
+        # One more than the cap: calls stay in flight until a fourth joins
+        # (only an over-cap pool lets one in) or 0.2 s passes.
+        probe = InFlightProbe(rendezvous=MAX_CAP + 1, timeout=0.2)
 
         def task():
             with probe:

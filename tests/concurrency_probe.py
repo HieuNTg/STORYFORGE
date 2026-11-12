@@ -19,8 +19,14 @@ class InFlightProbe:
     sleeps. A serial one never reaches it: each call gives up after ``timeout``
     and ``peak`` stays at 1, so the assertion fails rather than the test hanging.
 
-    ``rendezvous`` must not exceed the implementation's worker limit, or a
-    correct implementation would wait out the timeout as well.
+    Two uses:
+
+    * Proving concurrency: set ``rendezvous`` at or below the worker limit and
+      assert ``peak`` reached it. A correct implementation never waits.
+    * Proving a bound: set ``rendezvous`` to limit + 1 with a short
+      ``timeout`` and assert ``peak == limit``. Every call then stays in
+      flight until the timeout, so an unbounded pool is guaranteed to pile up
+      more than ``limit`` calls; a bounded one pays ``timeout`` per batch.
     """
 
     def __init__(self, rendezvous: int = 2, timeout: float = 10.0) -> None:

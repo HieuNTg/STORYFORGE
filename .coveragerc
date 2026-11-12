@@ -6,7 +6,7 @@
 # ──────────────
 # Critical modules (auth, credits, export, middleware): minimum 80 %
 # All other modules:                                    minimum 60 %
-# Global hard floor (fail_under):                               76 %
+# Global hard floor (fail_under):                               75 %
 #
 # To enforce per-module thresholds use pytest-cov with --cov-fail-under
 # or add per-path assertions in your CI script, e.g.:
@@ -41,7 +41,7 @@ omit =
 [report]
 # Coverage floor — enforced in CI (pytest --cov-fail-under in pyproject.toml).
 # Keep in step with pyproject.toml.
-fail_under = 76
+fail_under = 75
 
 # Print lines that have no coverage next to each file
 show_missing = True

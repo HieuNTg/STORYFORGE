@@ -21,7 +21,6 @@ from fastapi.testclient import TestClient
 
 from services import continuation_history, usage_history
 from services.usage_history import (
-    _MAX_EVENTS,
     read_usage,
     record_usage,
     usage_sidecar_path_for,
@@ -108,10 +107,14 @@ def test_record_appends_and_aggregates_totals():
     assert data["totals"]["total_tokens"] == 100 + 50 + 200 + 80
 
 
-def test_record_rotates_at_max_but_keeps_full_totals():
+def test_record_rotates_at_max_but_keeps_full_totals(monkeypatch):
     """Events are capped at _MAX_EVENTS but totals reflect ALL recorded calls."""
+    # Each call rewrites the whole sidecar, so 507 calls at the real cap of 500
+    # took ~7 s idle and hit the 120 s timeout under load. The cap is the same
+    # module constant either way; a small one exercises the same rotation.
+    monkeypatch.setattr(usage_history, "_MAX_EVENTS", 5)
     title = "Rot"
-    n = _MAX_EVENTS + 7
+    n = usage_history._MAX_EVENTS + 7
     for _ in range(n):
         record_usage(
             title=title,
@@ -122,7 +125,7 @@ def test_record_rotates_at_max_but_keeps_full_totals():
         )
     data = read_usage("Rot_layer1.json")
     assert data is not None
-    assert len(data["events"]) == _MAX_EVENTS
+    assert len(data["events"]) == usage_history._MAX_EVENTS
     # Totals must include ALL n calls, not just the kept _MAX_EVENTS
     assert data["totals"]["call_count"] == n
     assert data["totals"]["total_tokens"] == n * 15

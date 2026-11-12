@@ -170,8 +170,6 @@ class TestExceptions:
 class TestPromptRegistry:
     @pytest.fixture
     def prompts_dir(self, tmp_path, monkeypatch):
-        import services.prompt_registry as reg
-
         files = {
             "agent_prompts.yaml": [
                 "_meta:",
@@ -187,7 +185,7 @@ class TestPromptRegistry:
         }
         for name, lines in files.items():
             (tmp_path / name).write_text("\n".join(lines) + "\n", encoding="utf-8")
-        monkeypatch.setattr(reg, "_PROMPTS_DIR", tmp_path)
+        monkeypatch.setenv("STORYFORGE_PROMPTS_DIR", str(tmp_path))
         monkeypatch.delenv("STORYFORGE_PROMPTS_FILE", raising=False)
         return tmp_path
 
@@ -203,10 +201,10 @@ class TestPromptRegistry:
         }
 
     def test_get_prompt_version_without_a_file_is_unknown(self, tmp_path, monkeypatch):
-        import services.prompt_registry as reg
+        from services.prompt_registry import get_prompt_version
 
-        monkeypatch.setattr(reg, "_PROMPTS_DIR", tmp_path)
-        assert reg.get_prompt_version()["version"] == "unknown"
+        monkeypatch.setenv("STORYFORGE_PROMPTS_DIR", str(tmp_path))
+        assert get_prompt_version()["version"] == "unknown"
 
     def test_list_prompt_versions_skips_files_without_meta(self, prompts_dir):
         from services.prompt_registry import list_prompt_versions

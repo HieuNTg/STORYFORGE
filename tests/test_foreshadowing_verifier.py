@@ -720,7 +720,7 @@ def test_cache_debug_stats_exception(monkeypatch):
 # ---------------------------------------------------------------------------
 
 
-def test_microbenchmark_10_chapters(monkeypatch, capsys):
+def test_microbenchmark_10_chapters():
     """
     10 chapters x 5 seeds each = 50 seed verifications with mocked embeddings.
 
