@@ -314,7 +314,16 @@ def save_config(body: ConfigUpdate):
                     detail="masked echo cannot be persisted as a real api_keys entry",
                 )
     key_cleared = False
+    pool_keys_pinned = 0
     old_base_url = cfg.llm.base_url
+    if body.base_url is not None:
+        validate_base_url(body.base_url)
+        if not _key_survives(old_base_url, body.base_url):
+            # Pin the pre-existing pool to its original host before any
+            # api_keys / append_api_keys from this request are applied.
+            cfg.llm.api_keys, pool_keys_pinned = _pin_pool_keys(
+                cfg.llm.api_keys, old_base_url
+            )
     old_cheap_host_url = cfg.llm.cheap_base_url or old_base_url
     if body.api_key is not None:
         cfg.llm.api_key = body.api_key
@@ -414,6 +423,8 @@ def save_config(body: ConfigUpdate):
     result: dict = {"status": "ok"}
     if key_cleared:
         result["key_cleared"] = True
+    if pool_keys_pinned:
+        result["pool_keys_pinned"] = pool_keys_pinned
     return result
 
 
@@ -589,9 +600,52 @@ def _host(url: str) -> str:
     return (urlparse(url or "").hostname or "").lower()
 
 
+_DEFAULT_PORTS = {"http": 80, "https": 443}
+
+
+def _origin(url: str) -> tuple[str, str, int | None]:
+    """(scheme, host without trailing dot, port-or-scheme-default)."""
+    parsed = urlparse(url or "")
+    scheme = (parsed.scheme or "").lower()
+    host = (parsed.hostname or "").lower().rstrip(".")
+    try:
+        port = parsed.port
+    except ValueError:
+        port = -1
+    return scheme, host, port if port is not None else _DEFAULT_PORTS.get(scheme)
+
+
 def _key_survives(old_url: str, new_url: str) -> bool:
-    """A stored key may only follow the user to the same provider host."""
-    return _host(old_url) == _host(new_url)
+    """A stored key may only follow the user to the same origin.
+
+    Scheme and port count: an https->http downgrade or a different port on the
+    same host would otherwise receive the key.
+    """
+    return _origin(old_url) == _origin(new_url)
+
+
+def _pin_pool_keys(api_keys: list, old_base_url: str) -> tuple[list, int]:
+    """Pin every pool key that inherits the primary base_url to `old_base_url`.
+
+    The LLM client pairs bare-string (and base_url-less dict) pool entries with
+    the primary base_url, so a primary host change would otherwise send them
+    all to the new host. Returns (new_pool, number_pinned).
+    """
+    pinned = 0
+    out: list = []
+    for item in api_keys or []:
+        if isinstance(item, str):
+            if item:
+                out.append({"key": item, "base_url": old_base_url})
+                pinned += 1
+            else:
+                out.append(item)
+        elif isinstance(item, dict) and not item.get("base_url"):
+            out.append({**item, "base_url": old_base_url})
+            pinned += 1
+        else:
+            out.append(item)
+    return out, pinned
 
 
 def _preset_models_for(base_url: str) -> list[dict]:
@@ -706,6 +760,8 @@ def add_profile(body: ProfileCreate):
     validate_base_url(profile["base_url"])
     # If no primary key set, use this provider as primary too
     if not cfg.llm.api_key:
+        if not _key_survives(cfg.llm.base_url, profile["base_url"]):
+            cfg.llm.api_keys, _ = _pin_pool_keys(cfg.llm.api_keys, cfg.llm.base_url)
         cfg.llm.api_key = profile["api_key"]
         cfg.llm.base_url = profile["base_url"]
         cfg.llm.model = profile["model"]
